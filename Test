@@ -8,21 +8,25 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
-    ShotSpeedIndex = 1,
+    ShotSpeedIndex = 1,        -- multiplicador
     NpcDistance = 2,
     Language = "Português",
-    RemoverIntro = false
+    RemoverIntro = false,
 }
 
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
--- [[ FUNÇÕES DE SALVAMENTO COM VERIFICAÇÃO ]]
+-- =============================================
+-- SALVAMENTO E CARREGAMENTO
+-- =============================================
 local function SaveConfig()
     if not writefile then return end
     local success, json = pcall(function()
@@ -49,10 +53,11 @@ local function LoadConfig()
         end
     end
 end
-
 pcall(LoadConfig)
 
--- [[ INICIALIZAÇÃO E SPLASH INTRO (AGORA VERIFICA A CONFIG) ]]
+-- =============================================
+-- INTRO (SPLASH) – controlada pelo toggle
+-- =============================================
 if not Config.RemoverIntro then
     pcall(function()
         local blur = Instance.new("BlurEffect")
@@ -107,7 +112,9 @@ if not Config.RemoverIntro then
     end)
 end
 
--- [[ DICIONÁRIO DE IDIOMAS ]]
+-- =============================================
+-- DICIONÁRIO DE IDIOMAS (mesmo de antes)
+-- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
@@ -115,8 +122,8 @@ local Idiomas = {
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Ativa o ataque e o teleporte em loop",
-        ChatMulti = "Chat (Multiplicador de Tiro)",
-        DescMulti = "Digite o valor do multiplicador (Ex: 9)",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
         Distancia = "Distância",
         DescDist = "Distância acima dos NPCs (Studs)",
@@ -125,13 +132,13 @@ local Idiomas = {
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
         BtnReset = "Reset Config",
-        DescReset = "Reseta o Toggle que fora ativados e idioma do script",
+        DescReset = "Reseta os toggles e idioma",
         ToggleIntro = "Remover Intro",
         DescIntro = "Desativa a introdução ao iniciar o script",
-        SecServer = "Serve",
+        SecServer = "Servidor",
         DescRejoin = "Entra novamente no mesmo servidor",
-        DescHop = "Teleporta pro serve antigo",
-        DescSmall = "Teleporta pra serve criador recentemente",
+        DescHop = "Teleporta pro servidor antigo",
+        DescSmall = "Teleporta pra servidor criado recentemente",
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado."
     },
@@ -141,8 +148,8 @@ local Idiomas = {
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Activa el ataque y el teletransporte en bucle",
-        ChatMulti = "Chat (Multiplicador de Tiro)",
-        DescMulti = "Escribe el valor del multiplicador (Ej: 9)",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de disparos por ciclo (Ej: 9)",
         PlaceMulti = "Escribe un número...",
         Distancia = "Distancia",
         DescDist = "Distancia sobre los NPCs (Studs)",
@@ -151,13 +158,13 @@ local Idiomas = {
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
         BtnReset = "Reset Config",
-        DescReset = "Restablece los Toggles activados y el idioma del script",
+        DescReset = "Restablece los toggles e idioma",
         ToggleIntro = "Eliminar Intro",
         DescIntro = "Desactiva la introducción al iniciar el script",
         SecServer = "Servidor",
-        DescRejoin = "Volver a unirse al mismo servidor",
+        DescRejoin = "Volver al mismo servidor",
         DescHop = "Teletransporta al servidor antiguo",
-        DescSmall = "Teletransporte a un servidor creado recientemente",
+        DescSmall = "Teletransporte a servidor reciente",
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido."
     },
@@ -167,8 +174,8 @@ local Idiomas = {
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Activates loop attack and teleport",
-        ChatMulti = "Chat (Shot Multiplier)",
-        DescMulti = "Type the multiplier value (Ex: 9)",
+        ChatMulti = "Shot Multiplier",
+        DescMulti = "Number of shots per cycle (Ex: 9)",
         PlaceMulti = "Type a number...",
         Distancia = "Distance",
         DescDist = "Distance above NPCs (Studs)",
@@ -177,9 +184,9 @@ local Idiomas = {
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
         BtnReset = "Reset Config",
-        DescReset = "Reset activated Toggles and script language",
+        DescReset = "Reset toggles and language",
         ToggleIntro = "Remove Intro",
-        DescIntro = "Disables the intro splash when starting the script",
+        DescIntro = "Disables the intro splash",
         SecServer = "Server",
         DescRejoin = "Rejoin the same server",
         DescHop = "Teleport to an old server",
@@ -189,10 +196,15 @@ local Idiomas = {
     }
 }
 
--- [[ SISTEMA DE COMBATE & REMOTES (COM VERIFICAÇÃO) ]]
+-- =============================================
+-- SISTEMA DE COMBATE (REMOTES)
+-- =============================================
 local RS = pcall(function()
-    return ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5)
-end) and ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5) or nil
+    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
+    if remotes then
+        return remotes:FindFirstChild("upgrade")
+    end
+end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
 
 local function Laser()
     if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
@@ -216,7 +228,9 @@ local function ArmFire(targetRoot)
     end
 end
 
--- [[ LÓGICA DE TELEPORTE E ALVO ]]
+-- =============================================
+-- LÓGICA DE ALVO E TELEPORTE
+-- =============================================
 local function getLocalCharacter()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -279,41 +293,56 @@ local function MudarServidor(ordem)
     end
 end
 
--- [[ LOOP DA RAID OTIMIZADO (MENOS LAG) ]]
-task.spawn(function()
-    local lastAttackTime = 0
-    local attackCooldown = 0.1 -- intervalo entre cada ataque (segundos)
+-- =============================================
+-- LOOP DA RAID – OTIMIZADO E SEM LAG
+-- =============================================
+local raidRunning = false
+local raidConnection = nil
 
-    while true do
-        if Config.RaidEnabled then
-            local _, myRoot = getLocalCharacter()
-            local targetNPC = getClosestNPC()
-
-            if myRoot and targetNPC then
-                -- Teleporta para o NPC
-                myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
-                
-                -- Executa os ataques com um pequeno intervalo para não sobrecarregar
-                local multiplier = tonumber(Config.ShotSpeedIndex) or 1
-                for i = 1, multiplier do
-                    if not Config.RaidEnabled then break end
-                    Laser()
-                    GunArm()
-                    ArmFire(targetNPC)
-                    Armature()
-                    task.wait(attackCooldown) -- pausa entre ataques para reduzir lag
-                end
+local function startRaidLoop()
+    if raidConnection then return end
+    raidRunning = true
+    raidConnection = RunService.Heartbeat:Connect(function()
+        if not Config.RaidEnabled then
+            raidRunning = false
+            if raidConnection then
+                raidConnection:Disconnect()
+                raidConnection = nil
             end
-
-            -- Aguarda o próximo ciclo
-            task.wait(0.05) -- aguarda um frame
-        else
-            task.wait(0.2) -- se desativado, espera mais
+            return
         end
-    end
-end)
 
--- [[ GERAÇÃO DA INTERFACE DO MENU (COM TRATAMENTO DE ERRO) ]]
+        local _, myRoot = getLocalCharacter()
+        local targetNPC = getClosestNPC()
+        if not myRoot or not targetNPC then return end
+
+        -- Teleporta para o NPC (fixo)
+        myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
+
+        -- Executa os disparos com multiplicador (sem spawnar threads demais)
+        local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
+        if multiplier > 0 then
+            for i = 1, multiplier do
+                if not Config.RaidEnabled then break end
+                -- Executa cada tiro em sequência com pequeno yield para não travar
+                Laser()
+                GunArm()
+                ArmFire(targetNPC)
+                Armature()
+                task.wait() -- yield mínimo para permitir outros eventos
+            end
+        end
+    end)
+end
+
+-- Inicia o loop se a Raid estiver ativada ao carregar o script
+if Config.RaidEnabled then
+    task.spawn(startRaidLoop)
+end
+
+-- =============================================
+-- MENU – WINDUI
+-- =============================================
 local oldWindow = nil
 
 local function CriarMenu()
@@ -323,8 +352,8 @@ local function CriarMenu()
     end
 
     local lang = Idiomas[Config.Language] or Idiomas["Português"]
-    
-    -- Carrega a WindUI com fallback
+
+    -- Carrega a WindUI
     local WindUI
     local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
     local success, result = pcall(function()
@@ -333,6 +362,7 @@ local function CriarMenu()
     if success and result then
         WindUI = result
     else
+        -- Fallback
         local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
         success, result = pcall(function()
             return loadstring(game:HttpGet(fallbackUrl))()
@@ -342,7 +372,7 @@ local function CriarMenu()
         else
             StarterGui:SetCore("SendNotification", {
                 Title = "Erro",
-                Text = "Não foi possível carregar a WindUI. Verifique sua conexão.",
+                Text = "Não foi possível carregar a WindUI.",
                 Duration = 5
             })
             return
@@ -395,6 +425,14 @@ local function CriarMenu()
         Callback = function(value)
             Config.RaidEnabled = value
             SaveConfig()
+            if value then
+                task.spawn(startRaidLoop)
+            else
+                if raidConnection then
+                    raidConnection:Disconnect()
+                    raidConnection = nil
+                end
+            end
         end
     })
 
@@ -461,12 +499,6 @@ local function CriarMenu()
         Callback = function(value)
             Config.RemoverIntro = value
             SaveConfig()
-            -- Notifica que a alteração só terá efeito após reiniciar o script
-            StarterGui:SetCore("SendNotification", {
-                Title = "Intro",
-                Text = "A alteração só terá efeito após reiniciar o script.",
-                Duration = 3
-            })
         end
     })
 
@@ -514,10 +546,10 @@ end
 -- Inicia o menu
 pcall(CriarMenu)
 
--- Notificação de inicialização
+-- Notificação
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Script carregado com sucesso!",
+    Text = "Carregado com sucesso!",
     Duration = 3
 })
 
