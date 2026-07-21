@@ -20,7 +20,13 @@ local Config = {
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
-    AntiAFK = false,          -- NOVO
+    AntiAFK = false,
+    -- Configurações dos Bosses
+    BossDistance = 2,
+    BossShotMultiplier = 1,
+    BossShip = false,
+    BossKraken = false,
+    BossTransDimensional = false,
 }
 
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
@@ -114,11 +120,12 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS
+-- DICIONÁRIO DE IDIOMAS (atualizado)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
+        TabBoss = "Boss",
         TabConfig = "Configurações",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -129,6 +136,13 @@ local Idiomas = {
         Distancia = "Distância",
         DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distância acima do Boss (0 a 20)",
+        DescBossMulti = "Multiplicador de tiros para Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -146,7 +160,8 @@ local Idiomas = {
         NotifDesc = "Raid desativada e idioma resetado."
     },
     ["Espanhol"] = {
-        TabMain = "Raid y Teleports",
+        TabMain = "Raid y Teleportes",
+        TabBoss = "Jefe",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -157,6 +172,13 @@ local Idiomas = {
         Distancia = "Distancia",
         DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Config Jefe",
+        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
+        DescBossMulti = "Multiplicador de disparos para Jefe",
+        SecBoss = "Jefe",
+        ToggleShip = "Barco",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Monstruo Transdimensional",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -175,6 +197,7 @@ local Idiomas = {
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
+        TabBoss = "Boss",
         TabConfig = "Settings",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -185,6 +208,13 @@ local Idiomas = {
         Distancia = "Distance",
         DescDist = "Distance above NPCs (Studs) - 0 to 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distance above Boss (0 to 20)",
+        DescBossMulti = "Shot multiplier for Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -301,7 +331,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID – OTIMIZADO
+-- LOOP DA RAID (existente)
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -333,15 +363,105 @@ local function startRaidLoop()
                 GunArm()
                 ArmFire(targetNPC)
                 Armature()
-                task.wait() -- yield mínimo
+                task.wait()
             end
         end
     end)
 end
 
--- Inicia a Raid se estiver ativada ao carregar
 if Config.RaidEnabled then
     task.spawn(startRaidLoop)
+end
+
+-- =============================================
+-- LOOP DOS BOSSES (NOVO)
+-- =============================================
+local bossRunning = false
+local bossConnection = nil
+
+-- Função para obter a parte alvo do boss ativo
+local function getActiveBossTarget()
+    local enemys = workspace:FindFirstChild("Enemys")
+    if not enemys then return nil end
+
+    -- Prioridade: Ship > Kraken > Trans Dimensional (primeiro ativo)
+    if Config.BossShip then
+        local shipFolder = enemys:FindFirstChild("Ship [ Ferris Wheel Form ]")
+        if shipFolder then
+            local char = shipFolder:FindFirstChild("Character")
+            if char then
+                local part = char:FindFirstChild("Ship") or char:FindFirstChild("HumanoidRootPart")
+                if part then return part end
+            end
+        end
+    end
+
+    if Config.BossKraken then
+        local krakenFolder = enemys:FindFirstChild("Kraken")
+        if krakenFolder then
+            local char = krakenFolder:FindFirstChild("Character")
+            if char then
+                local part = char:FindFirstChild("Kraken") or char:FindFirstChild("HumanoidRootPart")
+                if part then return part end
+            end
+        end
+    end
+
+    if Config.BossTransDimensional then
+        local transFolder = enemys:FindFirstChild("Trans Dimensional Monster")
+        if transFolder then
+            local char = transFolder:FindFirstChild("Character")
+            if char then
+                local part = char:FindFirstChild("Boss") or char:FindFirstChild("HumanoidRootPart")
+                if part then return part end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function startBossLoop()
+    if bossConnection then return end
+    bossRunning = true
+    bossConnection = RunService.Heartbeat:Connect(function()
+        -- Verifica se algum boss está ativo
+        if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then
+            bossRunning = false
+            if bossConnection then
+                bossConnection:Disconnect()
+                bossConnection = nil
+            end
+            return
+        end
+
+        local targetPart = getActiveBossTarget()
+        if not targetPart then return end
+
+        local _, myRoot = getLocalCharacter()
+        if not myRoot then return end
+
+        -- Teleporte fixo para o boss
+        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
+
+        -- Disparos com multiplicador
+        local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
+        if multiplier > 0 then
+            for i = 1, multiplier do
+                if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
+                Laser()
+                GunArm()
+                ArmFire(targetPart)
+                Armature()
+                task.wait()
+            end
+        end
+    end)
+end
+
+-- Inicia o loop dos bosses se algum estiver ativo ao carregar
+if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
+    task.spawn(startBossLoop)
 end
 
 -- =============================================
@@ -355,7 +475,7 @@ local function startAntiAFK()
     antiAFKRunning = true
     antiAFKConnection = task.spawn(function()
         while antiAFKRunning and Config.AntiAFK do
-            task.wait(60) -- a cada 60 segundos
+            task.wait(60)
             if not Config.AntiAFK then break end
             pcall(function()
                 local viewport = workspace.CurrentCamera.ViewportSize
@@ -369,7 +489,6 @@ local function startAntiAFK()
     end)
 end
 
--- Inicia Anti‑AFK se estiver ativado
 if Config.AntiAFK then
     task.spawn(startAntiAFK)
 end
@@ -444,12 +563,15 @@ local function CriarMenu()
         Draggable = false
     })
 
+    -- Aba: Raid & Teleportes
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
+    -- Aba: Boss (nova)
+    local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
+    -- Aba: Configurações
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
-    -- ABA MAIN
+    -- ====== ABA MAIN ======
     TabMain:Section({ Title = lang.SecRaid })
-
     TabMain:Toggle({
         Title = lang.ToggleRaid,
         Desc = lang.DescRaid,
@@ -467,7 +589,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabMain:Input({
         Title = lang.ChatMulti,
         Desc = lang.DescMulti,
@@ -481,8 +602,6 @@ local function CriarMenu()
             end
         end
     })
-
-    -- SLIDER DE DISTÂNCIA: AGORA VAI DE 0 A 20
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
@@ -508,9 +627,84 @@ local function CriarMenu()
     TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
     TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
 
-    -- ABA CONFIG
-    TabConfig:Section({ Title = lang.SecConfig })
+    -- ====== ABA BOSS ======
+    TabBoss:Section({ Title = lang.SecBossConfig })
+    TabBoss:Slider({
+        Title = lang.Distancia,
+        Desc = lang.DescBossDist,
+        Step = 1,
+        Value = { Min = 0, Max = 20, Default = Config.BossDistance },
+        Callback = function(value)
+            Config.BossDistance = math.floor(value)
+            SaveConfig()
+        end
+    })
+    TabBoss:Input({
+        Title = lang.ChatMulti,
+        Desc = lang.DescBossMulti,
+        Value = tostring(Config.BossShotMultiplier),
+        Placeholder = lang.PlaceMulti,
+        Callback = function(text)
+            local numero = tonumber(text)
+            if numero and numero > 0 then
+                Config.BossShotMultiplier = numero
+                SaveConfig()
+            end
+        end
+    })
 
+    TabBoss:Section({ Title = lang.SecBoss })
+    TabBoss:Toggle({
+        Title = lang.ToggleShip,
+        Value = Config.BossShip,
+        Callback = function(value)
+            Config.BossShip = value
+            SaveConfig()
+            if value or Config.BossKraken or Config.BossTransDimensional then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+    TabBoss:Toggle({
+        Title = lang.ToggleKraken,
+        Value = Config.BossKraken,
+        Callback = function(value)
+            Config.BossKraken = value
+            SaveConfig()
+            if Config.BossShip or value or Config.BossTransDimensional then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+    TabBoss:Toggle({
+        Title = lang.ToggleTrans,
+        Value = Config.BossTransDimensional,
+        Callback = function(value)
+            Config.BossTransDimensional = value
+            SaveConfig()
+            if Config.BossShip or Config.BossKraken or value then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+
+    -- ====== ABA CONFIG ======
+    TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
         Title = lang.DropIdioma,
         Desc = lang.DescIdioma,
@@ -524,7 +718,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabConfig:Toggle({
         Title = lang.ToggleIntro,
         Desc = lang.DescIntro,
@@ -534,8 +727,6 @@ local function CriarMenu()
             SaveConfig()
         end
     })
-
-    -- NOVO TOGGLE ANTI‑AFK
     TabConfig:Toggle({
         Title = lang.ToggleAFK,
         Desc = lang.DescAFK,
@@ -554,7 +745,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabConfig:Button({
         Title = lang.BtnReset,
         Desc = lang.DescReset,
@@ -563,8 +753,10 @@ local function CriarMenu()
             Config.Language = "Português"
             Config.RemoverIntro = false
             Config.AntiAFK = false
+            Config.BossShip = false
+            Config.BossKraken = false
+            Config.BossTransDimensional = false
             SaveConfig()
-            
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -577,19 +769,16 @@ local function CriarMenu()
     })
 
     TabConfig:Section({ Title = lang.SecServer })
-
     TabConfig:Button({
         Title = "Rejoin",
         Desc = lang.DescRejoin,
         Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
     })
-
     TabConfig:Button({
         Title = "ServeHop",
         Desc = lang.DescHop,
         Callback = function() MudarServidor("Desc") end
     })
-
     TabConfig:Button({
         Title = "SmallServe",
         Desc = lang.DescSmall,
@@ -597,13 +786,11 @@ local function CriarMenu()
     })
 end
 
--- Inicia o menu
 pcall(CriarMenu)
 
--- Notificação
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso!",
+    Text = "Carregado com sucesso! (Boss tab incluída)",
     Duration = 3
 })
 
