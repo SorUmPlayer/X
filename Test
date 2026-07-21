@@ -8,15 +8,14 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
--- Configurações padrão
+-- Configurações padrão (serão sobrescritas pelo arquivo salvo)
 local Config = {
     RaidEnabled = false,
-    ShotSpeedIndex = 1,        -- multiplicador
+    ShotSpeedIndex = 1,
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
@@ -49,6 +48,13 @@ local function LoadConfig()
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
+                print("Configurações carregadas:", 
+                    "Raid="..tostring(Config.RaidEnabled),
+                    "Multi="..Config.ShotSpeedIndex,
+                    "Dist="..Config.NpcDistance,
+                    "Idioma="..Config.Language,
+                    "SemIntro="..tostring(Config.RemoverIntro)
+                )
             end
         end
     end
@@ -56,7 +62,7 @@ end
 pcall(LoadConfig)
 
 -- =============================================
--- INTRO (SPLASH) – controlada pelo toggle
+-- INTRO (SPLASH) – controlada pelo toggle salvo
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -294,17 +300,14 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID – OTIMIZADO E SEM LAG
+-- LOOP DA RAID – OTIMIZADO
 -- =============================================
-local raidRunning = false
 local raidConnection = nil
 
 local function startRaidLoop()
     if raidConnection then return end
-    raidRunning = true
     raidConnection = RunService.Heartbeat:Connect(function()
         if not Config.RaidEnabled then
-            raidRunning = false
             if raidConnection then
                 raidConnection:Disconnect()
                 raidConnection = nil
@@ -319,23 +322,22 @@ local function startRaidLoop()
         -- Teleporta para o NPC (fixo)
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
-        -- Executa os disparos com multiplicador (sem spawnar threads demais)
+        -- Executa os disparos com multiplicador
         local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
         if multiplier > 0 then
             for i = 1, multiplier do
                 if not Config.RaidEnabled then break end
-                -- Executa cada tiro em sequência com pequeno yield para não travar
                 Laser()
                 GunArm()
                 ArmFire(targetNPC)
                 Armature()
-                task.wait() -- yield mínimo para permitir outros eventos
+                task.wait() -- yield mínimo para não travar
             end
         end
     end)
 end
 
--- Inicia o loop se a Raid estiver ativada ao carregar o script
+-- Inicia automaticamente se a Raid estiver ativada
 if Config.RaidEnabled then
     task.spawn(startRaidLoop)
 end
@@ -362,7 +364,6 @@ local function CriarMenu()
     if success and result then
         WindUI = result
     else
-        -- Fallback
         local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
         success, result = pcall(function()
             return loadstring(game:HttpGet(fallbackUrl))()
@@ -450,11 +451,12 @@ local function CriarMenu()
         end
     })
 
+    -- SLIDER COM RANGE 0-20 (conforme solicitado)
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
         Step = 1,
-        Value = { Min = 0, Max = 5, Default = Config.NpcDistance },
+        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
             SaveConfig()
@@ -509,6 +511,8 @@ local function CriarMenu()
             Config.RaidEnabled = false
             Config.Language = "Português"
             Config.RemoverIntro = false
+            Config.ShotSpeedIndex = 1
+            Config.NpcDistance = 2
             SaveConfig()
             
             if Window.Notify then
@@ -553,4 +557,4 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-print("Project Sor carregado. Pressione o botão do menu para abrir.")
+print("Project Sor carregado. Configurações restauradas.")
