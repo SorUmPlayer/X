@@ -8,11 +8,12 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
--- Configurações padrão (serão sobrescritas pelo arquivo salvo)
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -21,13 +22,16 @@ local Config = {
     RemoverIntro = false,
 }
 
-local FILE_NAME = "WindUI_SorOminiX_Config.json"
+local FILE_NAME = "OminiX_Config.json"  -- Nome alterado para OminiX
 
 -- =============================================
--- SALVAMENTO E CARREGAMENTO
+-- SALVAMENTO E CARREGAMENTO (com fallback)
 -- =============================================
 local function SaveConfig()
-    if not writefile then return end
+    if not writefile then
+        warn("writefile não disponível – configurações não serão salvas.")
+        return
+    end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
@@ -48,13 +52,6 @@ local function LoadConfig()
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
-                print("Configurações carregadas:", 
-                    "Raid="..tostring(Config.RaidEnabled),
-                    "Multi="..Config.ShotSpeedIndex,
-                    "Dist="..Config.NpcDistance,
-                    "Idioma="..Config.Language,
-                    "SemIntro="..tostring(Config.RemoverIntro)
-                )
             end
         end
     end
@@ -119,7 +116,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (mesmo de antes)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -132,7 +129,7 @@ local Idiomas = {
         DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
         Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs)",
+        DescDist = "Distância acima dos NPCs (Studs) – 0 a 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -158,7 +155,7 @@ local Idiomas = {
         DescMulti = "Número de disparos por ciclo (Ej: 9)",
         PlaceMulti = "Escribe un número...",
         Distancia = "Distancia",
-        DescDist = "Distancia sobre los NPCs (Studs)",
+        DescDist = "Distancia sobre los NPCs (Studs) – 0 a 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -184,7 +181,7 @@ local Idiomas = {
         DescMulti = "Number of shots per cycle (Ex: 9)",
         PlaceMulti = "Type a number...",
         Distancia = "Distance",
-        DescDist = "Distance above NPCs (Studs)",
+        DescDist = "Distance above NPCs (Studs) – 0 to 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Languages",
@@ -319,7 +316,7 @@ local function startRaidLoop()
         local targetNPC = getClosestNPC()
         if not myRoot or not targetNPC then return end
 
-        -- Teleporta para o NPC (fixo)
+        -- Teleporta fixo no NPC com a distância configurada
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
         -- Executa os disparos com multiplicador
@@ -331,13 +328,13 @@ local function startRaidLoop()
                 GunArm()
                 ArmFire(targetNPC)
                 Armature()
-                task.wait() -- yield mínimo para não travar
+                task.wait() -- yield mínimo
             end
         end
     end)
 end
 
--- Inicia automaticamente se a Raid estiver ativada
+-- Inicia se já estiver ativo
 if Config.RaidEnabled then
     task.spawn(startRaidLoop)
 end
@@ -451,12 +448,11 @@ local function CriarMenu()
         end
     })
 
-    -- SLIDER COM RANGE 0-20 (conforme solicitado)
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
         Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
+        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },  -- Aumentado para 20
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
             SaveConfig()
@@ -511,8 +507,8 @@ local function CriarMenu()
             Config.RaidEnabled = false
             Config.Language = "Português"
             Config.RemoverIntro = false
-            Config.ShotSpeedIndex = 1
             Config.NpcDistance = 2
+            Config.ShotSpeedIndex = 1
             SaveConfig()
             
             if Window.Notify then
@@ -553,8 +549,8 @@ pcall(CriarMenu)
 -- Notificação
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso!",
+    Text = "Carregado com sucesso! Configurações salvas em OminiX_Config.json",
     Duration = 3
 })
 
-print("Project Sor carregado. Configurações restauradas.")
+print("Project Sor carregado. Configurações salvas em OminiX_Config.json")
