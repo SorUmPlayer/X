@@ -22,26 +22,34 @@ local Config = {
     RemoverIntro = false,
 }
 
-local FILE_NAME = "OminiX_Config.json"  -- Nome alterado para OminiX
+local FILE_NAME = "OminiX_Config.json"  -- Nome solicitado
 
 -- =============================================
--- SALVAMENTO E CARREGAMENTO (com fallback)
+-- SALVAMENTO E CARREGAMENTO COM LOGS
 -- =============================================
 local function SaveConfig()
     if not writefile then
-        warn("writefile não disponível – configurações não serão salvas.")
+        warn("writefile não disponível")
         return
     end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
     if success then
-        pcall(function() writefile(FILE_NAME, json) end)
+        pcall(function()
+            writefile(FILE_NAME, json)
+            print("Config salva em", FILE_NAME)
+        end)
+    else
+        warn("Falha ao salvar config")
     end
 end
 
 local function LoadConfig()
-    if not isfile then return end
+    if not isfile then
+        warn("isfile não disponível")
+        return
+    end
     if isfile(FILE_NAME) then
         local success, data = pcall(function()
             return readfile(FILE_NAME)
@@ -52,14 +60,23 @@ local function LoadConfig()
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
+                print("Config carregada de", FILE_NAME)
+            else
+                warn("Falha ao decodificar config")
             end
+        else
+            warn("Falha ao ler arquivo")
         end
+    else
+        print("Arquivo de config não encontrado, usando padrões")
     end
 end
+
+-- Carrega antes de qualquer uso
 pcall(LoadConfig)
 
 -- =============================================
--- INTRO (SPLASH) – controlada pelo toggle salvo
+-- INTRO (SPLASH) – controlada pelo toggle
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -129,7 +146,7 @@ local Idiomas = {
         DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
         Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs) – 0 a 20",
+        DescDist = "Distância acima dos NPCs (Studs) [1-20]",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -155,7 +172,7 @@ local Idiomas = {
         DescMulti = "Número de disparos por ciclo (Ej: 9)",
         PlaceMulti = "Escribe un número...",
         Distancia = "Distancia",
-        DescDist = "Distancia sobre los NPCs (Studs) – 0 a 20",
+        DescDist = "Distancia sobre los NPCs (Studs) [1-20]",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -181,7 +198,7 @@ local Idiomas = {
         DescMulti = "Number of shots per cycle (Ex: 9)",
         PlaceMulti = "Type a number...",
         Distancia = "Distance",
-        DescDist = "Distance above NPCs (Studs) – 0 to 20",
+        DescDist = "Distance above NPCs (Studs) [1-20]",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Languages",
@@ -316,7 +333,7 @@ local function startRaidLoop()
         local targetNPC = getClosestNPC()
         if not myRoot or not targetNPC then return end
 
-        -- Teleporta fixo no NPC com a distância configurada
+        -- Teleporta para o NPC (fixo)
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
         -- Executa os disparos com multiplicador
@@ -334,7 +351,7 @@ local function startRaidLoop()
     end)
 end
 
--- Inicia se já estiver ativo
+-- Inicia se a Raid estiver ativada
 if Config.RaidEnabled then
     task.spawn(startRaidLoop)
 end
@@ -378,10 +395,10 @@ local function CriarMenu()
     end
 
     local Window = WindUI:CreateWindow({
-        Title = "Project Sor",
+        Title = "OminiX",
         Icon = "rbxassetid://135710581431595",
         Author = "Noob Must Die",
-        Folder = "Project Sor - Noob Must Die",
+        Folder = "OminiX",
         Size = UDim2.fromOffset(460, 320),
         Transparent = false,
         Theme = "Dark",
@@ -400,7 +417,7 @@ local function CriarMenu()
     Window:SetIconSize(60)
 
     Window:EditOpenButton({
-        Title = "Project Sor",
+        Title = "OminiX",
         Icon = "",
         CornerRadius = UDim.new(0, 16),
         StrokeThickness = 2,
@@ -448,11 +465,12 @@ local function CriarMenu()
         end
     })
 
+    -- Slider com range 1-20
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
         Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },  -- Aumentado para 20
+        Value = { Min = 1, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
             SaveConfig()
@@ -507,10 +525,9 @@ local function CriarMenu()
             Config.RaidEnabled = false
             Config.Language = "Português"
             Config.RemoverIntro = false
-            Config.NpcDistance = 2
             Config.ShotSpeedIndex = 1
+            Config.NpcDistance = 2
             SaveConfig()
-            
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -548,9 +565,9 @@ pcall(CriarMenu)
 
 -- Notificação
 StarterGui:SetCore("SendNotification", {
-    Title = "Project Sor",
-    Text = "Carregado com sucesso! Configurações salvas em OminiX_Config.json",
+    Title = "OminiX",
+    Text = "Carregado com sucesso!",
     Duration = 3
 })
 
-print("Project Sor carregado. Configurações salvas em OminiX_Config.json")
+print("OminiX carregado. Pressione o botão do menu para abrir.")
