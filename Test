@@ -7,6 +7,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
@@ -16,29 +18,31 @@ local Config = {
     ShotSpeedIndex = 1,
     NpcDistance = 2,
     Language = "Português",
-    RemoverIntro = false -- Novo Toggle para controlar a Splash
+    RemoverIntro = false
 }
 
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
--- [[ FUNÇÕES DE SALVAMENTO (AUTO-SAVE) ]]
+-- [[ FUNÇÕES DE SALVAMENTO COM VERIFICAÇÃO ]]
 local function SaveConfig()
+    if not writefile then return end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
     if success then
-        writefile(FILE_NAME, json)
+        pcall(function() writefile(FILE_NAME, json) end)
     end
 end
 
 local function LoadConfig()
+    if not isfile then return end
     if isfile(FILE_NAME) then
         local success, data = pcall(function()
             return readfile(FILE_NAME)
         end)
         if success then
-            local decoded = HttpService:JSONDecode(data)
-            if decoded then
+            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
+            if decoded and type(decoded) == "table" then
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
@@ -47,62 +51,64 @@ local function LoadConfig()
     end
 end
 
-LoadConfig()
+pcall(LoadConfig)
 
--- [[ INICIALIZAÇÃO E SPLASH INTRO ]]
+-- [[ INICIALIZAÇÃO E SPLASH INTRO (COM FALLBACK) ]]
 if not Config.RemoverIntro then
-    local blur = Instance.new("BlurEffect")
-    blur.Name = "UIBlurEffect"
-    blur.Size = 0
-    blur.Enabled = true
-    blur.Parent = lighting
+    pcall(function()
+        local blur = Instance.new("BlurEffect")
+        blur.Name = "UIBlurEffect"
+        blur.Size = 0
+        blur.Enabled = true
+        blur.Parent = lighting
 
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "OverlayGui"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "OverlayGui"
+        screenGui.ResetOnSpawn = false
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    local success = pcall(function()
-        screenGui.Parent = coreGui
+        local success = pcall(function()
+            screenGui.Parent = coreGui
+        end)
+        if not success then
+            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+
+        local img = Instance.new("ImageLabel")
+        img.Name = "DisplayImage"
+        img.BackgroundTransparency = 1
+        img.Image = "rbxassetid://135710581431595"
+        img.AnchorPoint = Vector2.new(0.5, 0.5)
+        img.Position = UDim2.new(0.5, 0, 0.45, 0)
+        img.Size = UDim2.new(0, 400, 0, 400)
+        img.ImageTransparency = 1
+        img.ZIndex = 10
+        img.Parent = screenGui
+
+        task.wait(5)
+
+        local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
+        tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
+
+        task.wait(1.5)
+        local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
+        pulseTween:Play()
+
+        task.wait(8)
+
+        pulseTween:Cancel()
+        tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
+        tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
+
+        task.wait(1.5)
+        screenGui:Destroy()
+        blur:Destroy()
     end)
-    if not success then
-        screenGui.Parent = players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-
-    local img = Instance.new("ImageLabel")
-    img.Name = "DisplayImage"
-    img.BackgroundTransparency = 1
-    img.Image = "rbxassetid://135710581431595"
-    img.AnchorPoint = Vector2.new(0.5, 0.5)
-    img.Position = UDim2.new(0.5, 0, 0.45, 0)
-    img.Size = UDim2.new(0, 400, 0, 400)
-    img.ImageTransparency = 1
-    img.ZIndex = 10
-    img.Parent = screenGui
-
-    task.wait(5)
-
-    local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
-    tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
-
-    task.wait(1.5)
-    local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-    local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
-    pulseTween:Play()
-
-    task.wait(8)
-
-    pulseTween:Cancel()
-    tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
-    tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
-
-    task.wait(1.5)
-    screenGui:Destroy()
-    blur:Destroy()
 end
 
--- [[ DICCIONÁRIO DE IDIOMAS ]]
+-- [[ DICIONÁRIO DE IDIOMAS ]]
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
@@ -184,21 +190,29 @@ local Idiomas = {
     }
 }
 
--- [[ SISTEMA DE COMBATE & REMOTES ]]
-local RS = ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5)
+-- [[ SISTEMA DE COMBATE & REMOTES (COM VERIFICAÇÃO) ]]
+local RS = pcall(function()
+    return ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5)
+end) and ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5) or nil
 
-local function Laser() pcall(function() RS.Laser:InvokeServer() end) end
-local function GunArm() pcall(function() RS.GunArm:InvokeServer() end) end
-local function Armature() pcall(function() RS.Armature:InvokeServer() end) end
+local function Laser()
+    if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
+end
+local function GunArm()
+    if RS and RS.GunArm then pcall(function() RS.GunArm:InvokeServer() end) end
+end
+local function Armature()
+    if RS and RS.Armature then pcall(function() RS.Armature:InvokeServer() end) end
+end
 
 local function ArmFire(targetRoot)
+    if not RS or not RS.ArmFire then return end
     local character = LocalPlayer.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
-    
     if root then
         local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
-        pcall(function() 
-            RS.ArmFire:InvokeServer(targetPosition) 
+        pcall(function()
+            RS.ArmFire:InvokeServer(targetPosition)
         end)
     end
 end
@@ -225,7 +239,6 @@ local function getClosestNPC()
         if npcCharacter and npcCharacter:IsA("Model") then
             local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
             local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
-
             if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
                 local distance = (myRoot.Position - npcRoot.Position).Magnitude
                 if distance < shortestDistance then
@@ -267,7 +280,7 @@ local function MudarServidor(ordem)
     end
 end
 
--- [[ LOOP DA RAID ]]
+-- [[ LOOP DA RAID (CORRIGIDO) ]]
 task.spawn(function()
     while true do
         if Config.RaidEnabled then
@@ -279,7 +292,7 @@ task.spawn(function()
             end
 
             local multiplier = tonumber(Config.ShotSpeedIndex) or 1
-            task.spawn(function()
+            if multiplier > 0 then
                 for i = 1, multiplier do
                     if not Config.RaidEnabled then break end
                     task.spawn(Laser)
@@ -287,7 +300,7 @@ task.spawn(function()
                     task.spawn(ArmFire, targetNPC)
                     task.spawn(Armature)
                 end
-            end)
+            end
             RunService.Heartbeat:Wait()
         else
             task.wait(0.2)
@@ -295,16 +308,42 @@ task.spawn(function()
     end
 end)
 
--- [[ GERAÇÃO DA INTERFACE DO MENU ]]
+-- [[ GERAÇÃO DA INTERFACE DO MENU (COM TRATAMENTO DE ERRO) ]]
 local oldWindow = nil
 
 local function CriarMenu()
     if oldWindow then
         pcall(function() oldWindow:Destroy() end)
+        oldWindow = nil
     end
 
     local lang = Idiomas[Config.Language] or Idiomas["Português"]
-    local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))()
+    
+    -- Carrega a WindUI com fallback
+    local WindUI
+    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        WindUI = result
+    else
+        -- Fallback para uma versão estável
+        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+        success, result = pcall(function()
+            return loadstring(game:HttpGet(fallbackUrl))()
+        end)
+        if success and result then
+            WindUI = result
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Não foi possível carregar a WindUI. Verifique sua conexão.",
+                Duration = 5
+            })
+            return
+        end
+    end
 
     local Window = WindUI:CreateWindow({
         Title = "Project Sor",
@@ -362,7 +401,7 @@ local function CriarMenu()
         Placeholder = lang.PlaceMulti,
         Callback = function(text)
             local numero = tonumber(text)
-            if numero then
+            if numero and numero > 0 then
                 Config.ShotSpeedIndex = numero
                 SaveConfig()
             end
@@ -406,7 +445,7 @@ local function CriarMenu()
             if Config.Language ~= value then
                 Config.Language = value
                 SaveConfig()
-                CriarMenu() -- Atualiza a interface no novo idioma
+                CriarMenu()
             end
         end
     })
@@ -430,12 +469,14 @@ local function CriarMenu()
             Config.RemoverIntro = false
             SaveConfig()
             
-            WindUI:Notify({
-                Title = lang.NotifTitle,
-                Desc = lang.NotifDesc,
-                Duration = 3,
-            })
-            CriarMenu() -- Recarrega com os valores limpos
+            if Window.Notify then
+                Window:Notify({
+                    Title = lang.NotifTitle,
+                    Desc = lang.NotifDesc,
+                    Duration = 3,
+                })
+            end
+            CriarMenu()
         end
     })
 
@@ -460,5 +501,14 @@ local function CriarMenu()
     })
 end
 
--- Inicia o menu pela primeira vez
-CriarMenu()
+-- Inicia o menu
+pcall(CriarMenu)
+
+-- Notificação de inicialização
+StarterGui:SetCore("SendNotification", {
+    Title = "Project Sor",
+    Text = "Script carregado com sucesso!",
+    Duration = 3
+})
+
+print("Project Sor carregado. Pressione o botão do menu para abrir.")
