@@ -21,7 +21,7 @@ local Config = {
     Language = "Português",
     RemoverIntro = false,
     AntiAFK = false,
-    -- Configurações dos Bosses
+    -- Boss
     BossDistance = 2,
     BossShotMultiplier = 1,
     BossShip = false,
@@ -120,7 +120,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -374,50 +374,46 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES (NOVO)
+-- LOOP DOS BOSSES (CORRIGIDO)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
 
--- Função para obter a parte alvo do boss ativo
+-- Função melhorada para obter a parte alvo do boss ativo
 local function getActiveBossTarget()
     local enemys = workspace:FindFirstChild("Enemys")
     if not enemys then return nil end
 
-    -- Prioridade: Ship > Kraken > Trans Dimensional (primeiro ativo)
-    if Config.BossShip then
-        local shipFolder = enemys:FindFirstChild("Ship [ Ferris Wheel Form ]")
-        if shipFolder then
-            local char = shipFolder:FindFirstChild("Character")
-            if char then
-                local part = char:FindFirstChild("Ship") or char:FindFirstChild("HumanoidRootPart")
-                if part then return part end
+    -- Lista de bosses com seus caminhos e chaves de configuração
+    local bosses = {
+        { configKey = "BossShip", folderName = "Ship [ Ferris Wheel Form ]", charName = "Character" },
+        { configKey = "BossKraken", folderName = "Kraken", charName = "Character" },
+        { configKey = "BossTransDimensional", folderName = "Trans Dimensional Monster", charName = "Character" },
+    }
+
+    for _, boss in ipairs(bosses) do
+        if Config[boss.configKey] then
+            local folder = enemys:FindFirstChild(boss.folderName)
+            if folder then
+                local char = folder:FindFirstChild(boss.charName)
+                if char and char:IsA("Model") then
+                    -- Tenta obter HumanoidRootPart ou Torso ou qualquer BasePart
+                    local part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                    if not part then
+                        for _, child in ipairs(char:GetChildren()) do
+                            if child:IsA("BasePart") then
+                                part = child
+                                break
+                            end
+                        end
+                    end
+                    if part and part:IsA("BasePart") then
+                        return part
+                    end
+                end
             end
         end
     end
-
-    if Config.BossKraken then
-        local krakenFolder = enemys:FindFirstChild("Kraken")
-        if krakenFolder then
-            local char = krakenFolder:FindFirstChild("Character")
-            if char then
-                local part = char:FindFirstChild("Kraken") or char:FindFirstChild("HumanoidRootPart")
-                if part then return part end
-            end
-        end
-    end
-
-    if Config.BossTransDimensional then
-        local transFolder = enemys:FindFirstChild("Trans Dimensional Monster")
-        if transFolder then
-            local char = transFolder:FindFirstChild("Character")
-            if char then
-                local part = char:FindFirstChild("Boss") or char:FindFirstChild("HumanoidRootPart")
-                if part then return part end
-            end
-        end
-    end
-
     return nil
 end
 
@@ -565,7 +561,7 @@ local function CriarMenu()
 
     -- Aba: Raid & Teleportes
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
-    -- Aba: Boss (nova)
+    -- Aba: Boss
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     -- Aba: Configurações
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
@@ -790,7 +786,7 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! (Boss tab incluída)",
+    Text = "Carregado com sucesso! (Boss corrigido)",
     Duration = 3
 })
 
