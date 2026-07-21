@@ -20,36 +20,26 @@ local Config = {
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
+    AntiAFK = false,          -- NOVO
 }
 
-local FILE_NAME = "OminiX_Config.json"  -- Nome solicitado
+local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
 -- =============================================
--- SALVAMENTO E CARREGAMENTO COM LOGS
+-- SALVAMENTO E CARREGAMENTO
 -- =============================================
 local function SaveConfig()
-    if not writefile then
-        warn("writefile não disponível")
-        return
-    end
+    if not writefile then return end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
     if success then
-        pcall(function()
-            writefile(FILE_NAME, json)
-            print("Config salva em", FILE_NAME)
-        end)
-    else
-        warn("Falha ao salvar config")
+        pcall(function() writefile(FILE_NAME, json) end)
     end
 end
 
 local function LoadConfig()
-    if not isfile then
-        warn("isfile não disponível")
-        return
-    end
+    if not isfile then return end
     if isfile(FILE_NAME) then
         local success, data = pcall(function()
             return readfile(FILE_NAME)
@@ -60,23 +50,14 @@ local function LoadConfig()
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
-                print("Config carregada de", FILE_NAME)
-            else
-                warn("Falha ao decodificar config")
             end
-        else
-            warn("Falha ao ler arquivo")
         end
-    else
-        print("Arquivo de config não encontrado, usando padrões")
     end
 end
-
--- Carrega antes de qualquer uso
 pcall(LoadConfig)
 
 -- =============================================
--- INTRO (SPLASH) – controlada pelo toggle
+-- INTRO (SPLASH)
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -146,7 +127,7 @@ local Idiomas = {
         DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
         Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs) [1-20]",
+        DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -155,6 +136,8 @@ local Idiomas = {
         DescReset = "Reseta os toggles e idioma",
         ToggleIntro = "Remover Intro",
         DescIntro = "Desativa a introdução ao iniciar o script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envia clique a cada 60s para não ser desconectado",
         SecServer = "Servidor",
         DescRejoin = "Entra novamente no mesmo servidor",
         DescHop = "Teleporta pro servidor antigo",
@@ -172,7 +155,7 @@ local Idiomas = {
         DescMulti = "Número de disparos por ciclo (Ej: 9)",
         PlaceMulti = "Escribe un número...",
         Distancia = "Distancia",
-        DescDist = "Distancia sobre los NPCs (Studs) [1-20]",
+        DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
@@ -181,6 +164,8 @@ local Idiomas = {
         DescReset = "Restablece los toggles e idioma",
         ToggleIntro = "Eliminar Intro",
         DescIntro = "Desactiva la introducción al iniciar el script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envía clic cada 60s para no ser desconectado",
         SecServer = "Servidor",
         DescRejoin = "Volver al mismo servidor",
         DescHop = "Teletransporta al servidor antiguo",
@@ -198,7 +183,7 @@ local Idiomas = {
         DescMulti = "Number of shots per cycle (Ex: 9)",
         PlaceMulti = "Type a number...",
         Distancia = "Distance",
-        DescDist = "Distance above NPCs (Studs) [1-20]",
+        DescDist = "Distance above NPCs (Studs) - 0 to 20",
         SecTp = "Tp Raids",
         SecConfig = "Config",
         DropIdioma = "Languages",
@@ -207,6 +192,8 @@ local Idiomas = {
         DescReset = "Reset toggles and language",
         ToggleIntro = "Remove Intro",
         DescIntro = "Disables the intro splash",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Sends a click every 60s to avoid disconnect",
         SecServer = "Server",
         DescRejoin = "Rejoin the same server",
         DescHop = "Teleport to an old server",
@@ -316,12 +303,15 @@ end
 -- =============================================
 -- LOOP DA RAID – OTIMIZADO
 -- =============================================
+local raidRunning = false
 local raidConnection = nil
 
 local function startRaidLoop()
     if raidConnection then return end
+    raidRunning = true
     raidConnection = RunService.Heartbeat:Connect(function()
         if not Config.RaidEnabled then
+            raidRunning = false
             if raidConnection then
                 raidConnection:Disconnect()
                 raidConnection = nil
@@ -333,10 +323,8 @@ local function startRaidLoop()
         local targetNPC = getClosestNPC()
         if not myRoot or not targetNPC then return end
 
-        -- Teleporta para o NPC (fixo)
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
-        -- Executa os disparos com multiplicador
         local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
         if multiplier > 0 then
             for i = 1, multiplier do
@@ -351,9 +339,39 @@ local function startRaidLoop()
     end)
 end
 
--- Inicia se a Raid estiver ativada
+-- Inicia a Raid se estiver ativada ao carregar
 if Config.RaidEnabled then
     task.spawn(startRaidLoop)
+end
+
+-- =============================================
+-- ANTI‑AFK
+-- =============================================
+local antiAFKRunning = false
+local antiAFKConnection = nil
+
+local function startAntiAFK()
+    if antiAFKConnection then return end
+    antiAFKRunning = true
+    antiAFKConnection = task.spawn(function()
+        while antiAFKRunning and Config.AntiAFK do
+            task.wait(60) -- a cada 60 segundos
+            if not Config.AntiAFK then break end
+            pcall(function()
+                local viewport = workspace.CurrentCamera.ViewportSize
+                local center = Vector2.new(viewport.X/2, viewport.Y/2)
+                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
+            end)
+        end
+        antiAFKConnection = nil
+    end)
+end
+
+-- Inicia Anti‑AFK se estiver ativado
+if Config.AntiAFK then
+    task.spawn(startAntiAFK)
 end
 
 -- =============================================
@@ -369,7 +387,6 @@ local function CriarMenu()
 
     local lang = Idiomas[Config.Language] or Idiomas["Português"]
 
-    -- Carrega a WindUI
     local WindUI
     local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
     local success, result = pcall(function()
@@ -395,10 +412,10 @@ local function CriarMenu()
     end
 
     local Window = WindUI:CreateWindow({
-        Title = "OminiX",
+        Title = "Project Sor",
         Icon = "rbxassetid://135710581431595",
         Author = "Noob Must Die",
-        Folder = "OminiX",
+        Folder = "Project Sor - Noob Must Die",
         Size = UDim2.fromOffset(460, 320),
         Transparent = false,
         Theme = "Dark",
@@ -417,7 +434,7 @@ local function CriarMenu()
     Window:SetIconSize(60)
 
     Window:EditOpenButton({
-        Title = "OminiX",
+        Title = "Project Sor",
         Icon = "",
         CornerRadius = UDim.new(0, 16),
         StrokeThickness = 2,
@@ -465,12 +482,12 @@ local function CriarMenu()
         end
     })
 
-    -- Slider com range 1-20
+    -- SLIDER DE DISTÂNCIA: AGORA VAI DE 0 A 20
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
         Step = 1,
-        Value = { Min = 1, Max = 20, Default = Config.NpcDistance },
+        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
             SaveConfig()
@@ -518,6 +535,26 @@ local function CriarMenu()
         end
     })
 
+    -- NOVO TOGGLE ANTI‑AFK
+    TabConfig:Toggle({
+        Title = lang.ToggleAFK,
+        Desc = lang.DescAFK,
+        Value = Config.AntiAFK,
+        Callback = function(value)
+            Config.AntiAFK = value
+            SaveConfig()
+            if value then
+                task.spawn(startAntiAFK)
+            else
+                antiAFKRunning = false
+                if antiAFKConnection then
+                    task.cancel(antiAFKConnection)
+                    antiAFKConnection = nil
+                end
+            end
+        end
+    })
+
     TabConfig:Button({
         Title = lang.BtnReset,
         Desc = lang.DescReset,
@@ -525,9 +562,9 @@ local function CriarMenu()
             Config.RaidEnabled = false
             Config.Language = "Português"
             Config.RemoverIntro = false
-            Config.ShotSpeedIndex = 1
-            Config.NpcDistance = 2
+            Config.AntiAFK = false
             SaveConfig()
+            
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -565,9 +602,9 @@ pcall(CriarMenu)
 
 -- Notificação
 StarterGui:SetCore("SendNotification", {
-    Title = "OminiX",
+    Title = "Project Sor",
     Text = "Carregado com sucesso!",
     Duration = 3
 })
 
-print("OminiX carregado. Pressione o botão do menu para abrir.")
+print("Project Sor carregado. Pressione o botão do menu para abrir.")
