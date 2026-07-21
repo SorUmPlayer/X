@@ -1,1 +1,464 @@
+-- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
+local players = game:GetService("Players")
+local coreGui = game:GetService("CoreGui")
+local lighting = game:GetService("Lighting")
+local tweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 
+local LocalPlayer = players.LocalPlayer
+local estaTeleportando = false
+
+local Config = {
+    RaidEnabled = false,
+    ShotSpeedIndex = 1,
+    NpcDistance = 2,
+    Language = "Português",
+    RemoverIntro = false -- Novo Toggle para controlar a Splash
+}
+
+local FILE_NAME = "WindUI_SorOminiX_Config.json"
+
+-- [[ FUNÇÕES DE SALVAMENTO (AUTO-SAVE) ]]
+local function SaveConfig()
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(Config)
+    end)
+    if success then
+        writefile(FILE_NAME, json)
+    end
+end
+
+local function LoadConfig()
+    if isfile(FILE_NAME) then
+        local success, data = pcall(function()
+            return readfile(FILE_NAME)
+        end)
+        if success then
+            local decoded = HttpService:JSONDecode(data)
+            if decoded then
+                for k, v in pairs(decoded) do
+                    Config[k] = v
+                end
+            end
+        end
+    end
+end
+
+LoadConfig()
+
+-- [[ INICIALIZAÇÃO E SPLASH INTRO ]]
+if not Config.RemoverIntro then
+    local blur = Instance.new("BlurEffect")
+    blur.Name = "UIBlurEffect"
+    blur.Size = 0
+    blur.Enabled = true
+    blur.Parent = lighting
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "OverlayGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local success = pcall(function()
+        screenGui.Parent = coreGui
+    end)
+    if not success then
+        screenGui.Parent = players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local img = Instance.new("ImageLabel")
+    img.Name = "DisplayImage"
+    img.BackgroundTransparency = 1
+    img.Image = "rbxassetid://135710581431595"
+    img.AnchorPoint = Vector2.new(0.5, 0.5)
+    img.Position = UDim2.new(0.5, 0, 0.45, 0)
+    img.Size = UDim2.new(0, 400, 0, 400)
+    img.ImageTransparency = 1
+    img.ZIndex = 10
+    img.Parent = screenGui
+
+    task.wait(5)
+
+    local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
+    tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
+
+    task.wait(1.5)
+    local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+    local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
+    pulseTween:Play()
+
+    task.wait(8)
+
+    pulseTween:Cancel()
+    tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
+    tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
+
+    task.wait(1.5)
+    screenGui:Destroy()
+    blur:Destroy()
+end
+
+-- [[ DICCIONÁRIO DE IDIOMAS ]]
+local Idiomas = {
+    ["Português"] = {
+        TabMain = "Raid & Teleportes",
+        TabConfig = "Configurações",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Ativa o ataque e o teleporte em loop",
+        ChatMulti = "Chat (Multiplicador de Tiro)",
+        DescMulti = "Digite o valor do multiplicador (Ex: 9)",
+        PlaceMulti = "Digite um número...",
+        Distancia = "Distância",
+        DescDist = "Distância acima dos NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Altere o idioma do Script",
+        BtnReset = "Reset Config",
+        DescReset = "Reseta o Toggle que fora ativados e idioma do script",
+        ToggleIntro = "Remover Intro",
+        DescIntro = "Desativa a introdução ao iniciar o script",
+        SecServer = "Serve",
+        DescRejoin = "Entra novamente no mesmo servidor",
+        DescHop = "Teleporta pro serve antigo",
+        DescSmall = "Teleporta pra serve criador recentemente",
+        NotifTitle = "Configuração Resetada",
+        NotifDesc = "Raid desativada e idioma resetado."
+    },
+    ["Espanhol"] = {
+        TabMain = "Raid y Teleports",
+        TabConfig = "Configuraciones",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activa el ataque y el teletransporte en bucle",
+        ChatMulti = "Chat (Multiplicador de Tiro)",
+        DescMulti = "Escribe el valor del multiplicador (Ej: 9)",
+        PlaceMulti = "Escribe un número...",
+        Distancia = "Distancia",
+        DescDist = "Distancia sobre los NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Cambia el idioma del Script",
+        BtnReset = "Reset Config",
+        DescReset = "Restablece los Toggles activados y el idioma del script",
+        ToggleIntro = "Eliminar Intro",
+        DescIntro = "Desactiva la introducción al iniciar el script",
+        SecServer = "Servidor",
+        DescRejoin = "Volver a unirse al mismo servidor",
+        DescHop = "Teletransporta al servidor antiguo",
+        DescSmall = "Teletransporte a un servidor creado recientemente",
+        NotifTitle = "Configuración Reiniciada",
+        NotifDesc = "Raid desactivada e idioma restablecido."
+    },
+    ["English"] = {
+        TabMain = "Raid & Teleports",
+        TabConfig = "Settings",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activates loop attack and teleport",
+        ChatMulti = "Chat (Shot Multiplier)",
+        DescMulti = "Type the multiplier value (Ex: 9)",
+        PlaceMulti = "Type a number...",
+        Distancia = "Distance",
+        DescDist = "Distance above NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Languages",
+        DescIdioma = "Change the script language",
+        BtnReset = "Reset Config",
+        DescReset = "Reset activated Toggles and script language",
+        ToggleIntro = "Remove Intro",
+        DescIntro = "Disables the intro splash when starting the script",
+        SecServer = "Server",
+        DescRejoin = "Rejoin the same server",
+        DescHop = "Teleport to an old server",
+        DescSmall = "Teleport to a recently created server",
+        NotifTitle = "Config Reset",
+        NotifDesc = "Raid disabled and language reset."
+    }
+}
+
+-- [[ SISTEMA DE COMBATE & REMOTES ]]
+local RS = ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5)
+
+local function Laser() pcall(function() RS.Laser:InvokeServer() end) end
+local function GunArm() pcall(function() RS.GunArm:InvokeServer() end) end
+local function Armature() pcall(function() RS.Armature:InvokeServer() end) end
+
+local function ArmFire(targetRoot)
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if root then
+        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
+        pcall(function() 
+            RS.ArmFire:InvokeServer(targetPosition) 
+        end)
+    end
+end
+
+-- [[ LÓGICA DE TELEPORTE E ALVO ]]
+local function getLocalCharacter()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    return char, root
+end
+
+local function getClosestNPC()
+    local _, myRoot = getLocalCharacter()
+    if not myRoot then return nil end
+
+    local enemysFolder = workspace:FindFirstChild("Enemys")
+    if not enemysFolder then return nil end
+
+    local closestNPC = nil
+    local shortestDistance = math.huge
+
+    for _, enemyFolder in ipairs(enemysFolder:GetChildren()) do
+        local npcCharacter = enemyFolder:FindFirstChild("Character")
+        if npcCharacter and npcCharacter:IsA("Model") then
+            local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
+            local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
+
+            if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
+                local distance = (myRoot.Position - npcRoot.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestNPC = npcRoot
+                end
+            end
+        end
+    end
+    return closestNPC
+end
+
+local function ExecutarTeleporte(cframe)
+    if estaTeleportando then return end
+    estaTeleportando = true
+    pcall(function()
+        if LocalPlayer.Character then
+            LocalPlayer.Character:PivotTo(cframe)
+        end
+    end)
+    task.wait(0.1)
+    estaTeleportando = false
+end
+
+local function MudarServidor(ordem)
+    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    if success and result and result.data then
+        for _, server in ipairs(result.data) do
+            if type(server) == "table" and server.id ~= game.JobId then
+                if server.playing > 0 and server.playing < server.maxPlayers then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                    return
+                end
+            end
+        end
+    end
+end
+
+-- [[ LOOP DA RAID ]]
+task.spawn(function()
+    while true do
+        if Config.RaidEnabled then
+            local _, myRoot = getLocalCharacter()
+            local targetNPC = getClosestNPC()
+
+            if myRoot and targetNPC then
+                myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
+            end
+
+            local multiplier = tonumber(Config.ShotSpeedIndex) or 1
+            task.spawn(function()
+                for i = 1, multiplier do
+                    if not Config.RaidEnabled then break end
+                    task.spawn(Laser)
+                    task.spawn(GunArm)
+                    task.spawn(ArmFire, targetNPC)
+                    task.spawn(Armature)
+                end
+            end)
+            RunService.Heartbeat:Wait()
+        else
+            task.wait(0.2)
+        end
+    end
+end)
+
+-- [[ GERAÇÃO DA INTERFACE DO MENU ]]
+local oldWindow = nil
+
+local function CriarMenu()
+    if oldWindow then
+        pcall(function() oldWindow:Destroy() end)
+    end
+
+    local lang = Idiomas[Config.Language] or Idiomas["Português"]
+    local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))()
+
+    local Window = WindUI:CreateWindow({
+        Title = "Project Sor",
+        Icon = "rbxassetid://135710581431595",
+        Author = "Noob Must Die",
+        Folder = "Project Sor - Noob Must Die",
+        Size = UDim2.fromOffset(460, 320),
+        Transparent = false,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        BackgroundImageTransparency = 0.42,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+        User = {
+            Enabled = true,
+            Anonymous = false,
+            Callback = function() print("clicked") end,
+        },
+    })
+    oldWindow = Window
+    Window:SetIconSize(60)
+
+    Window:EditOpenButton({
+        Title = "Project Sor",
+        Icon = "",
+        CornerRadius = UDim.new(0, 16),
+        StrokeThickness = 2,
+        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
+        OnlyMobile = false,
+        Enabled = true,
+        Draggable = false
+    })
+
+    local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
+    local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
+
+    -- ABA MAIN
+    TabMain:Section({ Title = lang.SecRaid })
+
+    TabMain:Toggle({
+        Title = lang.ToggleRaid,
+        Desc = lang.DescRaid,
+        Value = Config.RaidEnabled,
+        Callback = function(value)
+            Config.RaidEnabled = value
+            SaveConfig()
+        end
+    })
+
+    TabMain:Input({
+        Title = lang.ChatMulti,
+        Desc = lang.DescMulti,
+        Value = tostring(Config.ShotSpeedIndex),
+        Placeholder = lang.PlaceMulti,
+        Callback = function(text)
+            local numero = tonumber(text)
+            if numero then
+                Config.ShotSpeedIndex = numero
+                SaveConfig()
+            end
+        end
+    })
+
+    TabMain:Slider({
+        Title = lang.Distancia,
+        Desc = lang.DescDist,
+        Step = 1,
+        Value = { Min = 0, Max = 5, Default = Config.NpcDistance },
+        Callback = function(value)
+            Config.NpcDistance = math.floor(value)
+            SaveConfig()
+        end
+    })
+
+    TabMain:Section({ Title = lang.SecTp })
+    TabMain:Button({ Title = "Camper (+0)", Desc = "XP +1", Callback = function() ExecutarTeleporte(CFrame.new(-648, 8, -3322)) end })
+    TabMain:Button({ Title = "Primary Instinct (+0)", Desc = "XP +4", Callback = function() ExecutarTeleporte(CFrame.new(349, 9, -944)) end })
+    TabMain:Button({ Title = "The Forest Of Terror (+150)", Desc = "XP +5.50", Callback = function() ExecutarTeleporte(CFrame.new(5126, -454, -3279)) end })
+    TabMain:Button({ Title = "Cracking Up Laughing (+250)", Desc = "XP +6 (Hammers)", Callback = function() ExecutarTeleporte(CFrame.new(8908, 88, -11458)) end })
+    TabMain:Button({ Title = "The Big Beetle (+150)", Desc = "XP +5 (Royal Gilded Axe)", Callback = function() ExecutarTeleporte(CFrame.new(4340, -32, -6216)) end })
+    TabMain:Button({ Title = "Vilgax Attack (+500)", Desc = "XP +7 (Quantum Inversor 3%)", Callback = function() ExecutarTeleporte(CFrame.new(-19887, 3550, -16091)) end })
+    TabMain:Button({ Title = "On Our Honor! (+800)", Desc = "XP +6 (Eternal Ring 4%)", Callback = function() ExecutarTeleporte(CFrame.new(2508, 300, -7042)) end })
+    TabMain:Button({ Title = "Temple of the Sun (+1000)", Desc = "XP +12.50 (Ekchuaj Sword 100%)", Callback = function() ExecutarTeleporte(CFrame.new(6284, 7, -7843)) end })
+    TabMain:Button({ Title = "Infinity 1 (+2500)", Desc = "XP +17.80 (Pets)", Callback = function() ExecutarTeleporte(CFrame.new(-927, 25, 92757)) end })
+    TabMain:Button({ Title = "Malware (+3500)", Desc = "XP +32 (Malware DNA 3%)", Callback = function() ExecutarTeleporte(CFrame.new(89439, 127, -75263)) end })
+    TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
+    TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
+
+    -- ABA CONFIG
+    TabConfig:Section({ Title = lang.SecConfig })
+
+    TabConfig:Dropdown({
+        Title = lang.DropIdioma,
+        Desc = lang.DescIdioma,
+        Values = {"Português", "Espanhol", "English"},
+        Value = Config.Language,
+        Callback = function(value)
+            if Config.Language ~= value then
+                Config.Language = value
+                SaveConfig()
+                CriarMenu() -- Atualiza a interface no novo idioma
+            end
+        end
+    })
+
+    TabConfig:Toggle({
+        Title = lang.ToggleIntro,
+        Desc = lang.DescIntro,
+        Value = Config.RemoverIntro,
+        Callback = function(value)
+            Config.RemoverIntro = value
+            SaveConfig()
+        end
+    })
+
+    TabConfig:Button({
+        Title = lang.BtnReset,
+        Desc = lang.DescReset,
+        Callback = function()
+            Config.RaidEnabled = false
+            Config.Language = "Português"
+            Config.RemoverIntro = false
+            SaveConfig()
+            
+            WindUI:Notify({
+                Title = lang.NotifTitle,
+                Desc = lang.NotifDesc,
+                Duration = 3,
+            })
+            CriarMenu() -- Recarrega com os valores limpos
+        end
+    })
+
+    TabConfig:Section({ Title = lang.SecServer })
+
+    TabConfig:Button({
+        Title = "Rejoin",
+        Desc = lang.DescRejoin,
+        Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
+    })
+
+    TabConfig:Button({
+        Title = "ServeHop",
+        Desc = lang.DescHop,
+        Callback = function() MudarServidor("Desc") end
+    })
+
+    TabConfig:Button({
+        Title = "SmallServe",
+        Desc = lang.DescSmall,
+        Callback = function() MudarServidor("Asc") end
+    })
+end
+
+-- Inicia o menu pela primeira vez
+CriarMenu()
