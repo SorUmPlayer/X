@@ -1,781 +1,524 @@
-import discord
-from discord.ext import commands, tasks
-import discord.ui
-import asyncio
-import json
-import os
-import random
-import hashlib
-from datetime import datetime, timedelta
+-- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
+local players = game:GetService("Players")
+local coreGui = game:GetService("CoreGui")
+local lighting = game:GetService("Lighting")
+local tweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
 
-# ====================== CONFIGURAÇÕES ======================
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=",", intents=intents)
+local LocalPlayer = players.LocalPlayer
+local estaTeleportando = false
 
-DATA_FILE = "anime_battle_data.json"
+local Config = {
+    RaidEnabled = false,
+    ShotSpeedIndex = 1,
+    NpcDistance = 2,
+    Language = "Português",
+    RemoverIntro = false
+}
 
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-else:
-    data = {
-        "users": {},
-        "config": {"initial_money": 200, "shop_reset_minutes": 25, "boss_chat_id": None},
-        "shop_reset_time": None,
-        "active_pvp": {},
-        "active_trades": {},
-        "luck_2x": False,
-        "shop_items": [],
-        "shop_accessories": [],
-        "pvp_queue": []
+local FILE_NAME = "WindUI_SorOminiX_Config.json"
+
+-- [[ FUNÇÕES DE SALVAMENTO COM VERIFICAÇÃO ]]
+local function SaveConfig()
+    if not writefile then return end
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(Config)
+    end)
+    if success then
+        pcall(function() writefile(FILE_NAME, json) end)
+    end
+end
+
+local function LoadConfig()
+    if not isfile then return end
+    if isfile(FILE_NAME) then
+        local success, data = pcall(function()
+            return readfile(FILE_NAME)
+        end)
+        if success then
+            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
+            if decoded and type(decoded) == "table" then
+                for k, v in pairs(decoded) do
+                    Config[k] = v
+                end
+            end
+        end
+    end
+end
+
+pcall(LoadConfig)
+
+-- [[ INICIALIZAÇÃO E SPLASH INTRO (AGORA VERIFICA A CONFIG) ]]
+if not Config.RemoverIntro then
+    pcall(function()
+        local blur = Instance.new("BlurEffect")
+        blur.Name = "UIBlurEffect"
+        blur.Size = 0
+        blur.Enabled = true
+        blur.Parent = lighting
+
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "OverlayGui"
+        screenGui.ResetOnSpawn = false
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+        local success = pcall(function()
+            screenGui.Parent = coreGui
+        end)
+        if not success then
+            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+
+        local img = Instance.new("ImageLabel")
+        img.Name = "DisplayImage"
+        img.BackgroundTransparency = 1
+        img.Image = "rbxassetid://135710581431595"
+        img.AnchorPoint = Vector2.new(0.5, 0.5)
+        img.Position = UDim2.new(0.5, 0, 0.45, 0)
+        img.Size = UDim2.new(0, 400, 0, 400)
+        img.ImageTransparency = 1
+        img.ZIndex = 10
+        img.Parent = screenGui
+
+        task.wait(5)
+
+        local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
+        tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
+
+        task.wait(1.5)
+        local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
+        pulseTween:Play()
+
+        task.wait(8)
+
+        pulseTween:Cancel()
+        tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
+        tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
+
+        task.wait(1.5)
+        screenGui:Destroy()
+        blur:Destroy()
+    end)
+end
+
+-- [[ DICIONÁRIO DE IDIOMAS ]]
+local Idiomas = {
+    ["Português"] = {
+        TabMain = "Raid & Teleportes",
+        TabConfig = "Configurações",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Ativa o ataque e o teleporte em loop",
+        ChatMulti = "Chat (Multiplicador de Tiro)",
+        DescMulti = "Digite o valor do multiplicador (Ex: 9)",
+        PlaceMulti = "Digite um número...",
+        Distancia = "Distância",
+        DescDist = "Distância acima dos NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Altere o idioma do Script",
+        BtnReset = "Reset Config",
+        DescReset = "Reseta o Toggle que fora ativados e idioma do script",
+        ToggleIntro = "Remover Intro",
+        DescIntro = "Desativa a introdução ao iniciar o script",
+        SecServer = "Serve",
+        DescRejoin = "Entra novamente no mesmo servidor",
+        DescHop = "Teleporta pro serve antigo",
+        DescSmall = "Teleporta pra serve criador recentemente",
+        NotifTitle = "Configuração Resetada",
+        NotifDesc = "Raid desativada e idioma resetado."
+    },
+    ["Espanhol"] = {
+        TabMain = "Raid y Teleports",
+        TabConfig = "Configuraciones",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activa el ataque y el teletransporte en bucle",
+        ChatMulti = "Chat (Multiplicador de Tiro)",
+        DescMulti = "Escribe el valor del multiplicador (Ej: 9)",
+        PlaceMulti = "Escribe un número...",
+        Distancia = "Distancia",
+        DescDist = "Distancia sobre los NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Cambia el idioma del Script",
+        BtnReset = "Reset Config",
+        DescReset = "Restablece los Toggles activados y el idioma del script",
+        ToggleIntro = "Eliminar Intro",
+        DescIntro = "Desactiva la introducción al iniciar el script",
+        SecServer = "Servidor",
+        DescRejoin = "Volver a unirse al mismo servidor",
+        DescHop = "Teletransporta al servidor antiguo",
+        DescSmall = "Teletransporte a un servidor creado recientemente",
+        NotifTitle = "Configuración Reiniciada",
+        NotifDesc = "Raid desactivada e idioma restablecido."
+    },
+    ["English"] = {
+        TabMain = "Raid & Teleports",
+        TabConfig = "Settings",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activates loop attack and teleport",
+        ChatMulti = "Chat (Shot Multiplier)",
+        DescMulti = "Type the multiplier value (Ex: 9)",
+        PlaceMulti = "Type a number...",
+        Distancia = "Distance",
+        DescDist = "Distance above NPCs (Studs)",
+        SecTp = "Tp Raids",
+        SecConfig = "Config",
+        DropIdioma = "Languages",
+        DescIdioma = "Change the script language",
+        BtnReset = "Reset Config",
+        DescReset = "Reset activated Toggles and script language",
+        ToggleIntro = "Remove Intro",
+        DescIntro = "Disables the intro splash when starting the script",
+        SecServer = "Server",
+        DescRejoin = "Rejoin the same server",
+        DescHop = "Teleport to an old server",
+        DescSmall = "Teleport to a recently created server",
+        NotifTitle = "Config Reset",
+        NotifDesc = "Raid disabled and language reset."
     }
-
-def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-# ====================== MAPA DE ITENS ======================
-anime_item_map = {
-    "Black Clover": "Folhas de Magia (Black Clover)",
-    "Bleach": "Bankai (Bleach)",
-    "Dragon Ball": "Bola do dragão (Dragon Ball)",
-    "One Piece": "Fruta do Diabo (One Piece)",
-    "Naruto": "Chakra (Naruto)",
-    "Attack on Titan": "Siriga de Titan (Attack Titan)",
-    "My Hero Academia": "Essência de Poder (My Hero Academia)",
-    "Demon Slayer": "Respiração (Demon Slayer)",
-    "Hunter x Hunter": "Nen (Hunter x Hunter)",
-    "Jujutsu Kaisen": "Maldição (Jujutsu Kaisen)",
-    "Fire Force": "Fire (Fire Force)",
-    "JoJo's Bizarre Adventure": "Flecha Requiem (JoJo)",
-    "Berserk": "Power-Up (Berserk)"
 }
 
-# ====================== TALENTOS ======================
-talents_db = {
-    "Comum": [
-        {"name": "Sangue básico", "forca": 10, "hp": -5, "esquivar": 0},
-        {"name": "Bravo", "forca": 10, "hp": 0, "esquivar": 0},
-        {"name": "Gnomo", "forca": 15, "hp": -5, "esquivar": 0},
-        {"name": "Portão 2", "forca": 15, "hp": 5, "esquivar": 0},
-        {"name": "Portão 4", "forca": 20, "hp": -5, "esquivar": 10}
-    ],
-    "Raro": [
-        {"name": "Portão 6", "forca": 25, "hp": 5, "esquivar": 10},
-        {"name": "Sangue de Oni", "forca": 30, "hp": 10, "esquivar": 0},
-        {"name": "Maldição", "forca": 10, "hp": 30, "esquivar": 0},
-        {"name": "Haki", "forca": 30, "hp": 20, "esquivar": 0}
-    ],
-    "Lendário": [
-        {"name": "Sangue de Fogo", "forca": 35, "hp": 40, "esquivar": 0},
-        {"name": "Blindagem", "forca": 30, "hp": 50, "esquivar": 0},
-        {"name": "Aura", "forca": 0, "hp": 50, "esquivar": 20},
-        {"name": "Haki All", "forca": 35, "hp": 40, "esquivar": 0},
-        {"name": "Sangue de Dragão", "forca": 30, "hp": 70, "esquivar": 0}
-    ],
-    "Mítico": [
-        {"name": "Sangue Bizarro", "forca": 0, "hp": 50, "esquivar": 0, "extra_hp": 10},
-        {"name": "Sangue Berserk", "forca": 50, "hp": 40, "esquivar": 0},
-        {"name": "Olho de Deus", "forca": 0, "hp": 0, "esquivar": 50}
-    ],
-    "Secreto": [
-        {"name": "Mascara Uchiha", "forca": 20, "hp": 20, "esquivar": 20, "extra_acessorio": True}
-    ]
-}
+-- [[ SISTEMA DE COMBATE & REMOTES (COM VERIFICAÇÃO) ]]
+local RS = pcall(function()
+    return ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5)
+end) and ReplicatedStorage:WaitForChild("AliensPowerRemotes", 5):WaitForChild("upgrade", 5) or nil
 
-def get_random_talento():
-    r = random.random()
-    if r < 0.70: rarity = "Comum"
-    elif r < 0.90: rarity = "Raro"
-    elif r < 0.95: rarity = "Lendário"
-    elif r < 0.99: rarity = "Mítico"
-    else: rarity = "Secreto"
-    talento = random.choice(talents_db[rarity]).copy()
-    talento["rarity"] = rarity
-    return talento
+local function Laser()
+    if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
+end
+local function GunArm()
+    if RS and RS.GunArm then pcall(function() RS.GunArm:InvokeServer() end) end
+end
+local function Armature()
+    if RS and RS.Armature then pcall(function() RS.Armature:InvokeServer() end) end
+end
 
-def get_talent_description(talento):
-    rarity = talento.get("rarity", "Comum")
-    desc = f"**{talento['name']}** ({rarity})\n"
-    if talento.get("forca"): desc += f"🔥 Força: {'+' if talento['forca']>0 else ''}{talento['forca']}\n"
-    if talento.get("hp"): desc += f"❤️ HP: {'+' if talento['hp']>0 else ''}{talento['hp']}\n"
-    if talento.get("esquivar"): desc += f"🛡️ Esquivar: +{talento['esquivar']}%\n"
-    if talento.get("extra_hp"): desc += f"❤️ Extra HP por partida: +{talento['extra_hp']}\n"
-    if talento.get("extra_acessorio"): desc += "✨ Permite equipar 2 acessórios\n"
-    return desc.strip()
+local function ArmFire(targetRoot)
+    if not RS or not RS.ArmFire then return end
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
+        pcall(function()
+            RS.ArmFire:InvokeServer(targetPosition)
+        end)
+    end
+end
 
-# ====================== PERSONAGENS ======================
-character_db = []
-animes_data = {
-    "Black Clover": {"heroes": ["Asta","Yuno Grinberryall","Noelle Silva","Yami Sukehiro","Luck Voltia"],"villains": ["Patry","Zagred","Dante Zogratis","Vanica Zogratis","Licht"],"evo": ["Asta","Yuno Grinberryall"]},
-    "Bleach": {"heroes": ["Ichigo Kurosaki","Rukia Kuchiki","Orihime Inoue","Uryū Ishida","Byakuya Kuchiki"],"villains": ["Sōsuke Aizen","Gin Ichimaru","Ulquiorra Cifer","Grimmjow Jaegerjaquez","Yhwach"],"evo": ["Ichigo Kurosaki","Byakuya Kuchiki"]},
-    "Dragon Ball": {"heroes": ["Goku","Vegeta","Gohan","Piccolo","Krillin"],"villains": ["Frieza","Cell","Majin Buu","Raditz","Nappa"],"evo": ["Goku","Vegeta"]},
-    "One Piece": {"heroes": ["Monkey D. Luffy","Roronoa Zoro","Nami","Sanji","Usopp"],"villains": ["Dracule Mihawk","Crocodile","Donquixote Doflamingo","Kaido","Big Mom"],"evo": ["Monkey D. Luffy","Roronoa Zoro"]},
-    "Naruto": {"heroes": ["Naruto Uzumaki","Sasuke Uchiha","Sakura Haruno","Kakashi Hatake","Itachi Uchiha"],"villains": ["Orochimaru","Pain","Obito Uchiha","Madara Uchiha","Kaguya Otsutsuki"],"evo": ["Naruto Uzumaki","Sasuke Uchiha"]},
-    "Attack on Titan": {"heroes": ["Eren Yeager","Mikasa Ackerman","Armin Arlert","Levi Ackerman","Hange Zoë"],"villains": ["Reiner Braun","Zeke Yeager","Annie Leonhart","Bertholdt Hoover","Ymir Fritz"],"evo": ["Eren Yeager","Levi Ackerman"]},
-    "My Hero Academia": {"heroes": ["Izuku Midoriya","Katsuki Bakugo","Shoto Todoroki","All Might","Ochaco Uraraka"],"villains": ["Tomura Shigaraki","Dabi","Himiko Toga","Kai Chisaki","All For One"],"evo": ["Izuku Midoriya","Katsuki Bakugo"]},
-    "Demon Slayer": {"heroes": ["Tanjiro Kamado","Nezuko Kamado","Zenitsu Agatsuma","Inosuke Hashibira","Giyu Tomioka"],"villains": ["Muzan Kibutsuji","Akaza","Doma","Kokushibo","Rui"],"evo": ["Tanjiro Kamado","Zenitsu Agatsuma"]},
-    "Hunter x Hunter": {"heroes": ["Gon Freecss","Killua Zoldyck","Kurapika","Leorio Paradinight","Hisoka Morow"],"villains": ["Chrollo Lucilfer","Illumi Zoldyck","Meruem","Neferpitou","Genthru"],"evo": ["Gon Freecss","Killua Zoldyck"]},
-    "Jujutsu Kaisen": {"heroes": ["Yuji Itadori","Megumi Fushiguro","Nobara Kugisaki","Satoru Gojo","Maki Zenin"],"villains": ["Ryomen Sukuna","Mahito","Jogo","Hanami","Suguru Geto"],"evo": ["Yuji Itadori","Satoru Gojo"]},
-    "Fire Force": {"heroes": ["Shinra Kusakabe","Arthur Boyle","Maki Oze","Tamaki Kotatsu","Takehisa Hinawa"],"villains": ["Joker","Haumea","Ashera","Charon","Dr. Giovanni"],"evo": ["Shinra Kusakabe","Arthur Boyle"]},
-    "JoJo's Bizarre Adventure": {"heroes": ["Jonathan Joestar","Joseph Joestar","Jotaro Kujo","Josuke Higashikata","Giorno Giovanna"],"villains": ["Dio Brando","Kars","Diavolo","Funny Valentine","Enrico Pucci"],"evo": ["Jotaro Kujo","Giorno Giovanna"]},
-    "Berserk": {"heroes": ["Guts","Casca","Judeau","Puck","Isidro"],"villains": ["Griffith","Nosferatu Zodd","Wyald","Femto","Apostles"],"evo": ["Guts","Casca"]}
-}
+-- [[ LÓGICA DE TELEPORTE E ALVO ]]
+local function getLocalCharacter()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    return char, root
+end
 
-id_counter = 1
-for anime, info in animes_data.items():
-    for nome in info["heroes"] + info["villains"]:
-        evolution_max = 5 if nome in info["evo"] else 4
-        character_db.append({
-            "id": id_counter, "name": nome, "anime": anime,
-            "type": "hero" if nome in info["heroes"] else "villain",
-            "evolution_max": evolution_max,
-            "base_strength": random.randint(45, 85),
-            "base_hp": random.randint(110, 160),
-            "gif_attack": f"https://tenor.com/search/{nome.lower().replace(' ','-')}-attack-gif",
-            "evo_item": anime_item_map[anime]
-        })
-        id_counter += 1
+local function getClosestNPC()
+    local _, myRoot = getLocalCharacter()
+    if not myRoot then return nil end
 
-def get_character(cid):
-    for c in character_db:
-        if c["id"] == cid:
-            return c
-    return None
+    local enemysFolder = workspace:FindFirstChild("Enemys")
+    if not enemysFolder then return nil end
 
-def get_character_stats(owned, char):
-    talento = owned["talento"]
-    acc = owned.get("equipped_accessory", None)
-    acc_bonus = 15 if acc else 0
-    strength = char["base_strength"] + (owned["level"] * 12) + talento.get("forca",0) + acc_bonus
-    hp = char["base_hp"] + (owned["level"] * 8) + talento.get("hp",0) + talento.get("extra_hp",0)
-    return int(strength), int(hp)
+    local closestNPC = nil
+    local shortestDistance = math.huge
 
-def get_character_details(owned, char):
-    strength, hp = get_character_stats(owned, char)
-    txt = f"**Nick:** {char['name']}\n"
-    txt += f"**Anime:** {char['anime']} ({char['type'].upper()})\n"
-    txt += f"**Força Total:** {strength} 🔥\n"
-    txt += f"**HP:** {hp} ❤️\n"
-    txt += f"**Evolução:** {owned['level']} / {char['evolution_max']}\n\n"
-    txt += f"**Talento:**\n{get_talent_description(owned['talento'])}\n"
-    txt += "**Extra**\n"
-    txt += f"Ataque Especial → Level {owned['level']+1}\n"
-    if char["evolution_max"] == 5:
-        txt += f"Transformação → Chance {max(80 - owned['level']*10, 20)}%\n"
-    if acc := owned.get("equipped_accessory"):
-        for rar in acessorios_db.values():
-            for a in rar:
-                if a["name"] == acc:
-                    txt += f"**Acessório:** {acc} ({a['effect']})\n"
-    return txt
+    for _, enemyFolder in ipairs(enemysFolder:GetChildren()) do
+        local npcCharacter = enemyFolder:FindFirstChild("Character")
+        if npcCharacter and npcCharacter:IsA("Model") then
+            local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
+            local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
+            if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
+                local distance = (myRoot.Position - npcRoot.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestNPC = npcRoot
+                end
+            end
+        end
+    end
+    return closestNPC
+end
 
-# ====================== RANKS ======================
-ranks_list = ["Bronze","Bronze 1","Bronze 2","Ferro","Ferro 1","Dourado","Dourado 1","Dourado 2","Dourado 3","Dourado 4","Dourado 5","Diamante","Diamante 1","Diamante 2","Diamante 3","Pena de Fênix 1","Pena de Fênix 2","Fênix"]
+local function ExecutarTeleporte(cframe)
+    if estaTeleportando then return end
+    estaTeleportando = true
+    pcall(function()
+        if LocalPlayer.Character then
+            LocalPlayer.Character:PivotTo(cframe)
+        end
+    end)
+    task.wait(0.1)
+    estaTeleportando = false
+end
 
-def get_rank(level, vitorias):
-    score = (level * 8) + (vitorias * 6)
-    return ranks_list[min(score // 55, len(ranks_list)-1)]
+local function MudarServidor(ordem)
+    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    if success and result and result.data then
+        for _, server in ipairs(result.data) do
+            if type(server) == "table" and server.id ~= game.JobId then
+                if server.playing > 0 and server.playing < server.maxPlayers then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                    return
+                end
+            end
+        end
+    end
+end
 
-def gain_xp(player_dict, amount):
-    player_dict["xp"] += amount
-    leveled_up = False
-    while player_dict["xp"] >= player_dict["xp_max"]:
-        player_dict["level"] += 1
-        player_dict["xp"] -= player_dict["xp_max"]
-        leveled_up = True
-        rank_idx = ranks_list.index(player_dict.get("rank","Bronze"))
-        player_dict["xp_max"] += 200 if rank_idx >= 12 else 100
-    player_dict["rank"] = get_rank(player_dict["level"], player_dict["vitorias"])
-    return leveled_up
+-- [[ LOOP DA RAID OTIMIZADO (MENOS LAG) ]]
+task.spawn(function()
+    local lastAttackTime = 0
+    local attackCooldown = 0.1 -- intervalo entre cada ataque (segundos)
 
-# ====================== BANCO DE DADOS (ITENS, ACESSÓRIOS, PEIXES) ======================
-items_db = [ {"name": nm, "price": 75} for nm in ["Folhas de Magia (Black Clover)","Bankai (Bleach)","Bola do dragão (Dragon Ball)","Fruta do Diabo (One Piece)","Chakra (Naruto)","Siriga de Titan (Attack Titan)","Essência de Poder (My Hero Academia)","Respiração (Demon Slayer)","Nen (Hunter x Hunter)","Maldição (Jujutsu Kaisen)","Fire (Fire Force)","Flecha Requiem (JoJo)","Power-Up (Berserk)"] ]
+    while true do
+        if Config.RaidEnabled then
+            local _, myRoot = getLocalCharacter()
+            local targetNPC = getClosestNPC()
 
-acessorios_db = {
-    "Comum": [
-        {"name":"Anel de Grau Menor","effect":"10% Força","price":45},
-        {"name":"Anel de Grau Superior","effect":"5% Força 10% HP","price":50},
-        {"name":"Pedra de Força","effect":"15% Força","price":65},
-        {"name":"Pedra de HP","effect":"20% HP","price":70},
-        {"name":"Espada","effect":"20% Força","price":80}
-    ],
-    "Raro": [
-        {"name":"Capa elástica","effect":"30% desviar (não especial)","price":80},
-        {"name":"Músculos de Aprimorando","effect":"25% Força","price":80},
-        {"name":"Armadura fraca","effect":"25% HP","price":80},
-        {"name":"Colar de Velocidade","effect":"40% Esquivar","price":90}
-    ],
-    "Lendário": [
-        {"name":"Colar Berserk","effect":"30% dano dobro","price":100},
-        {"name":"Armadura Aprimoranda","effect":"35% HP","price":100}
-    ],
-    "Mítico": [
-        {"name":"Reflexo Divino","effect":"40% desviar 20% HP","price":110},
-        {"name":"Foice de Sangue","effect":"Rouba 10 HP +30 Força","price":120},
-        {"name":"Espada Excalibur","effect":"50% Força","price":120},
-        {"name":"Armadura Berserk","effect":"40% Força 30% HP 10% Esquivar","price":130}
-    ],
-    "Secreto": [
-        {"name":"Olho que tudo ver","effect":"60% Esquivar +30% Força/HP +60% especial","price":150},
-        {"name":"Infinito","effect":"100% esquivar 4 turnos","price":170}
-    ]
-}
+            if myRoot and targetNPC then
+                -- Teleporta para o NPC
+                myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
+                
+                -- Executa os ataques com um pequeno intervalo para não sobrecarregar
+                local multiplier = tonumber(Config.ShotSpeedIndex) or 1
+                for i = 1, multiplier do
+                    if not Config.RaidEnabled then break end
+                    Laser()
+                    GunArm()
+                    ArmFire(targetNPC)
+                    Armature()
+                    task.wait(attackCooldown) -- pausa entre ataques para reduzir lag
+                end
+            end
 
-caixas_db = [
-    {"name":"Caixa de Personagens","price":200,"type":"personagem"},
-    {"name":"Caixa de Item","price":100,"type":"item"},
-    {"name":"Caixa de Acessório Básico","price":250,"type":"acessorio_basico"},
-    {"name":"Caixa de Acessório Melhorado","price":350,"type":"acessorio_melhorado"},
-    {"name":"Caixa de Acessório Supremo","price":450,"type":"acessorio_supremo"}
-]
+            -- Aguarda o próximo ciclo
+            task.wait(0.05) -- aguarda um frame
+        else
+            task.wait(0.2) -- se desativado, espera mais
+        end
+    end
+end)
 
-peixes_db = [
-    {"name":"Peixe Folha","chance":70,"value":3},
-    {"name":"Sardinha","chance":68,"value":4},
-    {"name":"Peixe Civil","chance":65,"value":5},
-    {"name":"Peixe Mana","chance":50,"value":7},
-    {"name":"Carpa Espiritual","chance":49,"value":8},
-    {"name":"Peixe Energia","chance":46,"value":10},
-    {"name":"Peixe Respiração","chance":43,"value":12},
-    {"name":"Peixe Nen","chance":5,"value":15},
-    {"name":"Peixe Amaldiçoado","chance":39,"value":18},
-    {"name":"Peixe de Fogo","chance":30,"value":22},
-    {"name":"Peixe Stand","chance":25,"value":25},
-    {"name":"Peixe Eclipse","chance":15,"value":28},
-    {"name":"Peixe One for All","chance":10,"value":30}
-]
+-- [[ GERAÇÃO DA INTERFACE DO MENU (COM TRATAMENTO DE ERRO) ]]
+local oldWindow = nil
 
-varas_db = {
-    "Inicial":{"min":15,"max":35},
-    "Vara forte":{"min":10,"max":30,"price":150},
-    "Vara de Gato":{"min":5,"max":30,"price":200},
-    "Vara Luck":{"min":5,"max":25,"price":250},
-    "Vara Supremo":{"min":5,"max":20,"price":350},
-    "Vara Angelical":{"min":5,"max":15,"price":500}
-}
+local function CriarMenu()
+    if oldWindow then
+        pcall(function() oldWindow:Destroy() end)
+        oldWindow = nil
+    end
 
-def populate_shop():
-    shop_items = [it for it in items_db if random.random() <= 0.35]
-    shop_acc = []
-    for rarity, chance in [("Comum",0.70),("Raro",0.50),("Lendário",0.25),("Mítico",0.10),("Secreto",0.01)]:
-        for acc in acessorios_db[rarity]:
-            if random.random() <= chance:
-                shop_acc.append(acc)
-    data["shop_items"] = shop_items
-    data["shop_accessories"] = shop_acc
-    data["shop_reset_time"] = datetime.now().isoformat()
-    save_data()
-
-if not data.get("shop_reset_time"):
-    populate_shop()
-
-# ====================== FUNÇÕES AUXILIARES ======================
-def get_player(uid):
-    uid = str(uid)
-    if uid not in data["users"]:
-        data["users"][uid] = {
-            "nick":None,"senha_hash":None,"money":data["config"]["initial_money"],
-            "level":1,"xp":0,"xp_max":100,"classe":None,"luck":20,
-            "vara":"Inicial","personagens":[],"slots":[None]*4,
-            "acessorios":{},"itens":[],"vitorias":0,"rank":"Bronze"
-        }
-    return data["users"][uid]
-
-# ====================== MODALS ======================
-class CreateAccountModal(discord.ui.Modal, title="Criar Conta"):
-    nick = discord.ui.TextInput(label="Nick", placeholder="Seu nick único")
-    senha = discord.ui.TextInput(label="Senha", placeholder="Senha segura")
-    async def on_submit(self, interaction):
-        uid = str(interaction.user.id)
-        nick = self.nick.value.strip()
-        senha_hash = hashlib.sha256(self.senha.value.encode()).hexdigest()
-        if any(u.get("nick")==nick for u in data["users"].values()):
-            return await interaction.response.send_message("❌ Nick já existe!", ephemeral=True)
-        pd = get_player(interaction.user.id)
-        pd.update(nick=nick, senha_hash=senha_hash)
-        for _ in range(4):
-            char = random.choice(character_db)
-            pd["personagens"].append({
-                "id":char["id"],"level":0,"talento":get_random_talento(),"equipped_accessory":None
+    local lang = Idiomas[Config.Language] or Idiomas["Português"]
+    
+    -- Carrega a WindUI com fallback
+    local WindUI
+    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        WindUI = result
+    else
+        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+        success, result = pcall(function()
+            return loadstring(game:HttpGet(fallbackUrl))()
+        end)
+        if success and result then
+            WindUI = result
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Não foi possível carregar a WindUI. Verifique sua conexão.",
+                Duration = 5
             })
-        save_data()
-        await interaction.response.send_message("✅ Conta criada! Escolha sua classe:", view=ClassChoiceView(), ephemeral=True)
-
-class LoginModal(discord.ui.Modal, title="Fazer Login"):
-    nick = discord.ui.TextInput(label="Nick")
-    senha = discord.ui.TextInput(label="Senha")
-    async def on_submit(self, interaction):
-        uid = str(interaction.user.id)
-        nick = self.nick.value.strip()
-        senha_hash = hashlib.sha256(self.senha.value.encode()).hexdigest()
-        pd = data["users"].get(uid)
-        if pd and pd.get("nick")==nick and pd.get("senha_hash")==senha_hash:
-            await interaction.response.send_message(f"✅ Bem-vindo, {nick}!", ephemeral=True)
-        else:
-            await interaction.response.send_message("❌ Nick ou senha incorretos!", ephemeral=True)
-
-class InputNickModal(discord.ui.Modal, title="Informe o Nick"):
-    nick = discord.ui.TextInput(label="Nick exato")
-    def __init__(self, callback_func):
-        super().__init__(); self.callback_func = callback_func
-    async def on_submit(self, interaction):
-        await self.callback_func(interaction, self.nick.value.strip())
-
-# ====================== VIEWS (OTIMIZADAS) ======================
-class LoginChoiceView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=30)
-    @discord.ui.button(label="Criar Conta", style=discord.ButtonStyle.green)
-    async def create(self, interaction, btn):
-        await interaction.response.send_modal(CreateAccountModal())
-    @discord.ui.button(label="Já tenho Conta", style=discord.ButtonStyle.blurple)
-    async def login(self, interaction, btn):
-        await interaction.response.send_modal(LoginModal())
-
-class ClassChoiceView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=30)
-    @discord.ui.button(label="HERÓI", style=discord.ButtonStyle.green)
-    async def hero(self, interaction, btn):
-        pd = get_player(interaction.user.id); pd["classe"]="Hero"; save_data()
-        await interaction.response.send_message("🟢 Você é um HERÓI!", ephemeral=True)
-    @discord.ui.button(label="VILÃO", style=discord.ButtonStyle.red)
-    async def villain(self, interaction, btn):
-        pd = get_player(interaction.user.id); pd["classe"]="Villain"; save_data()
-        await interaction.response.send_message("🔴 Você é um VILÃO!", ephemeral=True)
-
-# Menu principal com todos os botões, incluindo Tutorial (não some)
-class MainMenuView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=180)
-    @discord.ui.button(label="Perfil", style=discord.ButtonStyle.primary, emoji="👤")
-    async def perfil(self, interaction, btn):
-        pd = get_player(interaction.user.id)
-        embed = discord.Embed(title=f"👤 {pd.get('nick')}", color=0x00ffcc)
-        embed.add_field(name="Level", value=f"{pd['level']} ({pd['xp']}/{pd['xp_max']})")
-        embed.add_field(name="Classe", value=pd.get("classe","N/D"))
-        embed.add_field(name="Money", value=pd['money'])
-        embed.add_field(name="Rank", value=pd['rank'])
-        embed.add_field(name="Vara", value=pd['vara'])
-        embed.add_field(name="Luck", value=f"{pd['luck']}%")
-        slots = [get_character(s['id'])['name'] if s else "Vazio" for s in pd['slots']]
-        embed.add_field(name="Equipe", value="\n".join([f"Slot {i+1}: {n}" for i,n in enumerate(slots)]))
-        await interaction.response.send_message(embed=embed, view=PerfilSubView(pd), ephemeral=True)
-
-    @discord.ui.button(label="Evoluir", style=discord.ButtonStyle.primary, emoji="⬆️")
-    async def evoluir(self, interaction, btn):
-        pd = get_player(interaction.user.id)
-        embed = discord.Embed(title="Evoluir Personagem", color=0xffaa00)
-        for owned in pd["personagens"]:
-            char = get_character(owned["id"])
-            if char:
-                embed.add_field(
-                    name=f"{char['name']} (Lvl {owned['level']}/{char['evolution_max']})",
-                    value=f"Item: {char['evo_item']} | Custo: {100+owned['level']*30}",
-                    inline=False
-                )
-        await interaction.response.send_message(embed=embed, view=EvoluirSelectView(pd), ephemeral=True)
-
-    @discord.ui.button(label="Loja", style=discord.ButtonStyle.primary, emoji="🛒")
-    async def loja(self, interaction, btn):
-        await interaction.response.send_message("🛒 Loja", view=LojaPrincipalView(), ephemeral=True)
-
-    @discord.ui.button(label="PvP", style=discord.ButtonStyle.primary, emoji="⚔️")
-    async def pvp(self, interaction, btn):
-        await interaction.response.send_message("⚔️ Modo PvP", view=PvPChoiceView(interaction.user.id), ephemeral=True)
-
-    @discord.ui.button(label="Trade", style=discord.ButtonStyle.primary, emoji="🔄")
-    async def trade(self, interaction, btn):
-        await interaction.response.send_modal(InputNickModal(self.trade_callback))
-    async def trade_callback(self, interaction, target_nick):
-        uid = str(interaction.user.id)
-        pd = data["users"][uid]
-        if target_nick == pd["nick"]:
-            return await interaction.response.send_message("❌ Não pode trocar consigo mesmo.", ephemeral=True)
-        target_uid = next((u for u,usr in data["users"].items() if usr.get("nick")==target_nick), None)
-        if not target_uid:
-            return await interaction.response.send_message("❌ Jogador não encontrado.", ephemeral=True)
-        data["active_trades"][uid] = {"target":target_uid,"offer1":{},"offer2":{},"confirmed":[]}
-        try:
-            target_user = await bot.fetch_user(int(target_uid))
-            await target_user.send(f"{pd['nick']} quer trocar com você! Use ,trade {pd['nick']}")
-        except:
-            pass
-        await interaction.response.send_message(f"Trade enviado para {target_nick}.", ephemeral=True)
-
-    @discord.ui.button(label="Pescar", style=discord.ButtonStyle.primary, emoji="🎣")
-    async def pescar(self, interaction, btn):
-        pd = get_player(interaction.user.id)
-        embed = discord.Embed(title="🎣 Pescar", description=f"Vara: {pd['vara']}")
-        await interaction.response.send_message(embed=embed, view=PescarView(pd), ephemeral=True)
-
-    @discord.ui.button(label="Ranking", style=discord.ButtonStyle.primary, emoji="🏆")
-    async def ranking(self, interaction, btn):
-        top = sorted(data["users"].items(), key=lambda x: (x[1]["vitorias"], x[1]["level"]), reverse=True)[:10]
-        embed = discord.Embed(title="🏆 Top 10", color=0xffaa00)
-        for i,(uid,u) in enumerate(top):
-            embed.add_field(name=f"#{i+1} {u['nick']}", value=f"Vitórias: {u['vitorias']} | Level: {u['level']} | Rank: {u['rank']}")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="Tutorial + Info", style=discord.ButtonStyle.primary, emoji="📖")
-    async def tutorial(self, interaction, btn):
-        embed = discord.Embed(title="📖 Tutorial", description="Bem-vindo ao Anime Battle Ultimate!", color=0x00ffcc)
-        embed.add_field(name="Como Jogar", value="Crie conta, escolha herói/vilão, colete personagens, evolua e lute!")
-        embed.add_field(name="Talento", value="Cada personagem tem um talento aleatório que afeta stats.")
-        embed.add_field(name="Evolução", value="Use itens específicos e dinheiro para evoluir (máx 4 ou 5 para protagonistas).")
-        embed.add_field(name="PvP", value="Batalhas 4x4 contra bot ou amigos. Vitória dá XP e moedas!")
-        embed.add_field(name="Pesca", value="Pesque peixes e venda por moedas.")
-        embed.add_field(name="Acessórios", value="Equipe acessórios nos personagens para bônus.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-# Submenu do Perfil
-class PerfilSubView(discord.ui.View):
-    def __init__(self, pd): super().__init__(timeout=120); self.pd = pd
-    @discord.ui.button(label="Ver Personagens", style=discord.ButtonStyle.secondary)
-    async def ver(self, interaction, btn):
-        view = discord.ui.View(timeout=120)
-        for owned in self.pd["personagens"]:
-            char = get_character(owned["id"])
-            if char:
-                view.add_item(discord.ui.Button(label=char["name"], style=discord.ButtonStyle.primary, custom_id=f"detail_{owned['id']}"))
-        await interaction.response.send_message("Seus personagens:", view=view, ephemeral=True)
-    @discord.ui.button(label="Equipar Personagens", style=discord.ButtonStyle.green)
-    async def equipar(self, interaction, btn):
-        view = discord.ui.View(timeout=120)
-        for i in range(4):
-            slot = self.pd["slots"][i]
-            label = f"Slot {i+1} - {get_character(slot['id'])['name'] if slot else 'Vazio'}"
-            view.add_item(discord.ui.Button(label=label, style=discord.ButtonStyle.green, custom_id=f"equip_{i}"))
-        await interaction.response.send_message("Escolha o slot:", view=view, ephemeral=True)
-    @discord.ui.button(label="Acessórios", style=discord.ButtonStyle.secondary)
-    async def acessorios(self, interaction, btn):
-        if not self.pd["acessorios"]:
-            return await interaction.response.send_message("Sem acessórios.", ephemeral=True)
-        view = discord.ui.View(timeout=120)
-        for name in self.pd["acessorios"]:
-            view.add_item(discord.ui.Button(label=name, style=discord.ButtonStyle.success, custom_id=f"acc_{name}"))
-        await interaction.response.send_message("Escolha um acessório:", view=view, ephemeral=True)
-    @discord.ui.button(label="Desequipar Acess.", style=discord.ButtonStyle.danger)
-    async def desequipar(self, interaction, btn):
-        equipped = [c for c in self.pd["personagens"] if c.get("equipped_accessory")]
-        if not equipped:
-            return await interaction.response.send_message("Nenhum equipado.", ephemeral=True)
-        view = discord.ui.View(timeout=120)
-        for owned in equipped:
-            view.add_item(discord.ui.Button(label=get_character(owned['id'])['name'], style=discord.ButtonStyle.danger, custom_id=f"uneq_{owned['id']}"))
-        await interaction.response.send_message("Quem desequipar?", view=view, ephemeral=True)
-    @discord.ui.button(label="Itens", style=discord.ButtonStyle.secondary)
-    async def itens(self, interaction, btn):
-        embed = discord.Embed(title="Itens", description="\n".join(self.pd["itens"]) if self.pd["itens"] else "Nenhum")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-# Evoluir via select (menos poluído)
-class EvoluirSelectView(discord.ui.View):
-    def __init__(self, pd): super().__init__(timeout=120); self.pd = pd
-        options = []
-        for owned in pd["personagens"]:
-            char = get_character(owned["id"])
-            if char:
-                options.append(discord.SelectOption(label=char["name"], value=str(owned["id"])))
-        if options:
-            self.select = discord.ui.Select(placeholder="Escolha o personagem", options=options)
-            self.select.callback = self.evoluir_callback
-            self.add_item(self.select)
-    async def evoluir_callback(self, interaction):
-        char_id = int(self.select.values[0])
-        owned = next(c for c in self.pd["personagens"] if c["id"]==char_id)
-        char = get_character(char_id)
-        if owned["level"] >= char["evolution_max"]:
-            return await interaction.response.send_message("❌ Nível máximo!", ephemeral=True)
-        item = char["evo_item"]
-        cost = 100 + owned["level"] * 30
-        if item not in self.pd["itens"] or self.pd["money"] < cost:
-            return await interaction.response.send_message("❌ Faltam recursos.", ephemeral=True)
-        self.pd["itens"].remove(item)
-        self.pd["money"] -= cost
-        owned["level"] += 1
-        save_data()
-        await interaction.response.send_message(f"✅ {char['name']} evoluiu para nível {owned['level']}!", ephemeral=True)
-
-# Loja principal (compacta)
-class LojaPrincipalView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=120)
-    @discord.ui.button(label="Itens", style=discord.ButtonStyle.primary)
-    async def itens(self, interaction, btn):
-        if not data["shop_items"]:
-            return await interaction.response.send_message("Loja vazia.", ephemeral=True)
-        view = discord.ui.View(timeout=60)
-        for it in data["shop_items"]:
-            view.add_item(discord.ui.Button(label=f"{it['name']} 💰{it['price']}", style=discord.ButtonStyle.success, custom_id=f"buy_{it['name']}"))
-        await interaction.response.send_message("Itens disponíveis:", view=view, ephemeral=True)
-    @discord.ui.button(label="Acessórios", style=discord.ButtonStyle.primary)
-    async def acessorios(self, interaction, btn):
-        if not data["shop_accessories"]:
-            return await interaction.response.send_message("Nenhum acessório.", ephemeral=True)
-        view = discord.ui.View(timeout=60)
-        for acc in data["shop_accessories"]:
-            view.add_item(discord.ui.Button(label=f"{acc['name']} 💰{acc['price']}", style=discord.ButtonStyle.success, custom_id=f"buyacc_{acc['name']}"))
-        await interaction.response.send_message("Acessórios disponíveis:", view=view, ephemeral=True)
-    @discord.ui.button(label="Caixas", style=discord.ButtonStyle.primary)
-    async def caixas(self, interaction, btn):
-        view = discord.ui.View(timeout=60)
-        for c in caixas_db:
-            view.add_item(discord.ui.Button(label=f"{c['name']} 💰{c['price']}", style=discord.ButtonStyle.success, custom_id=f"caixa_{c['type']}"))
-        await interaction.response.send_message("Caixas:", view=view, ephemeral=True)
-    @discord.ui.button(label="Varas", style=discord.ButtonStyle.primary)
-    async def varas(self, interaction, btn):
-        view = discord.ui.View(timeout=60)
-        for nome, info in varas_db.items():
-            if "price" in info:
-                view.add_item(discord.ui.Button(label=f"{nome} 💰{info['price']}", style=discord.ButtonStyle.success, custom_id=f"vara_{nome}"))
-        await interaction.response.send_message("Varas:", view=view, ephemeral=True)
-    @discord.ui.button(label="Vender Peixes", style=discord.ButtonStyle.danger)
-    async def vender(self, interaction, btn):
-        pd = get_player(interaction.user.id)
-        fish_names = [f["name"] for f in peixes_db]
-        fish_items = [it for it in pd["itens"] if it in fish_names]
-        if not fish_items:
-            return await interaction.response.send_message("Sem peixes.", ephemeral=True)
-        total = sum(next(f["value"] for f in peixes_db if f["name"]==it) for it in fish_items)
-        pd["itens"] = [it for it in pd["itens"] if it not in fish_names]
-        pd["money"] += total
-        save_data()
-        await interaction.response.send_message(f"✅ Peixes vendidos! +{total} 💰", ephemeral=True)
-
-class PescarView(discord.ui.View):
-    def __init__(self, pd): super().__init__(timeout=120); self.pd = pd
-    @discord.ui.button(label="Pescar 🎣", style=discord.ButtonStyle.primary)
-    async def pescar(self, interaction, btn):
-        btn.disabled = True
-        await interaction.response.edit_message(content="Pescando...", view=self)
-        v = varas_db[self.pd["vara"]]
-        tempo = random.randint(v["min"], v["max"])
-        await asyncio.sleep(tempo)
-        fish = random.choices(peixes_db, weights=[p["chance"] for p in peixes_db])[0]
-        self.pd["itens"].append(fish["name"])
-        save_data()
-        btn.disabled = False
-        await interaction.edit_original_response(content=f"✅ Pegou {fish['name']} (+💰{fish['value']})", view=self)
-
-class PvPChoiceView(discord.ui.View):
-    def __init__(self, uid): super().__init__(timeout=60); self.uid = uid
-    @discord.ui.button(label="PvP com Bot", style=discord.ButtonStyle.primary)
-    async def bot(self, interaction, btn):
-        pd = get_player(self.uid)
-        if not all(pd["slots"]):
-            return await interaction.response.send_message("Equipe 4 personagens.", ephemeral=True)
-        pd["vitorias"] += 1
-        pd["money"] += random.randint(1, 80)
-        gain_xp(pd, random.randint(1, 20))
-        save_data()
-        await interaction.response.send_message("🏆 Vitória contra o bot! (recompensa aleatória)", ephemeral=True)
-    @discord.ui.button(label="PvP com Amigo", style=discord.ButtonStyle.primary)
-    async def amigo(self, interaction, btn):
-        await interaction.response.send_modal(InputNickModal(self.amigo_callback))
-    async def amigo_callback(self, interaction, target_nick):
-        uid = str(self.uid)
-        pd = data["users"][uid]
-        target_uid = next((u for u,usr in data["users"].items() if usr.get("nick")==target_nick and u!=uid), None)
-        if not target_uid:
-            return await interaction.response.send_message("Jogador não encontrado.", ephemeral=True)
-        data["active_pvp"][uid] = {"target":target_uid,"type":"amigo"}
-        try:
-            target_user = await bot.fetch_user(int(target_uid))
-            await target_user.send(f"{pd['nick']} te convidou para PvP! Use ,aceitar_pvp")
-        except: pass
-        await interaction.response.send_message(f"Convite enviado para {target_nick}.", ephemeral=True)
-    @discord.ui.button(label="PvP Royal", style=discord.ButtonStyle.primary)
-    async def royal(self, interaction, btn):
-        data["pvp_queue"].append(str(self.uid))
-        save_data()
-        await interaction.response.send_message("Procurando oponente...", ephemeral=True)
-
-# ====================== COMANDOS ======================
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def config(ctx):
-    await ctx.send("👑 Painel Admin", view=AdminView())
-
-class AdminView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=120)
-    @discord.ui.button(label="Resetar Player", style=discord.ButtonStyle.danger)
-    async def reset(self, interaction, btn):
-        await interaction.response.send_modal(InputNickModal(self.reset_callback))
-    async def reset_callback(self, interaction, nick):
-        target_uid = next((u for u,usr in data["users"].items() if usr.get("nick")==nick), None)
-        if not target_uid: return await interaction.response.send_message("Não encontrado.", ephemeral=True)
-        data["users"][target_uid] = get_player(int(target_uid))
-        save_data()
-        await interaction.response.send_message(f"{nick} resetado.", ephemeral=True)
-    @discord.ui.button(label="2x Luck", style=discord.ButtonStyle.gray)
-    async def luck(self, interaction, btn):
-        data["luck_2x"] = not data["luck_2x"]
-        save_data()
-        await interaction.response.send_message(f"2x Luck: {'ON' if data['luck_2x'] else 'OFF'}", ephemeral=True)
-    @discord.ui.button(label="Reset Loja", style=discord.ButtonStyle.blurple)
-    async def reset_shop(self, interaction, btn):
-        populate_shop()
-        await interaction.response.send_message("✅ Loja resetada!", ephemeral=True)
-
-@bot.command()
-async def login(ctx):
-    await ctx.send("📚 Cadastre ou Faça login", view=LoginChoiceView())
-
-@bot.command()
-async def menu(ctx):
-    await ctx.send("🎮 Menu Principal", view=MainMenuView())
-
-# Tratamento de interações de botões dinâmicos (compra, seleção, etc.) sem on_interaction
-@bot.listen("on_interaction")
-async def interaction_handler(interaction):
-    if interaction.type != discord.InteractionType.component:
-        return
-    custom_id = interaction.data.get("custom_id", "")
-    pd = get_player(interaction.user.id)
-    # Detalhes de personagem
-    if custom_id.startswith("detail_"):
-        char_id = int(custom_id.split("_")[1])
-        owned = next((c for c in pd["personagens"] if c["id"]==char_id), None)
-        if owned:
-            char = get_character(char_id)
-            embed = discord.Embed(title=char["name"], description=get_character_details(owned, char))
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-    # Equipar slot
-    elif custom_id.startswith("equip_"):
-        slot_idx = int(custom_id.split("_")[1])
-        view = discord.ui.View(timeout=60)
-        for owned in pd["personagens"]:
-            char = get_character(owned["id"])
-            view.add_item(discord.ui.Button(label=char["name"], style=discord.ButtonStyle.primary, custom_id=f"equip_{slot_idx}_{owned['id']}"))
-        await interaction.response.send_message("Escolha o personagem:", view=view, ephemeral=True)
-    elif custom_id.startswith("equip_") and len(custom_id.split("_"))==3:
-        _, slot_idx, char_id = custom_id.split("_")
-        slot_idx = int(slot_idx); char_id = int(char_id)
-        pd["slots"][slot_idx] = {"id":char_id}
-        save_data()
-        await interaction.response.send_message("Equipado!", ephemeral=True)
-    # Acessórios
-    elif custom_id.startswith("acc_"):
-        acc_name = custom_id[4:]
-        if acc_name not in pd["acessorios"]:
-            return await interaction.response.send_message("Acessório não encontrado.", ephemeral=True)
-        view = discord.ui.View(timeout=60)
-        for i, slot in enumerate(pd["slots"]):
-            if slot:
-                char = get_character(slot["id"])
-                view.add_item(discord.ui.Button(label=char["name"], style=discord.ButtonStyle.primary, custom_id=f"equipacc_{i}_{acc_name}"))
-        await interaction.response.send_message("Escolha o personagem:", view=view, ephemeral=True)
-    elif custom_id.startswith("equipacc_"):
-        _, slot_idx, acc_name = custom_id.split("_",2)
-        slot_idx = int(slot_idx)
-        slot = pd["slots"][slot_idx]
-        if not slot: return
-        owned = next(c for c in pd["personagens"] if c["id"]==slot["id"])
-        if owned.get("equipped_accessory"): return await interaction.response.send_message("Já tem acessório.", ephemeral=True)
-        owned["equipped_accessory"] = acc_name
-        pd["acessorios"].pop(acc_name, None)
-        save_data()
-        await interaction.response.send_message("Acessório equipado!", ephemeral=True)
-    # Desequipar
-    elif custom_id.startswith("uneq_"):
-        char_id = int(custom_id[5:])
-        owned = next(c for c in pd["personagens"] if c["id"]==char_id)
-        if owned.get("equipped_accessory"):
-            acc = owned.pop("equipped_accessory")
-            pd["acessorios"][acc] = {"name":acc}
-            save_data()
-            await interaction.response.send_message("Desequipado!", ephemeral=True)
-    # Compras da loja (item)
-    elif custom_id.startswith("buy_"):
-        item_name = custom_id[4:]
-        if item_name in [i["name"] for i in data["shop_items"]]:
-            item = next(i for i in data["shop_items"] if i["name"]==item_name)
-            if pd["money"] >= item["price"]:
-                pd["money"] -= item["price"]
-                pd["itens"].append(item["name"])
-                data["shop_items"].remove(item)
-                save_data()
-                await interaction.response.send_message(f"✅ Comprou {item['name']}!", ephemeral=True)
-            else:
-                await interaction.response.send_message("❌ Dinheiro insuficiente.", ephemeral=True)
-    elif custom_id.startswith("buyacc_"):
-        acc_name = custom_id[7:]
-        if acc_name in [a["name"] for a in data["shop_accessories"]]:
-            acc = next(a for a in data["shop_accessories"] if a["name"]==acc_name)
-            if pd["money"] >= acc["price"]:
-                pd["money"] -= acc["price"]
-                pd["acessorios"][acc["name"]] = acc
-                data["shop_accessories"].remove(acc)
-                save_data()
-                await interaction.response.send_message(f"✅ Comprou {acc['name']}!", ephemeral=True)
-            else:
-                await interaction.response.send_message("❌ Dinheiro insuficiente.", ephemeral=True)
-    elif custom_id.startswith("caixa_"):
-        ctype = custom_id[6:]
-        caixa = next((c for c in caixas_db if c["type"]==ctype), None)
-        if caixa and pd["money"] >= caixa["price"]:
-            pd["money"] -= caixa["price"]
-            if ctype == "personagem":
-                char = random.choice(character_db)
-                pd["personagens"].append({"id":char["id"],"level":0,"talento":get_random_talento(),"equipped_accessory":None})
-                msg = f"🎉 Ganhou **{char['name']}**!"
-            elif ctype == "item":
-                item = random.choice(items_db)
-                pd["itens"].append(item["name"])
-                msg = f"🎉 Ganhou **{item['name']}**!"
-            else:
-                acc = random.choice([a for lst in acessorios_db.values() for a in lst])
-                pd["acessorios"][acc["name"]] = acc
-                msg = f"🎉 Ganhou **{acc['name']}**!"
-            save_data()
-            await interaction.response.send_message(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message("❌ Dinheiro insuficiente.", ephemeral=True)
-    elif custom_id.startswith("vara_"):
-        nome = custom_id[5:]
-        if nome in varas_db and "price" in varas_db[nome] and pd["money"] >= varas_db[nome]["price"]:
-            pd["money"] -= varas_db[nome]["price"]
-            pd["vara"] = nome
-            save_data()
-            await interaction.response.send_message(f"✅ Vara {nome} comprada!", ephemeral=True)
-        else:
-            await interaction.response.send_message("❌ Erro.", ephemeral=True)
-
-# ====================== TAREFAS ======================
-@tasks.loop(minutes=5)
-async def auto_reset_shop():
-    if data["shop_reset_time"]:
-        last = datetime.fromisoformat(data["shop_reset_time"])
-        if (datetime.now() - last).total_seconds() >= data["config"]["shop_reset_minutes"] * 60:
-            populate_shop()
-
-@tasks.loop(seconds=20)
-async def pvp_royal_matcher():
-    queue = data.get("pvp_queue", [])
-    if len(queue) >= 2:
-        uid1, uid2 = queue.pop(0), queue.pop(0)
-        data["pvp_queue"] = queue
-        save_data()
-        user1 = bot.get_user(int(uid1))
-        user2 = bot.get_user(int(uid2))
-        if not user1 or not user2:
             return
-        winner = random.choice([uid1, uid2])
-        loser = uid2 if winner == uid1 else uid1
-        pd_winner = get_player(int(winner))
-        pd_winner["vitorias"] += 1
-        pd_winner["money"] += random.randint(1, 50)
-        gain_xp(pd_winner, random.randint(1, 20))
-        save_data()
-        try:
-            await user1.send(f"PvP Royal: Você {'venceu' if winner==uid1 else 'perdeu'}!")
-            await user2.send(f"PvP Royal: Você {'venceu' if winner==uid2 else 'perdeu'}!")
-        except:
-            pass
+        end
+    end
 
-@bot.event
-async def on_ready():
-    print(f"✅ {bot.user} online - Anime Battle Ultimate!")
-    auto_reset_shop.start()
-    pvp_royal_matcher.start()
+    local Window = WindUI:CreateWindow({
+        Title = "Project Sor",
+        Icon = "rbxassetid://135710581431595",
+        Author = "Noob Must Die",
+        Folder = "Project Sor - Noob Must Die",
+        Size = UDim2.fromOffset(460, 320),
+        Transparent = false,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        BackgroundImageTransparency = 0.42,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+        User = {
+            Enabled = true,
+            Anonymous = false,
+            Callback = function() print("clicked") end,
+        },
+    })
+    oldWindow = Window
+    Window:SetIconSize(60)
 
-# Substitua SEU_TOKEN_AQUI pelo token do seu bot
-bot.run("SEU_TOKEN_AQUI")
+    Window:EditOpenButton({
+        Title = "Project Sor",
+        Icon = "",
+        CornerRadius = UDim.new(0, 16),
+        StrokeThickness = 2,
+        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
+        OnlyMobile = false,
+        Enabled = true,
+        Draggable = false
+    })
+
+    local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
+    local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
+
+    -- ABA MAIN
+    TabMain:Section({ Title = lang.SecRaid })
+
+    TabMain:Toggle({
+        Title = lang.ToggleRaid,
+        Desc = lang.DescRaid,
+        Value = Config.RaidEnabled,
+        Callback = function(value)
+            Config.RaidEnabled = value
+            SaveConfig()
+        end
+    })
+
+    TabMain:Input({
+        Title = lang.ChatMulti,
+        Desc = lang.DescMulti,
+        Value = tostring(Config.ShotSpeedIndex),
+        Placeholder = lang.PlaceMulti,
+        Callback = function(text)
+            local numero = tonumber(text)
+            if numero and numero > 0 then
+                Config.ShotSpeedIndex = numero
+                SaveConfig()
+            end
+        end
+    })
+
+    TabMain:Slider({
+        Title = lang.Distancia,
+        Desc = lang.DescDist,
+        Step = 1,
+        Value = { Min = 0, Max = 5, Default = Config.NpcDistance },
+        Callback = function(value)
+            Config.NpcDistance = math.floor(value)
+            SaveConfig()
+        end
+    })
+
+    TabMain:Section({ Title = lang.SecTp })
+    TabMain:Button({ Title = "Camper (+0)", Desc = "XP +1", Callback = function() ExecutarTeleporte(CFrame.new(-648, 8, -3322)) end })
+    TabMain:Button({ Title = "Primary Instinct (+0)", Desc = "XP +4", Callback = function() ExecutarTeleporte(CFrame.new(349, 9, -944)) end })
+    TabMain:Button({ Title = "The Forest Of Terror (+150)", Desc = "XP +5.50", Callback = function() ExecutarTeleporte(CFrame.new(5126, -454, -3279)) end })
+    TabMain:Button({ Title = "Cracking Up Laughing (+250)", Desc = "XP +6 (Hammers)", Callback = function() ExecutarTeleporte(CFrame.new(8908, 88, -11458)) end })
+    TabMain:Button({ Title = "The Big Beetle (+150)", Desc = "XP +5 (Royal Gilded Axe)", Callback = function() ExecutarTeleporte(CFrame.new(4340, -32, -6216)) end })
+    TabMain:Button({ Title = "Vilgax Attack (+500)", Desc = "XP +7 (Quantum Inversor 3%)", Callback = function() ExecutarTeleporte(CFrame.new(-19887, 3550, -16091)) end })
+    TabMain:Button({ Title = "On Our Honor! (+800)", Desc = "XP +6 (Eternal Ring 4%)", Callback = function() ExecutarTeleporte(CFrame.new(2508, 300, -7042)) end })
+    TabMain:Button({ Title = "Temple of the Sun (+1000)", Desc = "XP +12.50 (Ekchuaj Sword 100%)", Callback = function() ExecutarTeleporte(CFrame.new(6284, 7, -7843)) end })
+    TabMain:Button({ Title = "Infinity 1 (+2500)", Desc = "XP +17.80 (Pets)", Callback = function() ExecutarTeleporte(CFrame.new(-927, 25, 92757)) end })
+    TabMain:Button({ Title = "Malware (+3500)", Desc = "XP +32 (Malware DNA 3%)", Callback = function() ExecutarTeleporte(CFrame.new(89439, 127, -75263)) end })
+    TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
+    TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
+
+    -- ABA CONFIG
+    TabConfig:Section({ Title = lang.SecConfig })
+
+    TabConfig:Dropdown({
+        Title = lang.DropIdioma,
+        Desc = lang.DescIdioma,
+        Values = {"Português", "Espanhol", "English"},
+        Value = Config.Language,
+        Callback = function(value)
+            if Config.Language ~= value then
+                Config.Language = value
+                SaveConfig()
+                CriarMenu()
+            end
+        end
+    })
+
+    TabConfig:Toggle({
+        Title = lang.ToggleIntro,
+        Desc = lang.DescIntro,
+        Value = Config.RemoverIntro,
+        Callback = function(value)
+            Config.RemoverIntro = value
+            SaveConfig()
+            -- Notifica que a alteração só terá efeito após reiniciar o script
+            StarterGui:SetCore("SendNotification", {
+                Title = "Intro",
+                Text = "A alteração só terá efeito após reiniciar o script.",
+                Duration = 3
+            })
+        end
+    })
+
+    TabConfig:Button({
+        Title = lang.BtnReset,
+        Desc = lang.DescReset,
+        Callback = function()
+            Config.RaidEnabled = false
+            Config.Language = "Português"
+            Config.RemoverIntro = false
+            SaveConfig()
+            
+            if Window.Notify then
+                Window:Notify({
+                    Title = lang.NotifTitle,
+                    Desc = lang.NotifDesc,
+                    Duration = 3,
+                })
+            end
+            CriarMenu()
+        end
+    })
+
+    TabConfig:Section({ Title = lang.SecServer })
+
+    TabConfig:Button({
+        Title = "Rejoin",
+        Desc = lang.DescRejoin,
+        Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
+    })
+
+    TabConfig:Button({
+        Title = "ServeHop",
+        Desc = lang.DescHop,
+        Callback = function() MudarServidor("Desc") end
+    })
+
+    TabConfig:Button({
+        Title = "SmallServe",
+        Desc = lang.DescSmall,
+        Callback = function() MudarServidor("Asc") end
+    })
+end
+
+-- Inicia o menu
+pcall(CriarMenu)
+
+-- Notificação de inicialização
+StarterGui:SetCore("SendNotification", {
+    Title = "Project Sor",
+    Text = "Script carregado com sucesso!",
+    Duration = 3
+})
+
+print("Project Sor carregado. Pressione o botão do menu para abrir.")
