@@ -1,793 +1,235 @@
--- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
-local players = game:GetService("Players")
-local coreGui = game:GetService("CoreGui")
-local lighting = game:GetService("Lighting")
-local tweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local StarterGui = game:GetService("StarterGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+--[[
+  SCRIPT VISUAL SAMURAI - AURA + ANIMAÇÃO + PHONK
+  Coloque em StarterPlayerScripts ou StarterCharacterScripts
+--]]
 
-local LocalPlayer = players.LocalPlayer
-local estaTeleportando = false
+local player = game.Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local root = char:WaitForChild("HumanoidRootPart")
+local humanoid = char:WaitForChild("Humanoid")
+local runService = game:GetService("RunService")
+local userInput = game:GetService("UserInputService")
 
--- Configurações padrão
-local Config = {
-    RaidEnabled = false,
-    ShotSpeedIndex = 1,
-    NpcDistance = 2,
-    Language = "Português",
-    RemoverIntro = false,
-    AntiAFK = false,
-    -- Boss
-    BossDistance = 2,
-    BossShotMultiplier = 1,
-    BossShip = false,
-    BossKraken = false,
-    BossTransDimensional = false,
-}
+-- VARIÁVEIS DE CONTROLE
+local debounce = false
+local ring = nil
+local slashBeam = nil
 
-local FILE_NAME = "WindUI_SorOminiX_Config.json"
+-- =====================================================
+-- 1. AURA (PARTÍCULAS DE FOGO SOMBRIO)
+-- =====================================================
+local function criarAura()
+    local attach = Instance.new("Attachment")
+    attach.Name = "AuraAttachment"
+    attach.Parent = root
 
--- =============================================
--- SALVAMENTO E CARREGAMENTO
--- =============================================
-local function SaveConfig()
-    if not writefile then return end
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(Config)
-    end)
-    if success then
-        pcall(function() writefile(FILE_NAME, json) end)
-    end
-end
-
-local function LoadConfig()
-    if not isfile then return end
-    if isfile(FILE_NAME) then
-        local success, data = pcall(function()
-            return readfile(FILE_NAME)
-        end)
-        if success then
-            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
-            if decoded and type(decoded) == "table" then
-                for k, v in pairs(decoded) do
-                    Config[k] = v
-                end
-            end
-        end
-    end
-end
-pcall(LoadConfig)
-
--- =============================================
--- INTRO (SPLASH)
--- =============================================
-if not Config.RemoverIntro then
-    pcall(function()
-        local blur = Instance.new("BlurEffect")
-        blur.Name = "UIBlurEffect"
-        blur.Size = 0
-        blur.Enabled = true
-        blur.Parent = lighting
-
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "OverlayGui"
-        screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        local success = pcall(function()
-            screenGui.Parent = coreGui
-        end)
-        if not success then
-            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-        end
-
-        local img = Instance.new("ImageLabel")
-        img.Name = "DisplayImage"
-        img.BackgroundTransparency = 1
-        img.Image = "rbxassetid://135710581431595"
-        img.AnchorPoint = Vector2.new(0.5, 0.5)
-        img.Position = UDim2.new(0.5, 0, 0.45, 0)
-        img.Size = UDim2.new(0, 400, 0, 400)
-        img.ImageTransparency = 1
-        img.ZIndex = 10
-        img.Parent = screenGui
-
-        task.wait(5)
-
-        local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
-        tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
-
-        task.wait(1.5)
-        local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-        local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
-        pulseTween:Play()
-
-        task.wait(8)
-
-        pulseTween:Cancel()
-        tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
-        tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
-
-        task.wait(1.5)
-        screenGui:Destroy()
-        blur:Destroy()
-    end)
-end
-
--- =============================================
--- DICIONÁRIO DE IDIOMAS
--- =============================================
-local Idiomas = {
-    ["Português"] = {
-        TabMain = "Raid & Teleportes",
-        TabBoss = "Boss",
-        TabConfig = "Configurações",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Ativa o ataque e o teleporte em loop",
-        ChatMulti = "Multiplicador de Tiro",
-        DescMulti = "Número de tiros por ciclo (Ex: 9)",
-        PlaceMulti = "Digite um número...",
-        Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
-        SecTp = "Tp Raids",
-        SecBossConfig = "Boss Config",
-        DescBossDist = "Distância acima do Boss (0 a 20)",
-        DescBossMulti = "Multiplicador de tiros para Boss",
-        SecBoss = "Boss",
-        ToggleShip = "Ship",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Trans Dimensional",
-        SecConfig = "Config",
-        DropIdioma = "Idiomas",
-        DescIdioma = "Altere o idioma do Script",
-        BtnReset = "Reset Config",
-        DescReset = "Reseta os toggles e idioma",
-        ToggleIntro = "Remover Intro",
-        DescIntro = "Desativa a introdução ao iniciar o script",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Envia clique a cada 60s para não ser desconectado",
-        SecServer = "Servidor",
-        DescRejoin = "Entra novamente no mesmo servidor",
-        DescHop = "Teleporta pro servidor antigo",
-        DescSmall = "Teleporta pra servidor criado recentemente",
-        NotifTitle = "Configuração Resetada",
-        NotifDesc = "Raid desativada e idioma resetado."
-    },
-    ["Espanhol"] = {
-        TabMain = "Raid y Teleportes",
-        TabBoss = "Jefe",
-        TabConfig = "Configuraciones",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Activa el ataque y el teletransporte en bucle",
-        ChatMulti = "Multiplicador de Tiro",
-        DescMulti = "Número de disparos por ciclo (Ej: 9)",
-        PlaceMulti = "Escribe un número...",
-        Distancia = "Distancia",
-        DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
-        SecTp = "Tp Raids",
-        SecBossConfig = "Config Jefe",
-        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
-        DescBossMulti = "Multiplicador de disparos para Jefe",
-        SecBoss = "Jefe",
-        ToggleShip = "Barco",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Monstruo Transdimensional",
-        SecConfig = "Config",
-        DropIdioma = "Idiomas",
-        DescIdioma = "Cambia el idioma del Script",
-        BtnReset = "Reset Config",
-        DescReset = "Restablece los toggles e idioma",
-        ToggleIntro = "Eliminar Intro",
-        DescIntro = "Desactiva la introducción al iniciar el script",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Envía clic cada 60s para no ser desconectado",
-        SecServer = "Servidor",
-        DescRejoin = "Volver al mismo servidor",
-        DescHop = "Teletransporta al servidor antiguo",
-        DescSmall = "Teletransporte a servidor reciente",
-        NotifTitle = "Configuración Reiniciada",
-        NotifDesc = "Raid desactivada e idioma restablecido."
-    },
-    ["English"] = {
-        TabMain = "Raid & Teleports",
-        TabBoss = "Boss",
-        TabConfig = "Settings",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Activates loop attack and teleport",
-        ChatMulti = "Shot Multiplier",
-        DescMulti = "Number of shots per cycle (Ex: 9)",
-        PlaceMulti = "Type a number...",
-        Distancia = "Distance",
-        DescDist = "Distance above NPCs (Studs) - 0 to 20",
-        SecTp = "Tp Raids",
-        SecBossConfig = "Boss Config",
-        DescBossDist = "Distance above Boss (0 to 20)",
-        DescBossMulti = "Shot multiplier for Boss",
-        SecBoss = "Boss",
-        ToggleShip = "Ship",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Trans Dimensional",
-        SecConfig = "Config",
-        DropIdioma = "Languages",
-        DescIdioma = "Change the script language",
-        BtnReset = "Reset Config",
-        DescReset = "Reset toggles and language",
-        ToggleIntro = "Remove Intro",
-        DescIntro = "Disables the intro splash",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Sends a click every 60s to avoid disconnect",
-        SecServer = "Server",
-        DescRejoin = "Rejoin the same server",
-        DescHop = "Teleport to an old server",
-        DescSmall = "Teleport to a recently created server",
-        NotifTitle = "Config Reset",
-        NotifDesc = "Raid disabled and language reset."
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Name = "SamuraiAura"
+    emitter.Parent = attach
+    
+    -- Configuração visual (Vermelho / Preto / Laranja)
+    emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    emitter.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 0)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 0, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
     }
-}
-
--- =============================================
--- SISTEMA DE COMBATE (REMOTES)
--- =============================================
-local RS = pcall(function()
-    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
-    if remotes then
-        return remotes:FindFirstChild("upgrade")
-    end
-end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
-
-local function Laser()
-    if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
-end
-local function GunArm()
-    if RS and RS.GunArm then pcall(function() RS.GunArm:InvokeServer() end) end
-end
-local function Armature()
-    if RS and RS.Armature then pcall(function() RS.Armature:InvokeServer() end) end
+    emitter.Size = NumberSequence.new(2, 5)
+    emitter.Transparency = NumberSequence.new(0.2, 0.9)
+    emitter.SpreadAngle = Vector2.new(360, 360)
+    emitter.VelocityInheritance = 0.3
+    emitter.Lifetime = NumberRange.new(0.8, 1.5)
+    emitter.Rate = 80
+    emitter.Rotation = NumberRange.new(0, 360)
+    emitter.Speed = NumberRange.new(5, 15)
+    emitter.Enabled = true
 end
 
-local function ArmFire(targetRoot)
-    if not RS or not RS.ArmFire then return end
-    local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    if root then
-        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
-        pcall(function()
-            RS.ArmFire:InvokeServer(targetPosition)
-        end)
-    end
-end
+-- =====================================================
+-- 2. ANEL ROTATIVO (ESTILO PORTAL/RESSONÂNCIA)
+-- =====================================================
+local function criarAnel()
+    ring = Instance.new("Part")
+    ring.Name = "SamuraiRing"
+    ring.Shape = Enum.PartType.Cylinder
+    ring.Size = Vector3.new(8, 0.3, 8)
+    ring.CFrame = root.CFrame * CFrame.new(0, -1, 0)
+    ring.Anchored = true
+    ring.CanCollide = false
+    ring.Material = Enum.Material.Neon
+    ring.Color = Color3.fromRGB(180, 0, 0)
+    ring.Transparency = 0.4
+    ring.Parent = workspace
 
--- =============================================
--- LÓGICA DE ALVO E TELEPORTE
--- =============================================
-local function getLocalCharacter()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    return char, root
-end
+    -- Efeito de brilho (ponto de luz)
+    local glow = Instance.new("PointLight")
+    glow.Parent = ring
+    glow.Color = Color3.fromRGB(200, 0, 0)
+    glow.Range = 10
+    glow.Brightness = 2
 
-local function getClosestNPC()
-    local _, myRoot = getLocalCharacter()
-    if not myRoot then return nil end
-
-    local enemysFolder = workspace:FindFirstChild("Enemys")
-    if not enemysFolder then return nil end
-
-    local closestNPC = nil
-    local shortestDistance = math.huge
-
-    for _, enemyFolder in ipairs(enemysFolder:GetChildren()) do
-        local npcCharacter = enemyFolder:FindFirstChild("Character")
-        if npcCharacter and npcCharacter:IsA("Model") then
-            local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
-            local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
-            if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
-                local distance = (myRoot.Position - npcRoot.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestNPC = npcRoot
-                end
-            end
-        end
-    end
-    return closestNPC
-end
-
-local function ExecutarTeleporte(cframe)
-    if estaTeleportando then return end
-    estaTeleportando = true
-    pcall(function()
-        if LocalPlayer.Character then
-            LocalPlayer.Character:PivotTo(cframe)
-        end
-    end)
-    task.wait(0.1)
-    estaTeleportando = false
-end
-
-local function MudarServidor(ordem)
-    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    if success and result and result.data then
-        for _, server in ipairs(result.data) do
-            if type(server) == "table" and server.id ~= game.JobId then
-                if server.playing > 0 and server.playing < server.maxPlayers then
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                    return
-                end
-            end
-        end
-    end
-end
-
--- =============================================
--- LOOP DA RAID (existente)
--- =============================================
-local raidRunning = false
-local raidConnection = nil
-
-local function startRaidLoop()
-    if raidConnection then return end
-    raidRunning = true
-    raidConnection = RunService.Heartbeat:Connect(function()
-        if not Config.RaidEnabled then
-            raidRunning = false
-            if raidConnection then
-                raidConnection:Disconnect()
-                raidConnection = nil
-            end
-            return
-        end
-
-        local _, myRoot = getLocalCharacter()
-        local targetNPC = getClosestNPC()
-        if not myRoot or not targetNPC then return end
-
-        myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
-
-        local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not Config.RaidEnabled then break end
-                Laser()
-                GunArm()
-                ArmFire(targetNPC)
-                Armature()
-                task.wait()
-            end
+    -- Loop de rotação
+    runService.RenderStepped:Connect(function()
+        if ring and ring.Parent then
+            ring.CFrame = root.CFrame * CFrame.new(0, -1, 0) * CFrame.Angles(0, math.rad(1.5), 0)
         end
     end)
 end
 
-if Config.RaidEnabled then
-    task.spawn(startRaidLoop)
-end
+-- =====================================================
+-- 3. ANIMAÇÃO MODIFICADA (POSTURA SAMURAI)
+-- =====================================================
+local function ativarPostura()
+    -- Aumenta velocidade e pulo
+    humanoid.WalkSpeed = 22
+    humanoid.JumpPower = 65
 
--- =============================================
--- LOOP DOS BOSSES (CORRIGIDO)
--- =============================================
-local bossRunning = false
-local bossConnection = nil
+    -- Inclina o tronco pra frente (postura de combate)
+    local tweenService = game:GetService("TweenService")
+    local objetivo = CFrame.Angles(math.rad(10), 0, 0) 
+    
+    -- Aplica a inclinação no HumanoidRootPart via tween
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+    local tween = tweenService:Create(root, tweenInfo, {CFrame = root.CFrame * objetivo})
+    tween:Play()
 
--- Função melhorada para obter a parte alvo do boss ativo
-local function getActiveBossTarget()
-    local enemys = workspace:FindFirstChild("Enemys")
-    if not enemys then return nil end
+    -- Cria um rastro visual de "vento" nos braços (opcional, via Motor6D é complexo, 
+    -- então faremos um efeito visual de lâmina pairando)
+    local blade = Instance.new("Part")
+    blade.Name = "BladeEffect"
+    blade.Size = Vector3.new(0.5, 0.5, 5)
+    blade.BrickColor = BrickColor.new("Bright red")
+    blade.Material = Enum.Material.Neon
+    blade.Anchored = true
+    blade.CanCollide = false
+    blade.Transparency = 0.3
+    blade.Parent = workspace
 
-    -- Lista de bosses com seus caminhos e chaves de configuração
-    local bosses = {
-        { configKey = "BossShip", folderName = "Ship [ Ferris Wheel Form ]", charName = "Character" },
-        { configKey = "BossKraken", folderName = "Kraken", charName = "Character" },
-        { configKey = "BossTransDimensional", folderName = "Trans Dimensional Monster", charName = "Character" },
-    }
+    -- Anexa a lâmina na mão direita (simulação)
+    local rightArm = char:FindFirstChild("Right Arm") or char:FindFirstChild("RightHand")
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = rightArm
+    weld.Part1 = blade
+    weld.Parent = blade
+    -- Posiciona a lâmina para frente
+    blade.CFrame = rightArm.CFrame * CFrame.new(0, -0.5, -2)
 
-    for _, boss in ipairs(bosses) do
-        if Config[boss.configKey] then
-            local folder = enemys:FindFirstChild(boss.folderName)
-            if folder then
-                local char = folder:FindFirstChild(boss.charName)
-                if char and char:IsA("Model") then
-                    -- Tenta obter HumanoidRootPart ou Torso ou qualquer BasePart
-                    local part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-                    if not part then
-                        for _, child in ipairs(char:GetChildren()) do
-                            if child:IsA("BasePart") then
-                                part = child
-                                break
-                            end
-                        end
-                    end
-                    if part and part:IsA("BasePart") then
-                        return part
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function startBossLoop()
-    if bossConnection then return end
-    bossRunning = true
-    bossConnection = RunService.Heartbeat:Connect(function()
-        -- Verifica se algum boss está ativo
-        if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then
-            bossRunning = false
-            if bossConnection then
-                bossConnection:Disconnect()
-                bossConnection = nil
-            end
-            return
-        end
-
-        local targetPart = getActiveBossTarget()
-        if not targetPart then return end
-
-        local _, myRoot = getLocalCharacter()
-        if not myRoot then return end
-
-        -- Teleporte fixo para o boss
-        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
-
-        -- Disparos com multiplicador
-        local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
-                Laser()
-                GunArm()
-                ArmFire(targetPart)
-                Armature()
-                task.wait()
-            end
+    -- Faz a lâmina pulsar
+    spawn(function()
+        while blade and blade.Parent do
+            blade.Transparency = 0.2 + math.sin(tick() * 8) * 0.2
+            blade.Size = Vector3.new(0.5, 0.5, 4 + math.sin(tick() * 5) * 0.5)
+            wait(0.03)
         end
     end)
+
+    return blade
 end
 
--- Inicia o loop dos bosses se algum estiver ativo ao carregar
-if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
-    task.spawn(startBossLoop)
-end
+-- =====================================================
+-- 4. GOLPE IAIDO (SLASH ANIMADO)
+-- =====================================================
+local function executarCorte()
+    if debounce then return end
+    debounce = true
 
--- =============================================
--- ANTI‑AFK
--- =============================================
-local antiAFKRunning = false
-local antiAFKConnection = nil
+    -- Cria o arco do corte (um cilindro gigante que aparece e some)
+    local arco = Instance.new("Part")
+    arco.Name = "IaidoSlash"
+    arco.Shape = Enum.PartType.Cylinder
+    arco.Size = Vector3.new(0.5, 0.5, 0.5)
+    arco.Material = Enum.Material.Neon
+    arco.Color = Color3.fromRGB(255, 50, 0)
+    arco.Anchored = true
+    arco.CanCollide = false
+    arco.Transparency = 0.2
+    arco.Parent = workspace
 
-local function startAntiAFK()
-    if antiAFKConnection then return end
-    antiAFKRunning = true
-    antiAFKConnection = task.spawn(function()
-        while antiAFKRunning and Config.AntiAFK do
-            task.wait(60)
-            if not Config.AntiAFK then break end
-            pcall(function()
-                local viewport = workspace.CurrentCamera.ViewportSize
-                local center = Vector2.new(viewport.X/2, viewport.Y/2)
-                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
-                task.wait(0.05)
-                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
-            end)
-        end
-        antiAFKConnection = nil
-    end)
-end
+    -- Posiciona na frente do jogador
+    local pos = root.CFrame * CFrame.new(0, 1, -4) * CFrame.Angles(math.rad(90), 0, 0)
+    arco.CFrame = pos
 
-if Config.AntiAFK then
-    task.spawn(startAntiAFK)
-end
+    -- Anima o corte (cresce de 0 até 10 de comprimento e gira)
+    local tweenService = game:GetService("TweenService")
+    
+    -- Crescimento
+    local grow = tweenService:Create(arco, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = Vector3.new(8, 0.5, 0.5)
+    })
+    grow:Play()
 
--- =============================================
--- MENU – WINDUI
--- =============================================
-local oldWindow = nil
+    -- Rotação (simula o movimento da katana)
+    local rotacao = tweenService:Create(arco, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {
+        CFrame = pos * CFrame.Angles(0, math.rad(-120), 0)
+    })
+    rotacao:Play()
 
-local function CriarMenu()
-    if oldWindow then
-        pcall(function() oldWindow:Destroy() end)
-        oldWindow = nil
+    -- Efeito de partículas no golpe
+    local atkAttach = Instance.new("Attachment")
+    atkAttach.Parent = arco
+    local atkParticle = Instance.new("ParticleEmitter")
+    atkParticle.Parent = atkAttach
+    atkParticle.Texture = "rbxasset://textures/particles/smoke_main.dds"
+    atkParticle.Color = ColorSequence.new(Color3.fromRGB(255, 100, 0))
+    atkParticle.Size = NumberSequence.new(3)
+    atkParticle.Lifetime = NumberRange.new(0.5)
+    atkParticle.Rate = 200
+    atkParticle.SpreadAngle = Vector2.new(45, 45)
+    atkParticle.Speed = NumberRange.new(10)
+
+    -- Limpa o arco depois de 0.5s
+    wait(0.5)
+    arco:Destroy()
+
+    -- Vibração da tela (simulação)
+    local cam = workspace.CurrentCamera
+    local originalCF = cam.CFrame
+    for i = 1, 5 do
+        cam.CFrame = cam.CFrame * CFrame.Angles(math.rad(math.random(-2,2)), math.rad(math.random(-2,2)), 0)
+        wait(0.02)
     end
+    cam.CFrame = originalCF
 
-    local lang = Idiomas[Config.Language] or Idiomas["Português"]
-
-    local WindUI
-    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        WindUI = result
-    else
-        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-        success, result = pcall(function()
-            return loadstring(game:HttpGet(fallbackUrl))()
-        end)
-        if success and result then
-            WindUI = result
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Não foi possível carregar a WindUI.",
-                Duration = 5
-            })
-            return
-        end
-    end
-
-    local Window = WindUI:CreateWindow({
-        Title = "Project Sor",
-        Icon = "rbxassetid://135710581431595",
-        Author = "Noob Must Die",
-        Folder = "Project Sor - Noob Must Die",
-        Size = UDim2.fromOffset(460, 320),
-        Transparent = false,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 200,
-        BackgroundImageTransparency = 0.42,
-        HideSearchBar = true,
-        ScrollBarEnabled = false,
-        User = {
-            Enabled = true,
-            Anonymous = false,
-            Callback = function() print("clicked") end,
-        },
-    })
-    oldWindow = Window
-    Window:SetIconSize(60)
-
-    Window:EditOpenButton({
-        Title = "Project Sor",
-        Icon = "",
-        CornerRadius = UDim.new(0, 16),
-        StrokeThickness = 2,
-        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
-        OnlyMobile = false,
-        Enabled = true,
-        Draggable = false
-    })
-
-    -- Aba: Raid & Teleportes
-    local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
-    -- Aba: Boss
-    local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
-    -- Aba: Configurações
-    local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
-
-    -- ====== ABA MAIN ======
-    TabMain:Section({ Title = lang.SecRaid })
-    TabMain:Toggle({
-        Title = lang.ToggleRaid,
-        Desc = lang.DescRaid,
-        Value = Config.RaidEnabled,
-        Callback = function(value)
-            Config.RaidEnabled = value
-            SaveConfig()
-            if value then
-                task.spawn(startRaidLoop)
-            else
-                if raidConnection then
-                    raidConnection:Disconnect()
-                    raidConnection = nil
-                end
-            end
-        end
-    })
-    TabMain:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescMulti,
-        Value = tostring(Config.ShotSpeedIndex),
-        Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.ShotSpeedIndex = numero
-                SaveConfig()
-            end
-        end
-    })
-    TabMain:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescDist,
-        Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
-        Callback = function(value)
-            Config.NpcDistance = math.floor(value)
-            SaveConfig()
-        end
-    })
-
-    TabMain:Section({ Title = lang.SecTp })
-    TabMain:Button({ Title = "Camper (+0)", Desc = "XP +1", Callback = function() ExecutarTeleporte(CFrame.new(-648, 8, -3322)) end })
-    TabMain:Button({ Title = "Primary Instinct (+0)", Desc = "XP +4", Callback = function() ExecutarTeleporte(CFrame.new(349, 9, -944)) end })
-    TabMain:Button({ Title = "The Forest Of Terror (+150)", Desc = "XP +5.50", Callback = function() ExecutarTeleporte(CFrame.new(5126, -454, -3279)) end })
-    TabMain:Button({ Title = "Cracking Up Laughing (+250)", Desc = "XP +6 (Hammers)", Callback = function() ExecutarTeleporte(CFrame.new(8908, 88, -11458)) end })
-    TabMain:Button({ Title = "The Big Beetle (+150)", Desc = "XP +5 (Royal Gilded Axe)", Callback = function() ExecutarTeleporte(CFrame.new(4340, -32, -6216)) end })
-    TabMain:Button({ Title = "Vilgax Attack (+500)", Desc = "XP +7 (Quantum Inversor 3%)", Callback = function() ExecutarTeleporte(CFrame.new(-19887, 3550, -16091)) end })
-    TabMain:Button({ Title = "On Our Honor! (+800)", Desc = "XP +6 (Eternal Ring 4%)", Callback = function() ExecutarTeleporte(CFrame.new(2508, 300, -7042)) end })
-    TabMain:Button({ Title = "Temple of the Sun (+1000)", Desc = "XP +12.50 (Ekchuaj Sword 100%)", Callback = function() ExecutarTeleporte(CFrame.new(6284, 7, -7843)) end })
-    TabMain:Button({ Title = "Infinity 1 (+2500)", Desc = "XP +17.80 (Pets)", Callback = function() ExecutarTeleporte(CFrame.new(-927, 25, 92757)) end })
-    TabMain:Button({ Title = "Malware (+3500)", Desc = "XP +32 (Malware DNA 3%)", Callback = function() ExecutarTeleporte(CFrame.new(89439, 127, -75263)) end })
-    TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
-    TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
-
-    -- ====== ABA BOSS ======
-    TabBoss:Section({ Title = lang.SecBossConfig })
-    TabBoss:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescBossDist,
-        Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.BossDistance },
-        Callback = function(value)
-            Config.BossDistance = math.floor(value)
-            SaveConfig()
-        end
-    })
-    TabBoss:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescBossMulti,
-        Value = tostring(Config.BossShotMultiplier),
-        Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.BossShotMultiplier = numero
-                SaveConfig()
-            end
-        end
-    })
-
-    TabBoss:Section({ Title = lang.SecBoss })
-    TabBoss:Toggle({
-        Title = lang.ToggleShip,
-        Value = Config.BossShip,
-        Callback = function(value)
-            Config.BossShip = value
-            SaveConfig()
-            if value or Config.BossKraken or Config.BossTransDimensional then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleKraken,
-        Value = Config.BossKraken,
-        Callback = function(value)
-            Config.BossKraken = value
-            SaveConfig()
-            if Config.BossShip or value or Config.BossTransDimensional then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleTrans,
-        Value = Config.BossTransDimensional,
-        Callback = function(value)
-            Config.BossTransDimensional = value
-            SaveConfig()
-            if Config.BossShip or Config.BossKraken or value then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-
-    -- ====== ABA CONFIG ======
-    TabConfig:Section({ Title = lang.SecConfig })
-    TabConfig:Dropdown({
-        Title = lang.DropIdioma,
-        Desc = lang.DescIdioma,
-        Values = {"Português", "Espanhol", "English"},
-        Value = Config.Language,
-        Callback = function(value)
-            if Config.Language ~= value then
-                Config.Language = value
-                SaveConfig()
-                CriarMenu()
-            end
-        end
-    })
-    TabConfig:Toggle({
-        Title = lang.ToggleIntro,
-        Desc = lang.DescIntro,
-        Value = Config.RemoverIntro,
-        Callback = function(value)
-            Config.RemoverIntro = value
-            SaveConfig()
-        end
-    })
-    TabConfig:Toggle({
-        Title = lang.ToggleAFK,
-        Desc = lang.DescAFK,
-        Value = Config.AntiAFK,
-        Callback = function(value)
-            Config.AntiAFK = value
-            SaveConfig()
-            if value then
-                task.spawn(startAntiAFK)
-            else
-                antiAFKRunning = false
-                if antiAFKConnection then
-                    task.cancel(antiAFKConnection)
-                    antiAFKConnection = nil
-                end
-            end
-        end
-    })
-    TabConfig:Button({
-        Title = lang.BtnReset,
-        Desc = lang.DescReset,
-        Callback = function()
-            Config.RaidEnabled = false
-            Config.Language = "Português"
-            Config.RemoverIntro = false
-            Config.AntiAFK = false
-            Config.BossShip = false
-            Config.BossKraken = false
-            Config.BossTransDimensional = false
-            SaveConfig()
-            if Window.Notify then
-                Window:Notify({
-                    Title = lang.NotifTitle,
-                    Desc = lang.NotifDesc,
-                    Duration = 3,
-                })
-            end
-            CriarMenu()
-        end
-    })
-
-    TabConfig:Section({ Title = lang.SecServer })
-    TabConfig:Button({
-        Title = "Rejoin",
-        Desc = lang.DescRejoin,
-        Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
-    })
-    TabConfig:Button({
-        Title = "ServeHop",
-        Desc = lang.DescHop,
-        Callback = function() MudarServidor("Desc") end
-    })
-    TabConfig:Button({
-        Title = "SmallServe",
-        Desc = lang.DescSmall,
-        Callback = function() MudarServidor("Asc") end
-    })
+    debounce = false
 end
 
-pcall(CriarMenu)
+-- =====================================================
+-- 5. MÚSICA PHONK DE FUNDO
+-- =====================================================
+local function tocarPhonk()
+    local sound = Instance.new("Sound")
+    sound.Name = "PhonkMusic"
+    sound.Volume = 0.7
+    sound.Looped = true
+    
+    -- ⚠️ TROQUE ESSE ID POR UMA MÚSICA PHONK DA BIBLIOTECA DO ROBLOX ⚠️
+    -- Exemplo de IDs: "rbxassetid://1841131629" (Bass) ou procure por "Phonk" no Toolbox
+    sound.SoundId = "rbxassetid://6733393355" 
+    
+    sound.Parent = workspace
+    sound:Play()
+    
+    -- Efeito de equalização visual (opcional: baixa a música se perder vida)
+    sound:SetAttribute("Modo", "Samurai")
+end
 
-StarterGui:SetCore("SendNotification", {
-    Title = "Project Sor",
-    Text = "Carregado com sucesso! (Boss corrigido)",
-    Duration = 3
-})
+-- =====================================================
+-- 6. INPUT (CLICK OU TECLA 'E' PARA CORTAR)
+-- =====================================================
+userInput.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.E then
+        executarCorte()
+    end
+end)
 
-print("Project Sor carregado. Pressione o botão do menu para abrir.")
+-- =====================================================
+-- 7. INICIALIZAÇÃO
+-- =====================================================
+criarAura()
+criarAnel()
+local minhaBlade = ativarPostura()
+tocarPhonk()
+
+print("⚔️ Modo Samurai Ativado! Clique ou aperte 'E' para dar o corte Iaido.")
