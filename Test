@@ -31,84 +31,35 @@ local Config = {
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
 -- =============================================
--- SISTEMA DE SALVAMENTO APRIMORADO
+-- SALVAMENTO E CARREGAMENTO (SEGURO)
 -- =============================================
-local ultimoSalvamento = 0
-local salvamentoAtivo = false
-
 local function SaveConfig()
-    if salvamentoAtivo then return end -- Evita salvamentos simultâneos
-    salvamentoAtivo = true
-    
-    -- Verifica se o ambiente suporta writefile
-    if not writefile then
-        salvamentoAtivo = false
-        return
-    end
-    
+    if not writefile then return end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
-    
-    if success and json then
-        local saved = pcall(function()
-            writefile(FILE_NAME, json)
-        end)
-        if not saved then
-            warn("Falha ao salvar configurações em " .. FILE_NAME)
-        end
-    else
-        warn("Falha ao codificar configurações para JSON")
+    if success then
+        pcall(function() writefile(FILE_NAME, json) end)
     end
-    
-    salvamentoAtivo = false
 end
 
 local function LoadConfig()
     if not isfile then return end
-    if not isfile(FILE_NAME) then return end
-    
-    local success, data = pcall(function()
-        return readfile(FILE_NAME)
-    end)
-    
-    if not success or not data then return end
-    
-    local decoded = pcall(function()
-        return HttpService:JSONDecode(data)
-    end)
-    
-    if decoded and type(decoded) == "table" then
-        for k, v in pairs(decoded) do
-            Config[k] = v
+    if isfile(FILE_NAME) then
+        local success, data = pcall(function()
+            return readfile(FILE_NAME)
+        end)
+        if success then
+            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
+            if decoded and type(decoded) == "table" then
+                for k, v in pairs(decoded) do
+                    Config[k] = v
+                end
+            end
         end
-    else
-        warn("Arquivo de configuração corrompido, usando valores padrão.")
     end
 end
-
--- Carrega as configurações na inicialização
-pcall(LoadConfig)
-
--- =============================================
--- SALVAMENTO PERIÓDICO (a cada 30 segundos)
--- =============================================
-task.spawn(function()
-    while true do
-        task.wait(30)
-        pcall(SaveConfig)
-    end
-end)
-
--- =============================================
--- SALVAMENTO AO SAIR (BindToClose)
--- =============================================
-pcall(function()
-    game:BindToClose(function()
-        pcall(SaveConfig)
-        task.wait(0.5) -- Dá tempo para gravar
-    end)
-end)
+pcall(LoadConfig) -- Carrega assim que o script inicia
 
 -- =============================================
 -- INTRO (SPLASH)
@@ -486,10 +437,6 @@ local function startRaidLoop()
     end)
 end
 
-if Config.RaidEnabled then
-    task.spawn(startRaidLoop)
-end
-
 -- =============================================
 -- LOOP DOS BOSSES
 -- =============================================
@@ -566,10 +513,6 @@ local function startBossLoop()
     end)
 end
 
-if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
-    task.spawn(startBossLoop)
-end
-
 -- =============================================
 -- ANTI‑AFK
 -- =============================================
@@ -593,6 +536,17 @@ local function startAntiAFK()
         end
         antiAFKConnection = nil
     end)
+end
+
+-- =============================================
+-- INICIALIZAR LOOPS COM BASE NO CONFIG CARREGADO
+-- =============================================
+if Config.RaidEnabled then
+    task.spawn(startRaidLoop)
+end
+
+if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
+    task.spawn(startBossLoop)
 end
 
 if Config.AntiAFK then
@@ -921,12 +875,14 @@ local function CriarMenu()
     })
 end
 
+-- Inicia o menu
 pcall(CriarMenu)
 
+-- Notificação de carregamento
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! (Sistema de salvamento aprimorado)",
+    Text = "Carregado com sucesso! (Salvamento automático ativo)",
     Duration = 3
 })
 
-print("Project Sor carregado com salvamento automático ativo.")
+print("Project Sor carregado. Pressione o botão do menu para abrir.")
