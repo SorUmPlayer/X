@@ -7,18 +7,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local StarterGui = game:GetService("StarterGui")  -- <-- ESSENCIAL
+local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
-    -- Boss
+    AntiAFK = false,
     BossDistance = 2,
     BossShotMultiplier = 1,
     BossShip = false,
@@ -29,52 +31,87 @@ local Config = {
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
 -- =============================================
--- FUNÇÕES DE SALVAMENTO (COM VERIFICAÇÃO)
+-- SISTEMA DE SALVAMENTO APRIMORADO
 -- =============================================
+local ultimoSalvamento = 0
+local salvamentoAtivo = false
+
 local function SaveConfig()
-    if not writefile then return end
+    if salvamentoAtivo then return end -- Evita salvamentos simultâneos
+    salvamentoAtivo = true
+    
+    -- Verifica se o ambiente suporta writefile
+    if not writefile then
+        salvamentoAtivo = false
+        return
+    end
+    
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
-    if success then
-        pcall(function() writefile(FILE_NAME, json) end)
+    
+    if success and json then
+        local saved = pcall(function()
+            writefile(FILE_NAME, json)
+        end)
+        if not saved then
+            warn("Falha ao salvar configurações em " .. FILE_NAME)
+        end
+    else
+        warn("Falha ao codificar configurações para JSON")
     end
+    
+    salvamentoAtivo = false
 end
 
 local function LoadConfig()
     if not isfile then return end
-    if isfile(FILE_NAME) then
-        local success, data = pcall(function()
-            return readfile(FILE_NAME)
-        end)
-        if success then
-            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
-            if decoded and type(decoded) == "table" then
-                for k, v in pairs(decoded) do
-                    Config[k] = v
-                end
-            end
+    if not isfile(FILE_NAME) then return end
+    
+    local success, data = pcall(function()
+        return readfile(FILE_NAME)
+    end)
+    
+    if not success or not data then return end
+    
+    local decoded = pcall(function()
+        return HttpService:JSONDecode(data)
+    end)
+    
+    if decoded and type(decoded) == "table" then
+        for k, v in pairs(decoded) do
+            Config[k] = v
         end
+    else
+        warn("Arquivo de configuração corrompido, usando valores padrão.")
     end
 end
 
-LoadConfig()
+-- Carrega as configurações na inicialização
+pcall(LoadConfig)
 
 -- =============================================
--- SALVAMENTO AO SAIR / DESCONECTAR
+-- SALVAMENTO PERIÓDICO (a cada 30 segundos)
 -- =============================================
-players.PlayerRemoving:Connect(function(player)
-    if player == LocalPlayer then
-        SaveConfig()
+task.spawn(function()
+    while true do
+        task.wait(30)
+        pcall(SaveConfig)
     end
 end)
 
-game:BindToClose(function()
-    SaveConfig()
+-- =============================================
+-- SALVAMENTO AO SAIR (BindToClose)
+-- =============================================
+pcall(function()
+    game:BindToClose(function()
+        pcall(SaveConfig)
+        task.wait(0.5) -- Dá tempo para gravar
+    end)
 end)
 
 -- =============================================
--- INTRO (SPLASH) - controlada pelo toggle
+-- INTRO (SPLASH)
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -131,7 +168,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo com Teleporte)
+-- DICIONÁRIO DE IDIOMAS (completo)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -411,7 +448,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID (OTIMIZADO)
+-- LOOP DA RAID
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -538,7 +575,6 @@ end
 -- =============================================
 local antiAFKRunning = false
 local antiAFKConnection = nil
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local function startAntiAFK()
     if antiAFKConnection then return end
@@ -564,7 +600,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- MENU – WINDUI (COM FALLBACK)
+-- MENU – WINDUI
 -- =============================================
 local oldWindow = nil
 
@@ -593,7 +629,7 @@ local function CriarMenu()
         else
             StarterGui:SetCore("SendNotification", {
                 Title = "Erro",
-                Text = "Não foi possível carregar a WindUI. Verifique sua conexão.",
+                Text = "Não foi possível carregar a WindUI.",
                 Duration = 5
             })
             return
@@ -633,6 +669,7 @@ local function CriarMenu()
         Draggable = false
     })
 
+    -- Abas
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
@@ -771,8 +808,7 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA TELEPORTE (com tradução) ======
-    -- Terra
+    -- ====== ABA TELEPORTE ======
     TabTeleport:Section({ Title = lang.SecTerra })
     TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
     TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
@@ -782,29 +818,23 @@ local function CriarMenu()
     TabTeleport:Button({ Title = lang.BtnYggasill, Callback = function() ExecutarTeleporte(CFrame.new(-8206, -368, -12277)) end })
     TabTeleport:Button({ Title = lang.BtnLedgerDomain, Callback = function() ExecutarTeleporte(CFrame.new(913, -2514, -1566)) end })
 
-    -- Lua
     TabTeleport:Section({ Title = lang.SecLua })
     TabTeleport:Button({ Title = lang.BtnCentroLua, Callback = function() ExecutarTeleporte(CFrame.new(-1426, 8, 49003)) end })
 
-    -- Fogo & Frio
     TabTeleport:Section({ Title = lang.SecFogoFrio })
     TabTeleport:Button({ Title = lang.BtnCentroFogoFrio, Callback = function() ExecutarTeleporte(CFrame.new(-916, 25, 91948)) end })
 
-    -- Estação especial academia
     TabTeleport:Section({ Title = lang.SecEstacaoAcademia })
     TabTeleport:Button({ Title = lang.BtnAcademia, Callback = function() ExecutarTeleporte(CFrame.new(72994, 1933, -3128)) end })
 
-    -- Marte
     TabTeleport:Section({ Title = lang.SecMarte })
     TabTeleport:Button({ Title = lang.BtnArenaMarte, Callback = function() ExecutarTeleporte(CFrame.new(64779, 30, 65676)) end })
 
-    -- AlienX
     TabTeleport:Section({ Title = lang.SecAlienX })
     TabTeleport:Button({ Title = lang.BtnCubo, Callback = function() ExecutarTeleporte(CFrame.new(78944, 2547, -3139)) end })
     TabTeleport:Button({ Title = lang.BtnBBAlienX, Callback = function() ExecutarTeleporte(CFrame.new(1143, 1930, 300137)) end })
     TabTeleport:Button({ Title = lang.BtnAlienXDNA, Callback = function() ExecutarTeleporte(CFrame.new(188, 1496, 300251)) end })
 
-    -- Galvan Prime
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
@@ -891,15 +921,12 @@ local function CriarMenu()
     })
 end
 
--- =============================================
--- INICIALIZAÇÃO
--- =============================================
 pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! (Salvamento ao sair ativo)",
+    Text = "Carregado com sucesso! (Sistema de salvamento aprimorado)",
     Duration = 3
 })
 
-print("Project Sor carregado. Pressione o botão do menu para abrir.")
+print("Project Sor carregado com salvamento automático ativo.")
