@@ -13,9 +13,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
--- =============================================
--- CONFIGURAÇÕES PADRÃO
--- =============================================
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -23,6 +21,7 @@ local Config = {
     Language = "Português",
     RemoverIntro = false,
     AntiAFK = false,
+    -- Boss
     BossDistance = 2,
     BossShotMultiplier = 1,
     BossShip = false,
@@ -31,19 +30,23 @@ local Config = {
 }
 
 -- =============================================
--- SISTEMA DE SALVAMENTO EM PASTA
+-- PASTA E NOME DO ARQUIVO DE CONFIGURAÇÃO
 -- =============================================
 local CONFIG_FOLDER = "SorOminiXConfig"
-local FILE_NAME = CONFIG_FOLDER .. "/Config.json"
+local FILE_NAME = CONFIG_FOLDER .. "/SorOminiX_Config.json"
 
-local function EnsureFolder()
-    if makefolder then
-        pcall(function() makefolder(CONFIG_FOLDER) end)
-    end
-end
-
+-- =============================================
+-- SALVAMENTO E CARREGAMENTO (COM CRIAÇÃO DE PASTA)
+-- =============================================
 local function SaveConfig()
-    EnsureFolder()
+    if not writefile then return end
+    -- Tenta criar a pasta (se o executor suportar)
+    pcall(function()
+        if not isfolder then return end
+        if not isfolder(CONFIG_FOLDER) then
+            makefolder(CONFIG_FOLDER)
+        end
+    end)
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
@@ -53,7 +56,7 @@ local function SaveConfig()
 end
 
 local function LoadConfig()
-    EnsureFolder()
+    if not isfile then return end
     if isfile(FILE_NAME) then
         local success, data = pcall(function()
             return readfile(FILE_NAME)
@@ -64,23 +67,84 @@ local function LoadConfig()
                 for k, v in pairs(decoded) do
                     Config[k] = v
                 end
+                return true
             end
         end
     end
+    return false
 end
 
 -- Carrega as configurações salvas
-pcall(LoadConfig)
+local configLoaded = LoadConfig()
 
 -- =============================================
--- SALVAMENTO AUTOMÁTICO A CADA 0.5s
+-- SALVAMENTO AUTOMÁTICO (LOOP INTELIGENTE)
 -- =============================================
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        SaveConfig()
+local autoSaveRunning = false
+local autoSaveConnection = nil
+local lastSaveTime = 0
+local autoSaveInterval = 0.5 -- segundos (padrão)
+local fpsMonitor = 0
+local frameCount = 0
+local frameTime = 0
+
+-- Função para ajustar o intervalo baseado no FPS
+local function updateAutoSaveInterval()
+    -- Se o FPS cair abaixo de 30, aumenta o intervalo para 1 segundo
+    if fpsMonitor < 30 then
+        autoSaveInterval = 1.0
+    else
+        autoSaveInterval = 0.5
     end
-end)
+end
+
+-- Inicia o loop de salvamento automático
+local function startAutoSave()
+    if autoSaveRunning then return end
+    autoSaveRunning = true
+    autoSaveConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        -- Atualiza o contador de FPS (média simples)
+        frameCount = frameCount + 1
+        frameTime = frameTime + deltaTime
+        if frameTime >= 0.5 then
+            fpsMonitor = frameCount / frameTime
+            frameCount = 0
+            frameTime = 0
+            updateAutoSaveInterval()
+        end
+
+        -- Salva automaticamente a cada intervalo definido
+        local now = tick()
+        if now - lastSaveTime >= autoSaveInterval then
+            SaveConfig()
+            lastSaveTime = now
+        end
+    end)
+end
+
+-- Para o loop de salvamento (se necessário)
+local function stopAutoSave()
+    autoSaveRunning = false
+    if autoSaveConnection then
+        autoSaveConnection:Disconnect()
+        autoSaveConnection = nil
+    end
+end
+
+-- Inicia o salvamento automático
+startAutoSave()
+
+-- =============================================
+-- SALVAMENTO MANUAL (BOTÃO)
+-- =============================================
+local function ManualSave()
+    SaveConfig()
+    StarterGui:SetCore("SendNotification", {
+        Title = "Configurações",
+        Text = "Salvas com sucesso!",
+        Duration = 2
+    })
+end
 
 -- =============================================
 -- INTRO (SPLASH)
@@ -191,8 +255,6 @@ local Idiomas = {
         DescIdioma = "Altere o idioma do Script",
         BtnReset = "Reset Config",
         DescReset = "Reseta os toggles e idioma",
-        BtnSave = "Salvar Configurações",
-        DescSave = "Salva manualmente todas as configurações atuais",
         ToggleIntro = "Remover Intro",
         DescIntro = "Desativa a introdução ao iniciar o script",
         ToggleAFK = "Anti‑AFK",
@@ -203,8 +265,8 @@ local Idiomas = {
         DescSmall = "Teleporta pra servidor criado recentemente",
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado.",
-        NotifSaved = "Configurações Salvas",
-        NotifSavedDesc = "Todas as configurações foram salvas com sucesso."
+        BtnManualSave = "💾 Salvar Configurações",
+        DescManualSave = "Salva todas as opções manualmente"
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
@@ -254,8 +316,6 @@ local Idiomas = {
         DescIdioma = "Cambia el idioma del Script",
         BtnReset = "Reset Config",
         DescReset = "Restablece los toggles e idioma",
-        BtnSave = "Guardar Configuración",
-        DescSave = "Guarda manualmente todas las configuraciones actuales",
         ToggleIntro = "Eliminar Intro",
         DescIntro = "Desactiva la introducción al iniciar el script",
         ToggleAFK = "Anti‑AFK",
@@ -266,8 +326,8 @@ local Idiomas = {
         DescSmall = "Teletransporte a servidor reciente",
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido.",
-        NotifSaved = "Configuración Guardada",
-        NotifSavedDesc = "Todas las configuraciones se guardaron correctamente."
+        BtnManualSave = "💾 Guardar Configuraciones",
+        DescManualSave = "Guarda todas las opciones manualmente"
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
@@ -317,8 +377,6 @@ local Idiomas = {
         DescIdioma = "Change the script language",
         BtnReset = "Reset Config",
         DescReset = "Reset toggles and language",
-        BtnSave = "Save Config",
-        DescSave = "Manually save all current settings",
         ToggleIntro = "Remove Intro",
         DescIntro = "Disables the intro splash",
         ToggleAFK = "Anti‑AFK",
@@ -329,8 +387,8 @@ local Idiomas = {
         DescSmall = "Teleport to a recently created server",
         NotifTitle = "Config Reset",
         NotifDesc = "Raid disabled and language reset.",
-        NotifSaved = "Config Saved",
-        NotifSavedDesc = "All settings have been saved successfully."
+        BtnManualSave = "💾 Save Settings",
+        DescManualSave = "Saves all options manually"
     }
 }
 
@@ -667,7 +725,7 @@ local function CriarMenu()
         Value = Config.RaidEnabled,
         Callback = function(value)
             Config.RaidEnabled = value
-            SaveConfig()
+            -- O salvamento automático cuida do save
             if value then
                 task.spawn(startRaidLoop)
             else
@@ -687,7 +745,7 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.ShotSpeedIndex = numero
-                SaveConfig()
+                -- Auto save
             end
         end
     })
@@ -698,7 +756,7 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
-            SaveConfig()
+            -- Auto save
         end
     })
 
@@ -725,7 +783,7 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.BossDistance },
         Callback = function(value)
             Config.BossDistance = math.floor(value)
-            SaveConfig()
+            -- Auto save
         end
     })
     TabBoss:Input({
@@ -737,7 +795,7 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.BossShotMultiplier = numero
-                SaveConfig()
+                -- Auto save
             end
         end
     })
@@ -748,7 +806,7 @@ local function CriarMenu()
         Value = Config.BossShip,
         Callback = function(value)
             Config.BossShip = value
-            SaveConfig()
+            -- Auto save
             if value or Config.BossKraken or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -764,7 +822,7 @@ local function CriarMenu()
         Value = Config.BossKraken,
         Callback = function(value)
             Config.BossKraken = value
-            SaveConfig()
+            -- Auto save
             if Config.BossShip or value or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -780,7 +838,7 @@ local function CriarMenu()
         Value = Config.BossTransDimensional,
         Callback = function(value)
             Config.BossTransDimensional = value
-            SaveConfig()
+            -- Auto save
             if Config.BossShip or Config.BossKraken or value then
                 task.spawn(startBossLoop)
             else
@@ -824,7 +882,6 @@ local function CriarMenu()
 
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
-
     TabConfig:Dropdown({
         Title = lang.DropIdioma,
         Desc = lang.DescIdioma,
@@ -833,29 +890,27 @@ local function CriarMenu()
         Callback = function(value)
             if Config.Language ~= value then
                 Config.Language = value
-                SaveConfig()
+                -- Auto save
                 CriarMenu()
             end
         end
     })
-
     TabConfig:Toggle({
         Title = lang.ToggleIntro,
         Desc = lang.DescIntro,
         Value = Config.RemoverIntro,
         Callback = function(value)
             Config.RemoverIntro = value
-            SaveConfig()
+            -- Auto save
         end
     })
-
     TabConfig:Toggle({
         Title = lang.ToggleAFK,
         Desc = lang.DescAFK,
         Value = Config.AntiAFK,
         Callback = function(value)
             Config.AntiAFK = value
-            SaveConfig()
+            -- Auto save
             if value then
                 task.spawn(startAntiAFK)
             else
@@ -868,20 +923,11 @@ local function CriarMenu()
         end
     })
 
-    -- Botão para salvar manualmente
+    -- Botão de salvamento manual
     TabConfig:Button({
-        Title = lang.BtnSave,
-        Desc = lang.DescSave,
-        Callback = function()
-            SaveConfig()
-            if Window.Notify then
-                Window:Notify({
-                    Title = lang.NotifSaved,
-                    Desc = lang.NotifSavedDesc,
-                    Duration = 3,
-                })
-            end
-        end
+        Title = lang.BtnManualSave,
+        Desc = lang.DescManualSave,
+        Callback = ManualSave
     })
 
     TabConfig:Button({
@@ -895,7 +941,7 @@ local function CriarMenu()
             Config.BossShip = false
             Config.BossKraken = false
             Config.BossTransDimensional = false
-            SaveConfig()
+            -- Salva automaticamente
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -929,8 +975,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! (Salvamento em pasta)",
+    Text = "Carregado com sucesso! (Salvamento automático ativo)",
     Duration = 3
 })
 
-print("Project Sor carregado. Pressione o botão do menu para abrir.")
+print("Project Sor carregado. Salvamento automático ativo a cada " .. autoSaveInterval .. "s.")
