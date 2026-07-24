@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")  -- <-- ESSENCIAL
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
@@ -16,12 +17,20 @@ local Config = {
     ShotSpeedIndex = 1,
     NpcDistance = 2,
     Language = "Português",
-    RemoverIntro = false
+    RemoverIntro = false,
+    -- Boss
+    BossDistance = 2,
+    BossShotMultiplier = 1,
+    BossShip = false,
+    BossKraken = false,
+    BossTransDimensional = false,
 }
 
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
 
--- [[ FUNÇÕES DE SALVAMENTO COM VERIFICAÇÃO ]]
+-- =============================================
+-- FUNÇÕES DE SALVAMENTO (COM VERIFICAÇÃO)
+-- =============================================
 local function SaveConfig()
     if not writefile then return end
     local success, json = pcall(function()
@@ -54,20 +63,18 @@ LoadConfig()
 -- =============================================
 -- SALVAMENTO AO SAIR / DESCONECTAR
 -- =============================================
--- Salva quando o jogador sai do servidor
 players.PlayerRemoving:Connect(function(player)
     if player == LocalPlayer then
         SaveConfig()
     end
 end)
 
--- Salva quando o jogo é fechado
 game:BindToClose(function()
     SaveConfig()
 end)
 
 -- =============================================
--- INTRO (SPLASH)
+-- INTRO (SPLASH) - controlada pelo toggle
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -124,28 +131,61 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo)
+-- DICIONÁRIO DE IDIOMAS (completo com Teleporte)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
+        TabBoss = "Boss",
+        TabTeleport = "Teleporte",
         TabConfig = "Configurações",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Ativa o ataque e o teleporte em loop",
-        ChatMulti = "Chat (Multiplicador de Tiro)",
-        DescMulti = "Digite o valor do multiplicador (Ex: 9)",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
         Distancia = "Distância",
         DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distância acima do Boss (0 a 20)",
+        DescBossMulti = "Multiplicador de tiros para Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
+        SecTerra = "🌍 Terra",
+        SecLua = "🌙 Lua",
+        SecFogoFrio = "🔥❄️ Fogo & Frio",
+        SecEstacaoAcademia = "🏫 Estação especial academia",
+        SecMarte = "🔴 Marte",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Prédio do Billy",
+        BtnMansao = "Mansão",
+        BtnFloresta = "Floresta",
+        BtnColiseu = "Coliseu",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro da Lua",
+        BtnCentroFogoFrio = "Centro",
+        BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cubo",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX DNA",
+        BtnPredioGalvan = "Prédio",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
         BtnReset = "Reset Config",
-        DescReset = "Reseta o Toggle que fora ativados e idioma do script",
+        DescReset = "Reseta os toggles e idioma",
         ToggleIntro = "Remover Intro",
         DescIntro = "Desativa a introdução ao iniciar o script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envia clique a cada 60s para não ser desconectado",
         SecServer = "Servidor",
         DescRejoin = "Entra novamente no mesmo servidor",
         DescHop = "Teleporta pro servidor antigo",
@@ -155,49 +195,115 @@ local Idiomas = {
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
+        TabBoss = "Jefe",
+        TabTeleport = "Teletransporte",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Activa el ataque y el teletransporte en bucle",
-        ChatMulti = "Chat (Multiplicador de Tiro)",
-        DescMulti = "Escribe el valor del multiplicador (Ej: 9)",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de disparos por ciclo (Ej: 9)",
         PlaceMulti = "Escribe un número...",
         Distancia = "Distancia",
         DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Config Jefe",
+        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
+        DescBossMulti = "Multiplicador de disparos para Jefe",
+        SecBoss = "Jefe",
+        ToggleShip = "Barco",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Monstruo Transdimensional",
+        SecTerra = "🌍 Tierra",
+        SecLua = "🌙 Luna",
+        SecFogoFrio = "🔥❄️ Fuego & Frío",
+        SecEstacaoAcademia = "🏫 Estación especial academia",
+        SecMarte = "🔴 Marte",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Edificio de Billy",
+        BtnMansao = "Mansión",
+        BtnFloresta = "Bosque",
+        BtnColiseu = "Coliseo",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro de la Luna",
+        BtnCentroFogoFrio = "Centro",
+        BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cubo",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX ADN",
+        BtnPredioGalvan = "Edificio",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
         BtnReset = "Reset Config",
-        DescReset = "Restablece los Toggles activados y el idioma del script",
+        DescReset = "Restablece los toggles e idioma",
         ToggleIntro = "Eliminar Intro",
         DescIntro = "Desactiva la introducción al iniciar el script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envía clic cada 60s para no ser desconectado",
         SecServer = "Servidor",
-        DescRejoin = "Volver a unirse al mismo servidor",
+        DescRejoin = "Volver al mismo servidor",
         DescHop = "Teletransporta al servidor antiguo",
-        DescSmall = "Teletransporte a un servidor creado recientemente",
+        DescSmall = "Teletransporte a servidor reciente",
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido."
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
+        TabBoss = "Boss",
+        TabTeleport = "Teleport",
         TabConfig = "Settings",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
         DescRaid = "Activates loop attack and teleport",
-        ChatMulti = "Chat (Shot Multiplier)",
-        DescMulti = "Type the multiplier value (Ex: 9)",
+        ChatMulti = "Shot Multiplier",
+        DescMulti = "Number of shots per cycle (Ex: 9)",
         PlaceMulti = "Type a number...",
         Distancia = "Distance",
         DescDist = "Distance above NPCs (Studs) - 0 to 20",
         SecTp = "Tp Raids",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distance above Boss (0 to 20)",
+        DescBossMulti = "Shot multiplier for Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
+        SecTerra = "🌍 Earth",
+        SecLua = "🌙 Moon",
+        SecFogoFrio = "🔥❄️ Fire & Ice",
+        SecEstacaoAcademia = "🏫 Special Academy Station",
+        SecMarte = "🔴 Mars",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Billy's Building",
+        BtnMansao = "Mansion",
+        BtnFloresta = "Forest",
+        BtnColiseu = "Coliseum",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Moon Center",
+        BtnCentroFogoFrio = "Center",
+        BtnAcademia = "Academy",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cube",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX DNA",
+        BtnPredioGalvan = "Building",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
         BtnReset = "Reset Config",
-        DescReset = "Reset activated Toggles and script language",
+        DescReset = "Reset toggles and language",
         ToggleIntro = "Remove Intro",
-        DescIntro = "Disables the intro splash when starting the script",
+        DescIntro = "Disables the intro splash",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Sends a click every 60s to avoid disconnect",
         SecServer = "Server",
         DescRejoin = "Rejoin the same server",
         DescHop = "Teleport to an old server",
@@ -208,7 +314,7 @@ local Idiomas = {
 }
 
 -- =============================================
--- SISTEMA DE COMBATE & REMOTES
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -240,7 +346,7 @@ local function ArmFire(targetRoot)
 end
 
 -- =============================================
--- LÓGICA DE TELEPORTE E ALVO
+-- LÓGICA DE ALVO E TELEPORTE
 -- =============================================
 local function getLocalCharacter()
     local char = LocalPlayer.Character
@@ -348,7 +454,117 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- GERAÇÃO DA INTERFACE DO MENU
+-- LOOP DOS BOSSES
+-- =============================================
+local bossRunning = false
+local bossConnection = nil
+
+local function getActiveBossTarget()
+    local enemys = workspace:FindFirstChild("Enemys")
+    if not enemys then return nil end
+
+    local bosses = {
+        { configKey = "BossShip", folderName = "Ship [ Ferris Wheel Form ]", charName = "Character" },
+        { configKey = "BossKraken", folderName = "Kraken", charName = "Character" },
+        { configKey = "BossTransDimensional", folderName = "Trans Dimensional Monster", charName = "Character" },
+    }
+
+    for _, boss in ipairs(bosses) do
+        if Config[boss.configKey] then
+            local folder = enemys:FindFirstChild(boss.folderName)
+            if folder then
+                local char = folder:FindFirstChild(boss.charName)
+                if char and char:IsA("Model") then
+                    local part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                    if not part then
+                        for _, child in ipairs(char:GetChildren()) do
+                            if child:IsA("BasePart") then
+                                part = child
+                                break
+                            end
+                        end
+                    end
+                    if part and part:IsA("BasePart") then
+                        return part
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function startBossLoop()
+    if bossConnection then return end
+    bossRunning = true
+    bossConnection = RunService.Heartbeat:Connect(function()
+        if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then
+            bossRunning = false
+            if bossConnection then
+                bossConnection:Disconnect()
+                bossConnection = nil
+            end
+            return
+        end
+
+        local targetPart = getActiveBossTarget()
+        if not targetPart then return end
+
+        local _, myRoot = getLocalCharacter()
+        if not myRoot then return end
+
+        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
+
+        local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
+        if multiplier > 0 then
+            for i = 1, multiplier do
+                if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
+                Laser()
+                GunArm()
+                ArmFire(targetPart)
+                Armature()
+                task.wait()
+            end
+        end
+    end)
+end
+
+if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
+    task.spawn(startBossLoop)
+end
+
+-- =============================================
+-- ANTI‑AFK
+-- =============================================
+local antiAFKRunning = false
+local antiAFKConnection = nil
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local function startAntiAFK()
+    if antiAFKConnection then return end
+    antiAFKRunning = true
+    antiAFKConnection = task.spawn(function()
+        while antiAFKRunning and Config.AntiAFK do
+            task.wait(60)
+            if not Config.AntiAFK then break end
+            pcall(function()
+                local viewport = workspace.CurrentCamera.ViewportSize
+                local center = Vector2.new(viewport.X/2, viewport.Y/2)
+                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
+            end)
+        end
+        antiAFKConnection = nil
+    end)
+end
+
+if Config.AntiAFK then
+    task.spawn(startAntiAFK)
+end
+
+-- =============================================
+-- MENU – WINDUI (COM FALLBACK)
 -- =============================================
 local oldWindow = nil
 
@@ -377,7 +593,7 @@ local function CriarMenu()
         else
             StarterGui:SetCore("SendNotification", {
                 Title = "Erro",
-                Text = "Não foi possível carregar a WindUI.",
+                Text = "Não foi possível carregar a WindUI. Verifique sua conexão.",
                 Duration = 5
             })
             return
@@ -418,11 +634,12 @@ local function CriarMenu()
     })
 
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
+    local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
+    local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
-    -- ABA MAIN
+    -- ====== ABA MAIN ======
     TabMain:Section({ Title = lang.SecRaid })
-
     TabMain:Toggle({
         Title = lang.ToggleRaid,
         Desc = lang.DescRaid,
@@ -440,7 +657,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabMain:Input({
         Title = lang.ChatMulti,
         Desc = lang.DescMulti,
@@ -454,7 +670,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabMain:Slider({
         Title = lang.Distancia,
         Desc = lang.DescDist,
@@ -480,9 +695,121 @@ local function CriarMenu()
     TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
     TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
 
-    -- ABA CONFIG
-    TabConfig:Section({ Title = lang.SecConfig })
+    -- ====== ABA BOSS ======
+    TabBoss:Section({ Title = lang.SecBossConfig })
+    TabBoss:Slider({
+        Title = lang.Distancia,
+        Desc = lang.DescBossDist,
+        Step = 1,
+        Value = { Min = 0, Max = 20, Default = Config.BossDistance },
+        Callback = function(value)
+            Config.BossDistance = math.floor(value)
+            SaveConfig()
+        end
+    })
+    TabBoss:Input({
+        Title = lang.ChatMulti,
+        Desc = lang.DescBossMulti,
+        Value = tostring(Config.BossShotMultiplier),
+        Placeholder = lang.PlaceMulti,
+        Callback = function(text)
+            local numero = tonumber(text)
+            if numero and numero > 0 then
+                Config.BossShotMultiplier = numero
+                SaveConfig()
+            end
+        end
+    })
 
+    TabBoss:Section({ Title = lang.SecBoss })
+    TabBoss:Toggle({
+        Title = lang.ToggleShip,
+        Value = Config.BossShip,
+        Callback = function(value)
+            Config.BossShip = value
+            SaveConfig()
+            if value or Config.BossKraken or Config.BossTransDimensional then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+    TabBoss:Toggle({
+        Title = lang.ToggleKraken,
+        Value = Config.BossKraken,
+        Callback = function(value)
+            Config.BossKraken = value
+            SaveConfig()
+            if Config.BossShip or value or Config.BossTransDimensional then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+    TabBoss:Toggle({
+        Title = lang.ToggleTrans,
+        Value = Config.BossTransDimensional,
+        Callback = function(value)
+            Config.BossTransDimensional = value
+            SaveConfig()
+            if Config.BossShip or Config.BossKraken or value then
+                task.spawn(startBossLoop)
+            else
+                if bossConnection then
+                    bossConnection:Disconnect()
+                    bossConnection = nil
+                end
+            end
+        end
+    })
+
+    -- ====== ABA TELEPORTE (com tradução) ======
+    -- Terra
+    TabTeleport:Section({ Title = lang.SecTerra })
+    TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
+    TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
+    TabTeleport:Button({ Title = lang.BtnMansao, Callback = function() ExecutarTeleporte(CFrame.new(668, 131, -1374)) end })
+    TabTeleport:Button({ Title = lang.BtnFloresta, Callback = function() ExecutarTeleporte(CFrame.new(84, 7, -3524)) end })
+    TabTeleport:Button({ Title = lang.BtnColiseu, Callback = function() ExecutarTeleporte(CFrame.new(-1124, 8, -6871)) end })
+    TabTeleport:Button({ Title = lang.BtnYggasill, Callback = function() ExecutarTeleporte(CFrame.new(-8206, -368, -12277)) end })
+    TabTeleport:Button({ Title = lang.BtnLedgerDomain, Callback = function() ExecutarTeleporte(CFrame.new(913, -2514, -1566)) end })
+
+    -- Lua
+    TabTeleport:Section({ Title = lang.SecLua })
+    TabTeleport:Button({ Title = lang.BtnCentroLua, Callback = function() ExecutarTeleporte(CFrame.new(-1426, 8, 49003)) end })
+
+    -- Fogo & Frio
+    TabTeleport:Section({ Title = lang.SecFogoFrio })
+    TabTeleport:Button({ Title = lang.BtnCentroFogoFrio, Callback = function() ExecutarTeleporte(CFrame.new(-916, 25, 91948)) end })
+
+    -- Estação especial academia
+    TabTeleport:Section({ Title = lang.SecEstacaoAcademia })
+    TabTeleport:Button({ Title = lang.BtnAcademia, Callback = function() ExecutarTeleporte(CFrame.new(72994, 1933, -3128)) end })
+
+    -- Marte
+    TabTeleport:Section({ Title = lang.SecMarte })
+    TabTeleport:Button({ Title = lang.BtnArenaMarte, Callback = function() ExecutarTeleporte(CFrame.new(64779, 30, 65676)) end })
+
+    -- AlienX
+    TabTeleport:Section({ Title = lang.SecAlienX })
+    TabTeleport:Button({ Title = lang.BtnCubo, Callback = function() ExecutarTeleporte(CFrame.new(78944, 2547, -3139)) end })
+    TabTeleport:Button({ Title = lang.BtnBBAlienX, Callback = function() ExecutarTeleporte(CFrame.new(1143, 1930, 300137)) end })
+    TabTeleport:Button({ Title = lang.BtnAlienXDNA, Callback = function() ExecutarTeleporte(CFrame.new(188, 1496, 300251)) end })
+
+    -- Galvan Prime
+    TabTeleport:Section({ Title = lang.SecGalvanPrime })
+    TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
+
+    -- ====== ABA CONFIG ======
+    TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
         Title = lang.DropIdioma,
         Desc = lang.DescIdioma,
@@ -496,7 +823,6 @@ local function CriarMenu()
             end
         end
     })
-
     TabConfig:Toggle({
         Title = lang.ToggleIntro,
         Desc = lang.DescIntro,
@@ -506,7 +832,24 @@ local function CriarMenu()
             SaveConfig()
         end
     })
-
+    TabConfig:Toggle({
+        Title = lang.ToggleAFK,
+        Desc = lang.DescAFK,
+        Value = Config.AntiAFK,
+        Callback = function(value)
+            Config.AntiAFK = value
+            SaveConfig()
+            if value then
+                task.spawn(startAntiAFK)
+            else
+                antiAFKRunning = false
+                if antiAFKConnection then
+                    task.cancel(antiAFKConnection)
+                    antiAFKConnection = nil
+                end
+            end
+        end
+    })
     TabConfig:Button({
         Title = lang.BtnReset,
         Desc = lang.DescReset,
@@ -514,8 +857,11 @@ local function CriarMenu()
             Config.RaidEnabled = false
             Config.Language = "Português"
             Config.RemoverIntro = false
+            Config.AntiAFK = false
+            Config.BossShip = false
+            Config.BossKraken = false
+            Config.BossTransDimensional = false
             SaveConfig()
-            
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -528,19 +874,16 @@ local function CriarMenu()
     })
 
     TabConfig:Section({ Title = lang.SecServer })
-
     TabConfig:Button({
         Title = "Rejoin",
         Desc = lang.DescRejoin,
         Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
     })
-
     TabConfig:Button({
         Title = "ServeHop",
         Desc = lang.DescHop,
         Callback = function() MudarServidor("Desc") end
     })
-
     TabConfig:Button({
         Title = "SmallServe",
         Desc = lang.DescSmall,
@@ -548,10 +891,11 @@ local function CriarMenu()
     })
 end
 
--- Inicia o menu
+-- =============================================
+-- INICIALIZAÇÃO
+-- =============================================
 pcall(CriarMenu)
 
--- Notificação de inicialização
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
     Text = "Carregado com sucesso! (Salvamento ao sair ativo)",
