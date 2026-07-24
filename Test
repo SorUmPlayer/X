@@ -1,4 +1,13 @@
--- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
+--[[
+  PROJECT SOR – SCRIPT COMPLETO COM PERSISTÊNCIA TOTAL
+  - Salva automaticamente todos os toggles, sliders, inputs e idioma.
+  - Restaura o estado mesmo após remover/reinserir o script, rejoin ou reiniciar o jogo.
+  - Pasta de configuração: SorOminiXConfig/SorOminiX_Config.json
+--]]
+
+-- =============================================
+-- CONFIGURAÇÕES GLOBAIS E ESTADO
+-- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
 local lighting = game:GetService("Lighting")
@@ -9,11 +18,19 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-
 local LocalPlayer = players.LocalPlayer
-local estaTeleportando = false
 
--- Configurações padrão
+-- =============================================
+-- PASTA E ARQUIVO DE CONFIGURAÇÃO
+-- =============================================
+local CONFIG_FOLDER = "SorOminiXConfig"
+local CONFIG_FILE = CONFIG_FOLDER .. "/SorOminiX_Config.json"
+local FALLBACK_FILE = "SorOminiX_Config_Backup.json"
+local SCRIPT_ID = "SorOminiX" -- identificador único
+
+-- =============================================
+-- CONFIGURAÇÕES PADRÃO (serão sobrescritas pelo arquivo)
+-- =============================================
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -29,187 +46,136 @@ local Config = {
 }
 
 -- =============================================
--- PASTA E NOME DO ARQUIVO DE CONFIGURAÇÃO
--- =============================================
-local CONFIG_FOLDER = "SorOminiXConfig"
-local FILE_NAME = CONFIG_FOLDER .. "/SorOminiX_Config.json"
-local FALLBACK_FILE = "SorOminiX_Config_Backup.json"
-
--- =============================================
--- SALVAMENTO E CARREGAMENTO (COM DEBUG)
+-- FUNÇÕES DE SALVAMENTO E CARREGAMENTO (COM VERIFICAÇÃO)
 -- =============================================
 local function SaveConfig()
-    print("[SaveConfig] Iniciando salvamento...")
     if not writefile then
-        print("[SaveConfig] writefile não disponível!")
+        warn("[Save] writefile não disponível!")
         return false
     end
 
-    local folderCreated = false
+    -- Tenta criar a pasta
     if isfolder then
         pcall(function()
             if not isfolder(CONFIG_FOLDER) then
                 makefolder(CONFIG_FOLDER)
-                print("[SaveConfig] Pasta criada: " .. CONFIG_FOLDER)
             end
-            folderCreated = true
         end)
     end
 
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(Config)
-    end)
-    if not success then
-        print("[SaveConfig] Erro ao codificar JSON: " .. tostring(json))
+    local json, err = pcall(HttpService.JSONEncode, HttpService, Config)
+    if not json then
+        warn("[Save] Erro ao codificar JSON: " .. tostring(err))
         return false
     end
 
     local saved = false
-    if folderCreated then
-        pcall(function()
-            writefile(FILE_NAME, json)
-            print("[SaveConfig] Salvo em: " .. FILE_NAME)
-            saved = true
-        end)
-    end
+    -- Tenta salvar na pasta
+    pcall(function()
+        writefile(CONFIG_FILE, json)
+        saved = true
+    end)
 
+    -- Fallback: salva na raiz
     if not saved then
         pcall(function()
             writefile(FALLBACK_FILE, json)
-            print("[SaveConfig] Salvo em fallback: " .. FALLBACK_FILE)
             saved = true
         end)
     end
 
     if saved then
-        print("[SaveConfig] Salvamento concluído com sucesso!")
-        return true
+        print("[Save] Configurações salvas com sucesso!")
     else
-        print("[SaveConfig] FALHA ao salvar! Verifique permissões do executor.")
-        return false
+        warn("[Save] FALHA ao salvar! Verifique permissões do executor.")
     end
+    return saved
 end
 
 local function LoadConfig()
-    print("[LoadConfig] Iniciando carregamento...")
     if not isfile then
-        print("[LoadConfig] isfile não disponível!")
+        print("[Load] isfile não disponível.")
         return false
     end
 
-    local data = nil
-    if isfile(FILE_NAME) then
-        local success, content = pcall(function()
-            return readfile(FILE_NAME)
-        end)
-        if success and content then
-            data = content
-            print("[LoadConfig] Lido de: " .. FILE_NAME)
+    local content
+    -- Tenta ler da pasta
+    if isfile(CONFIG_FILE) then
+        local ok, data = pcall(readfile, CONFIG_FILE)
+        if ok and data then
+            content = data
+            print("[Load] Lido de " .. CONFIG_FILE)
         end
     end
 
-    if not data and isfile(FALLBACK_FILE) then
-        local success, content = pcall(function()
-            return readfile(FALLBACK_FILE)
-        end)
-        if success and content then
-            data = content
-            print("[LoadConfig] Lido de fallback: " .. FALLBACK_FILE)
+    -- Se não achou, tenta fallback
+    if not content and isfile(FALLBACK_FILE) then
+        local ok, data = pcall(readfile, FALLBACK_FILE)
+        if ok and data then
+            content = data
+            print("[Load] Lido de " .. FALLBACK_FILE)
         end
     end
 
-    if data then
-        local decoded = pcall(function() return HttpService:JSONDecode(data) end)
+    if content then
+        local decoded, err = pcall(HttpService.JSONDecode, HttpService, content)
         if decoded and type(decoded) == "table" then
             for k, v in pairs(decoded) do
                 Config[k] = v
             end
-            print("[LoadConfig] Configurações carregadas com sucesso!")
+            print("[Load] Configurações carregadas com sucesso!")
             return true
         else
-            print("[LoadConfig] Erro ao decodificar JSON.")
-            return false
+            warn("[Load] Erro ao decodificar JSON: " .. tostring(err))
         end
     else
-        print("[LoadConfig] Nenhum arquivo de configuração encontrado.")
-        return false
+        print("[Load] Nenhum arquivo encontrado. Usando padrões.")
     end
+    return false
 end
 
--- Carrega as configurações
-local configLoaded = LoadConfig()
-if configLoaded then
-    print("[LoadConfig] Configurações restauradas com sucesso.")
-else
-    print("[LoadConfig] Usando configurações padrão.")
-end
+-- Carrega as configurações ao iniciar
+LoadConfig()
 
 -- =============================================
--- SALVAMENTO AUTOMÁTICO
+-- SALVAMENTO AUTOMÁTICO (LOOP INTELIGENTE)
 -- =============================================
-local autoSaveRunning = false
-local autoSaveConnection = nil
 local lastSaveTime = 0
 local autoSaveInterval = 0.5
-local fpsMonitor = 0
+local fpsMonitor = 60
 local frameCount = 0
 local frameTime = 0
 
-local function updateAutoSaveInterval()
-    if fpsMonitor < 30 then
-        autoSaveInterval = 1.0
-    else
-        autoSaveInterval = 0.5
+RunService.Heartbeat:Connect(function(dt)
+    frameCount = frameCount + 1
+    frameTime = frameTime + dt
+    if frameTime >= 0.5 then
+        fpsMonitor = frameCount / frameTime
+        frameCount = 0
+        frameTime = 0
+        autoSaveInterval = (fpsMonitor < 30) and 1.0 or 0.5
     end
-end
 
-local function startAutoSave()
-    if autoSaveRunning then return end
-    autoSaveRunning = true
-    autoSaveConnection = RunService.Heartbeat:Connect(function(deltaTime)
-        frameCount = frameCount + 1
-        frameTime = frameTime + deltaTime
-        if frameTime >= 0.5 then
-            fpsMonitor = frameCount / frameTime
-            frameCount = 0
-            frameTime = 0
-            updateAutoSaveInterval()
-        end
-
-        local now = tick()
-        if now - lastSaveTime >= autoSaveInterval then
-            SaveConfig()
-            lastSaveTime = now
-        end
-    end)
-    print("[AutoSave] Loop iniciado. Intervalo atual: " .. autoSaveInterval .. "s")
-end
-
-startAutoSave()
+    if tick() - lastSaveTime >= autoSaveInterval then
+        SaveConfig()
+        lastSaveTime = tick()
+    end
+end)
 
 -- =============================================
--- SALVAMENTO MANUAL
+-- FUNÇÃO PARA SALVAR IMEDIATAMENTE (MANUAL)
 -- =============================================
 local function ManualSave()
-    print("[ManualSave] Salvando manualmente...")
-    local success = SaveConfig()
-    if success then
-        StarterGui:SetCore("SendNotification", {
-            Title = "Configurações",
-            Text = "Salvas com sucesso!",
-            Duration = 2
-        })
-    else
-        StarterGui:SetCore("SendNotification", {
-            Title = "Erro",
-            Text = "Falha ao salvar! Verifique o console.",
-            Duration = 3
-        })
-    end
+    local ok = SaveConfig()
+    StarterGui:SetCore("SendNotification", {
+        Title = "Configurações",
+        Text = ok and "Salvas com sucesso!" or "Falha ao salvar!",
+        Duration = 2
+    })
 end
 
 -- =============================================
--- INTRO (SPLASH)
+-- INTRO (SPLASH) – controlada por Config.RemoverIntro
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -223,13 +189,7 @@ if not Config.RemoverIntro then
         screenGui.Name = "OverlayGui"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        local success = pcall(function()
-            screenGui.Parent = coreGui
-        end)
-        if not success then
-            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-        end
+        pcall(function() screenGui.Parent = coreGui end) or (screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui"))
 
         local img = Instance.new("ImageLabel")
         img.Name = "DisplayImage"
@@ -247,18 +207,16 @@ if not Config.RemoverIntro then
         local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
         tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
-
         task.wait(1.5)
+
         local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
         local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
         pulseTween:Play()
-
         task.wait(8)
-
         pulseTween:Cancel()
+
         tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
         tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
-
         task.wait(1.5)
         screenGui:Destroy()
         blur:Destroy()
@@ -266,202 +224,86 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo)
+-- DICIONÁRIO DE IDIOMAS (mesmo de antes)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
-        TabMain = "Raid & Teleportes",
-        TabBoss = "Boss",
-        TabTeleport = "Teleporte",
-        TabConfig = "Configurações",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Ativa o ataque e o teleporte em loop",
-        ChatMulti = "Multiplicador de Tiro",
-        DescMulti = "Número de tiros por ciclo (Ex: 9)",
-        PlaceMulti = "Digite um número...",
-        Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
+        TabMain = "Raid & Teleportes", TabBoss = "Boss", TabTeleport = "Teleporte", TabConfig = "Configurações",
+        SecRaid = "Raid", ToggleRaid = "Toggle Auto Raid", DescRaid = "Ativa o ataque e o teleporte em loop",
+        ChatMulti = "Multiplicador de Tiro", DescMulti = "Número de tiros por ciclo (Ex: 9)", PlaceMulti = "Digite um número...",
+        Distancia = "Distância", DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
-        SecBossConfig = "Boss Config",
-        DescBossDist = "Distância acima do Boss (0 a 20)",
-        DescBossMulti = "Multiplicador de tiros para Boss",
-        SecBoss = "Boss",
-        ToggleShip = "Ship",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Trans Dimensional",
-        SecTerra = "🌍 Terra",
-        SecLua = "🌙 Lua",
-        SecFogoFrio = "🔥❄️ Fogo & Frio",
-        SecEstacaoAcademia = "🏫 Estação especial academia",
-        SecMarte = "🔴 Marte",
-        SecAlienX = "👽 AlienX",
-        SecGalvanPrime = "🪐 Galvan Prime",
-        BtnParker = "Parker",
-        BtnPredioBilly = "Prédio do Billy",
-        BtnMansao = "Mansão",
-        BtnFloresta = "Floresta",
-        BtnColiseu = "Coliseu",
-        BtnYggasill = "Yggasill",
-        BtnLedgerDomain = "LedgerDomain",
-        BtnCentroLua = "Centro da Lua",
-        BtnCentroFogoFrio = "Centro",
-        BtnAcademia = "Academia",
-        BtnArenaMarte = "Arena",
-        BtnCubo = "Cubo",
-        BtnBBAlienX = "BB AlienX",
-        BtnAlienXDNA = "AlienX DNA",
-        BtnPredioGalvan = "Prédio",
-        SecConfig = "Config",
-        DropIdioma = "Idiomas",
-        DescIdioma = "Altere o idioma do Script",
-        BtnReset = "Reset Config",
-        DescReset = "Reseta os toggles e idioma",
-        ToggleIntro = "Remover Intro",
-        DescIntro = "Desativa a introdução ao iniciar o script",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Envia clique a cada 60s para não ser desconectado",
-        SecServer = "Servidor",
-        DescRejoin = "Entra novamente no mesmo servidor",
-        DescHop = "Teleporta pro servidor antigo",
+        SecBossConfig = "Boss Config", DescBossDist = "Distância acima do Boss (0 a 20)", DescBossMulti = "Multiplicador de tiros para Boss",
+        SecBoss = "Boss", ToggleShip = "Ship", ToggleKraken = "Kraken", ToggleTrans = "Trans Dimensional",
+        SecTerra = "🌍 Terra", SecLua = "🌙 Lua", SecFogoFrio = "🔥❄️ Fogo & Frio", SecEstacaoAcademia = "🏫 Estação especial academia",
+        SecMarte = "🔴 Marte", SecAlienX = "👽 AlienX", SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker", BtnPredioBilly = "Prédio do Billy", BtnMansao = "Mansão", BtnFloresta = "Floresta",
+        BtnColiseu = "Coliseu", BtnYggasill = "Yggasill", BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro da Lua", BtnCentroFogoFrio = "Centro", BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena", BtnCubo = "Cubo", BtnBBAlienX = "BB AlienX", BtnAlienXDNA = "AlienX DNA", BtnPredioGalvan = "Prédio",
+        SecConfig = "Config", DropIdioma = "Idiomas", DescIdioma = "Altere o idioma do Script",
+        BtnReset = "Reset Config", DescReset = "Reseta os toggles e idioma",
+        ToggleIntro = "Remover Intro", DescIntro = "Desativa a introdução ao iniciar o script",
+        ToggleAFK = "Anti‑AFK", DescAFK = "Envia clique a cada 60s para não ser desconectado",
+        SecServer = "Servidor", DescRejoin = "Entra novamente no mesmo servidor", DescHop = "Teleporta pro servidor antigo",
         DescSmall = "Teleporta pra servidor criado recentemente",
-        NotifTitle = "Configuração Resetada",
-        NotifDesc = "Raid desativada e idioma resetado.",
-        BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente"
+        NotifTitle = "Configuração Resetada", NotifDesc = "Raid desativada e idioma resetado.",
+        BtnManualSave = "💾 Salvar Configurações", DescManualSave = "Salva todas as opções manualmente"
     },
     ["Espanhol"] = {
-        TabMain = "Raid y Teleportes",
-        TabBoss = "Jefe",
-        TabTeleport = "Teletransporte",
-        TabConfig = "Configuraciones",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Activa el ataque y el teletransporte en bucle",
-        ChatMulti = "Multiplicador de Tiro",
-        DescMulti = "Número de disparos por ciclo (Ej: 9)",
-        PlaceMulti = "Escribe un número...",
-        Distancia = "Distancia",
-        DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
+        TabMain = "Raid y Teleportes", TabBoss = "Jefe", TabTeleport = "Teletransporte", TabConfig = "Configuraciones",
+        SecRaid = "Raid", ToggleRaid = "Toggle Auto Raid", DescRaid = "Activa el ataque y el teletransporte en bucle",
+        ChatMulti = "Multiplicador de Tiro", DescMulti = "Número de disparos por ciclo (Ej: 9)", PlaceMulti = "Escribe un número...",
+        Distancia = "Distancia", DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
-        SecBossConfig = "Config Jefe",
-        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
-        DescBossMulti = "Multiplicador de disparos para Jefe",
-        SecBoss = "Jefe",
-        ToggleShip = "Barco",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Monstruo Transdimensional",
-        SecTerra = "🌍 Tierra",
-        SecLua = "🌙 Luna",
-        SecFogoFrio = "🔥❄️ Fuego & Frío",
-        SecEstacaoAcademia = "🏫 Estación especial academia",
-        SecMarte = "🔴 Marte",
-        SecAlienX = "👽 AlienX",
-        SecGalvanPrime = "🪐 Galvan Prime",
-        BtnParker = "Parker",
-        BtnPredioBilly = "Edificio de Billy",
-        BtnMansao = "Mansión",
-        BtnFloresta = "Bosque",
-        BtnColiseu = "Coliseo",
-        BtnYggasill = "Yggasill",
-        BtnLedgerDomain = "LedgerDomain",
-        BtnCentroLua = "Centro de la Luna",
-        BtnCentroFogoFrio = "Centro",
-        BtnAcademia = "Academia",
-        BtnArenaMarte = "Arena",
-        BtnCubo = "Cubo",
-        BtnBBAlienX = "BB AlienX",
-        BtnAlienXDNA = "AlienX ADN",
-        BtnPredioGalvan = "Edificio",
-        SecConfig = "Config",
-        DropIdioma = "Idiomas",
-        DescIdioma = "Cambia el idioma del Script",
-        BtnReset = "Reset Config",
-        DescReset = "Restablece los toggles e idioma",
-        ToggleIntro = "Eliminar Intro",
-        DescIntro = "Desactiva la introducción al iniciar el script",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Envía clic cada 60s para no ser desconectado",
-        SecServer = "Servidor",
-        DescRejoin = "Volver al mismo servidor",
-        DescHop = "Teletransporta al servidor antiguo",
+        SecBossConfig = "Config Jefe", DescBossDist = "Distancia sobre el Jefe (0 a 20)", DescBossMulti = "Multiplicador de disparos para Jefe",
+        SecBoss = "Jefe", ToggleShip = "Barco", ToggleKraken = "Kraken", ToggleTrans = "Monstruo Transdimensional",
+        SecTerra = "🌍 Tierra", SecLua = "🌙 Luna", SecFogoFrio = "🔥❄️ Fuego & Frío", SecEstacaoAcademia = "🏫 Estación especial academia",
+        SecMarte = "🔴 Marte", SecAlienX = "👽 AlienX", SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker", BtnPredioBilly = "Edificio de Billy", BtnMansao = "Mansión", BtnFloresta = "Bosque",
+        BtnColiseu = "Coliseo", BtnYggasill = "Yggasill", BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro de la Luna", BtnCentroFogoFrio = "Centro", BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena", BtnCubo = "Cubo", BtnBBAlienX = "BB AlienX", BtnAlienXDNA = "AlienX ADN", BtnPredioGalvan = "Edificio",
+        SecConfig = "Config", DropIdioma = "Idiomas", DescIdioma = "Cambia el idioma del Script",
+        BtnReset = "Reset Config", DescReset = "Restablece los toggles e idioma",
+        ToggleIntro = "Eliminar Intro", DescIntro = "Desactiva la introducción al iniciar el script",
+        ToggleAFK = "Anti‑AFK", DescAFK = "Envía clic cada 60s para no ser desconectado",
+        SecServer = "Servidor", DescRejoin = "Volver al mismo servidor", DescHop = "Teletransporta al servidor antiguo",
         DescSmall = "Teletransporte a servidor reciente",
-        NotifTitle = "Configuración Reiniciada",
-        NotifDesc = "Raid desactivada e idioma restablecido.",
-        BtnManualSave = "💾 Guardar Configuraciones",
-        DescManualSave = "Guarda todas las opciones manualmente"
+        NotifTitle = "Configuración Reiniciada", NotifDesc = "Raid desactivada e idioma restablecido.",
+        BtnManualSave = "💾 Guardar Configuraciones", DescManualSave = "Guarda todas las opciones manualmente"
     },
     ["English"] = {
-        TabMain = "Raid & Teleports",
-        TabBoss = "Boss",
-        TabTeleport = "Teleport",
-        TabConfig = "Settings",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Activates loop attack and teleport",
-        ChatMulti = "Shot Multiplier",
-        DescMulti = "Number of shots per cycle (Ex: 9)",
-        PlaceMulti = "Type a number...",
-        Distancia = "Distance",
-        DescDist = "Distance above NPCs (Studs) - 0 to 20",
+        TabMain = "Raid & Teleports", TabBoss = "Boss", TabTeleport = "Teleport", TabConfig = "Settings",
+        SecRaid = "Raid", ToggleRaid = "Toggle Auto Raid", DescRaid = "Activates loop attack and teleport",
+        ChatMulti = "Shot Multiplier", DescMulti = "Number of shots per cycle (Ex: 9)", PlaceMulti = "Type a number...",
+        Distancia = "Distance", DescDist = "Distance above NPCs (Studs) - 0 to 20",
         SecTp = "Tp Raids",
-        SecBossConfig = "Boss Config",
-        DescBossDist = "Distance above Boss (0 to 20)",
-        DescBossMulti = "Shot multiplier for Boss",
-        SecBoss = "Boss",
-        ToggleShip = "Ship",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Trans Dimensional",
-        SecTerra = "🌍 Earth",
-        SecLua = "🌙 Moon",
-        SecFogoFrio = "🔥❄️ Fire & Ice",
-        SecEstacaoAcademia = "🏫 Special Academy Station",
-        SecMarte = "🔴 Mars",
-        SecAlienX = "👽 AlienX",
-        SecGalvanPrime = "🪐 Galvan Prime",
-        BtnParker = "Parker",
-        BtnPredioBilly = "Billy's Building",
-        BtnMansao = "Mansion",
-        BtnFloresta = "Forest",
-        BtnColiseu = "Coliseum",
-        BtnYggasill = "Yggasill",
-        BtnLedgerDomain = "LedgerDomain",
-        BtnCentroLua = "Moon Center",
-        BtnCentroFogoFrio = "Center",
-        BtnAcademia = "Academy",
-        BtnArenaMarte = "Arena",
-        BtnCubo = "Cube",
-        BtnBBAlienX = "BB AlienX",
-        BtnAlienXDNA = "AlienX DNA",
-        BtnPredioGalvan = "Building",
-        SecConfig = "Config",
-        DropIdioma = "Languages",
-        DescIdioma = "Change the script language",
-        BtnReset = "Reset Config",
-        DescReset = "Reset toggles and language",
-        ToggleIntro = "Remove Intro",
-        DescIntro = "Disables the intro splash",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Sends a click every 60s to avoid disconnect",
-        SecServer = "Server",
-        DescRejoin = "Rejoin the same server",
-        DescHop = "Teleport to an old server",
+        SecBossConfig = "Boss Config", DescBossDist = "Distance above Boss (0 to 20)", DescBossMulti = "Shot multiplier for Boss",
+        SecBoss = "Boss", ToggleShip = "Ship", ToggleKraken = "Kraken", ToggleTrans = "Trans Dimensional",
+        SecTerra = "🌍 Earth", SecLua = "🌙 Moon", SecFogoFrio = "🔥❄️ Fire & Ice", SecEstacaoAcademia = "🏫 Special Academy Station",
+        SecMarte = "🔴 Mars", SecAlienX = "👽 AlienX", SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker", BtnPredioBilly = "Billy's Building", BtnMansao = "Mansion", BtnFloresta = "Forest",
+        BtnColiseu = "Coliseum", BtnYggasill = "Yggasill", BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Moon Center", BtnCentroFogoFrio = "Center", BtnAcademia = "Academy",
+        BtnArenaMarte = "Arena", BtnCubo = "Cube", BtnBBAlienX = "BB AlienX", BtnAlienXDNA = "AlienX DNA", BtnPredioGalvan = "Building",
+        SecConfig = "Config", DropIdioma = "Languages", DescIdioma = "Change the script language",
+        BtnReset = "Reset Config", DescReset = "Reset toggles and language",
+        ToggleIntro = "Remove Intro", DescIntro = "Disables the intro splash",
+        ToggleAFK = "Anti‑AFK", DescAFK = "Sends a click every 60s to avoid disconnect",
+        SecServer = "Server", DescRejoin = "Rejoin the same server", DescHop = "Teleport to an old server",
         DescSmall = "Teleport to a recently created server",
-        NotifTitle = "Config Reset",
-        NotifDesc = "Raid disabled and language reset.",
-        BtnManualSave = "💾 Save Settings",
-        DescManualSave = "Saves all options manually"
+        NotifTitle = "Config Reset", NotifDesc = "Raid disabled and language reset.",
+        BtnManualSave = "💾 Save Settings", DescManualSave = "Saves all options manually"
     }
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES)
+-- SISTEMA DE COMBATE (REMOTES) – MANTIDO
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
-    if remotes then
-        return remotes:FindFirstChild("upgrade")
-    end
+    return remotes and remotes:FindFirstChild("upgrade")
 end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
 
 local function Laser()
@@ -476,13 +318,11 @@ end
 
 local function ArmFire(targetRoot)
     if not RS or not RS.ArmFire then return end
-    local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
     if root then
-        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
-        pcall(function()
-            RS.ArmFire:InvokeServer(targetPosition)
-        end)
+        local targetPos = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
+        pcall(function() RS.ArmFire:InvokeServer(targetPos) end)
     end
 end
 
@@ -498,30 +338,28 @@ end
 local function getClosestNPC()
     local _, myRoot = getLocalCharacter()
     if not myRoot then return nil end
+    local enemys = workspace:FindFirstChild("Enemys")
+    if not enemys then return nil end
 
-    local enemysFolder = workspace:FindFirstChild("Enemys")
-    if not enemysFolder then return nil end
-
-    local closestNPC = nil
-    local shortestDistance = math.huge
-
-    for _, enemyFolder in ipairs(enemysFolder:GetChildren()) do
-        local npcCharacter = enemyFolder:FindFirstChild("Character")
-        if npcCharacter and npcCharacter:IsA("Model") then
-            local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
-            local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
-            if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
-                local distance = (myRoot.Position - npcRoot.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestNPC = npcRoot
+    local closest, bestDist = nil, math.huge
+    for _, folder in ipairs(enemys:GetChildren()) do
+        local npc = folder:FindFirstChild("Character")
+        if npc and npc:IsA("Model") then
+            local root = npc:FindFirstChild("HumanoidRootPart")
+            local hum = npc:FindFirstChildOfClass("Humanoid")
+            if root and hum and hum.Health > 0 then
+                local dist = (myRoot.Position - root.Position).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    closest = root
                 end
             end
         end
     end
-    return closestNPC
+    return closest
 end
 
+local estaTeleportando = false
 local function ExecutarTeleporte(cframe)
     if estaTeleportando then return end
     estaTeleportando = true
@@ -536,98 +374,73 @@ end
 
 local function MudarServidor(ordem)
     local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    if success and result and result.data then
-        for _, server in ipairs(result.data) do
-            if type(server) == "table" and server.id ~= game.JobId then
-                if server.playing > 0 and server.playing < server.maxPlayers then
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                    return
-                end
+    local ok, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+    if ok and result and result.data then
+        for _, s in ipairs(result.data) do
+            if type(s) == "table" and s.id ~= game.JobId and s.playing > 0 and s.playing < s.maxPlayers then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
+                return
             end
         end
     end
 end
 
 -- =============================================
--- LOOP DA RAID
+-- LOOP DA RAID (restaurado automaticamente)
 -- =============================================
-local raidRunning = false
 local raidConnection = nil
-
 local function startRaidLoop()
     if raidConnection then return end
-    raidRunning = true
     raidConnection = RunService.Heartbeat:Connect(function()
         if not Config.RaidEnabled then
-            raidRunning = false
             if raidConnection then
                 raidConnection:Disconnect()
                 raidConnection = nil
             end
             return
         end
-
         local _, myRoot = getLocalCharacter()
-        local targetNPC = getClosestNPC()
-        if not myRoot or not targetNPC then return end
-
-        myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
-
-        local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not Config.RaidEnabled then break end
-                Laser()
-                GunArm()
-                ArmFire(targetNPC)
-                Armature()
-                task.wait()
-            end
+        local target = getClosestNPC()
+        if not myRoot or not target then return end
+        myRoot.CFrame = target.CFrame * CFrame.new(0, Config.NpcDistance, 0)
+        local mult = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
+        for i = 1, mult do
+            if not Config.RaidEnabled then break end
+            Laser()
+            GunArm()
+            ArmFire(target)
+            Armature()
+            task.wait()
         end
     end)
 end
-
-if Config.RaidEnabled then
-    task.spawn(startRaidLoop)
-end
+if Config.RaidEnabled then task.spawn(startRaidLoop) end
 
 -- =============================================
 -- LOOP DOS BOSSES
 -- =============================================
-local bossRunning = false
 local bossConnection = nil
-
 local function getActiveBossTarget()
     local enemys = workspace:FindFirstChild("Enemys")
     if not enemys then return nil end
-
     local bosses = {
-        { configKey = "BossShip", folderName = "Ship [ Ferris Wheel Form ]", charName = "Character" },
-        { configKey = "BossKraken", folderName = "Kraken", charName = "Character" },
-        { configKey = "BossTransDimensional", folderName = "Trans Dimensional Monster", charName = "Character" },
+        { key = "BossShip", folder = "Ship [ Ferris Wheel Form ]", char = "Character" },
+        { key = "BossKraken", folder = "Kraken", char = "Character" },
+        { key = "BossTransDimensional", folder = "Trans Dimensional Monster", char = "Character" },
     }
-
-    for _, boss in ipairs(bosses) do
-        if Config[boss.configKey] then
-            local folder = enemys:FindFirstChild(boss.folderName)
-            if folder then
-                local char = folder:FindFirstChild(boss.charName)
-                if char and char:IsA("Model") then
-                    local part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+    for _, b in ipairs(bosses) do
+        if Config[b.key] then
+            local f = enemys:FindFirstChild(b.folder)
+            if f then
+                local c = f:FindFirstChild(b.char)
+                if c and c:IsA("Model") then
+                    local part = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso")
                     if not part then
-                        for _, child in ipairs(char:GetChildren()) do
-                            if child:IsA("BasePart") then
-                                part = child
-                                break
-                            end
+                        for _, child in ipairs(c:GetChildren()) do
+                            if child:IsA("BasePart") then part = child break end
                         end
                     end
-                    if part and part:IsA("BasePart") then
-                        return part
-                    end
+                    if part and part:IsA("BasePart") then return part end
                 end
             end
         end
@@ -637,364 +450,231 @@ end
 
 local function startBossLoop()
     if bossConnection then return end
-    bossRunning = true
     bossConnection = RunService.Heartbeat:Connect(function()
         if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then
-            bossRunning = false
-            if bossConnection then
-                bossConnection:Disconnect()
-                bossConnection = nil
-            end
+            if bossConnection then bossConnection:Disconnect() bossConnection = nil end
             return
         end
-
-        local targetPart = getActiveBossTarget()
-        if not targetPart then return end
-
+        local target = getActiveBossTarget()
+        if not target then return end
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
-
-        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
-
-        local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
-                Laser()
-                GunArm()
-                ArmFire(targetPart)
-                Armature()
-                task.wait()
-            end
+        myRoot.CFrame = target.CFrame * CFrame.new(0, Config.BossDistance, 0)
+        local mult = math.floor(tonumber(Config.BossShotMultiplier) or 1)
+        for i = 1, mult do
+            if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
+            Laser()
+            GunArm()
+            ArmFire(target)
+            Armature()
+            task.wait()
         end
     end)
 end
-
-if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
-    task.spawn(startBossLoop)
-end
+if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then task.spawn(startBossLoop) end
 
 -- =============================================
 -- ANTI‑AFK
 -- =============================================
-local antiAFKRunning = false
-local antiAFKConnection = nil
-
+local antiAFKThread = nil
 local function startAntiAFK()
-    if antiAFKConnection then return end
-    antiAFKRunning = true
-    antiAFKConnection = task.spawn(function()
-        while antiAFKRunning and Config.AntiAFK do
+    if antiAFKThread then return end
+    antiAFKThread = task.spawn(function()
+        while Config.AntiAFK do
             task.wait(60)
             if not Config.AntiAFK then break end
             pcall(function()
-                local viewport = workspace.CurrentCamera.ViewportSize
-                local center = Vector2.new(viewport.X/2, viewport.Y/2)
+                local vp = workspace.CurrentCamera.ViewportSize
+                local center = Vector2.new(vp.X/2, vp.Y/2)
                 VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
                 task.wait(0.05)
                 VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
             end)
         end
-        antiAFKConnection = nil
+        antiAFKThread = nil
     end)
 end
-
-if Config.AntiAFK then
-    task.spawn(startAntiAFK)
-end
+if Config.AntiAFK then task.spawn(startAntiAFK) end
 
 -- =============================================
--- MENU – WINDUI
+-- MENU – WINDUI (GERADO COMPLETAMENTE)
 -- =============================================
 local oldWindow = nil
-
 local function CriarMenu()
-    if oldWindow then
-        pcall(function() oldWindow:Destroy() end)
-        oldWindow = nil
-    end
-
+    if oldWindow then pcall(function() oldWindow:Destroy() end) oldWindow = nil end
     local lang = Idiomas[Config.Language] or Idiomas["Português"]
 
     local WindUI
-    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        WindUI = result
-    else
-        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-        success, result = pcall(function()
-            return loadstring(game:HttpGet(fallbackUrl))()
-        end)
-        if success and result then
-            WindUI = result
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Não foi possível carregar a WindUI.",
-                Duration = 5
-            })
-            return
-        end
+    local ok, ui = pcall(function() return loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))() end)
+    if ok and ui then WindUI = ui else
+        ok, ui = pcall(function() return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))() end)
+        if ok and ui then WindUI = ui end
+    end
+    if not WindUI then
+        StarterGui:SetCore("SendNotification", {Title = "Erro", Text = "Falha ao carregar WindUI.", Duration = 5})
+        return
     end
 
     local Window = WindUI:CreateWindow({
-        Title = "Project Sor",
-        Icon = "rbxassetid://135710581431595",
-        Author = "Noob Must Die",
-        Folder = "Project Sor - Noob Must Die",
-        Size = UDim2.fromOffset(460, 320),
-        Transparent = false,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 200,
-        BackgroundImageTransparency = 0.42,
-        HideSearchBar = true,
-        ScrollBarEnabled = false,
-        User = {
-            Enabled = true,
-            Anonymous = false,
-            Callback = function() print("clicked") end,
-        },
+        Title = "Project Sor", Icon = "rbxassetid://135710581431595", Author = "Noob Must Die",
+        Folder = "Project Sor - Noob Must Die", Size = UDim2.fromOffset(460, 320), Transparent = false,
+        Theme = "Dark", Resizable = true, SideBarWidth = 200, BackgroundImageTransparency = 0.42,
+        HideSearchBar = true, ScrollBarEnabled = false,
+        User = { Enabled = true, Anonymous = false, Callback = function() print("clicked") end }
     })
     oldWindow = Window
     Window:SetIconSize(60)
-
     Window:EditOpenButton({
-        Title = "Project Sor",
-        Icon = "",
-        CornerRadius = UDim.new(0, 16),
-        StrokeThickness = 2,
+        Title = "Project Sor", Icon = "", CornerRadius = UDim.new(0, 16), StrokeThickness = 2,
         Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
-        OnlyMobile = false,
-        Enabled = true,
-        Draggable = false
+        OnlyMobile = false, Enabled = true, Draggable = false
     })
 
-    -- Abas
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
-    -- ====== ABA MAIN ======
+    -- MAIN
     TabMain:Section({ Title = lang.SecRaid })
     TabMain:Toggle({
-        Title = lang.ToggleRaid,
-        Desc = lang.DescRaid,
-        Value = Config.RaidEnabled,
-        Callback = function(value)
-            Config.RaidEnabled = value
-            print("[Toggle] Auto Raid: " .. tostring(value))
-            if value then
-                task.spawn(startRaidLoop)
-            else
-                if raidConnection then
-                    raidConnection:Disconnect()
-                    raidConnection = nil
-                end
-            end
+        Title = lang.ToggleRaid, Desc = lang.DescRaid, Value = Config.RaidEnabled,
+        Callback = function(v)
+            Config.RaidEnabled = v
+            if v then task.spawn(startRaidLoop) else if raidConnection then raidConnection:Disconnect() raidConnection = nil end end
         end
     })
     TabMain:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescMulti,
-        Value = tostring(Config.ShotSpeedIndex),
+        Title = lang.ChatMulti, Desc = lang.DescMulti, Value = tostring(Config.ShotSpeedIndex),
         Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.ShotSpeedIndex = numero
-                print("[Input] Multiplicador: " .. tostring(numero))
-            end
+        Callback = function(t)
+            local n = tonumber(t)
+            if n and n > 0 then Config.ShotSpeedIndex = n end
         end
     })
     TabMain:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescDist,
-        Step = 1,
+        Title = lang.Distancia, Desc = lang.DescDist, Step = 1,
         Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
-        Callback = function(value)
-            Config.NpcDistance = math.floor(value)
-            print("[Slider] Distância: " .. tostring(value))
-        end
+        Callback = function(v) Config.NpcDistance = math.floor(v) end
     })
 
     TabMain:Section({ Title = lang.SecTp })
-    TabMain:Button({ Title = "Camper (+0)", Desc = "XP +1", Callback = function() ExecutarTeleporte(CFrame.new(-648, 8, -3322)) end })
-    TabMain:Button({ Title = "Primary Instinct (+0)", Desc = "XP +4", Callback = function() ExecutarTeleporte(CFrame.new(349, 9, -944)) end })
-    TabMain:Button({ Title = "The Forest Of Terror (+150)", Desc = "XP +5.50", Callback = function() ExecutarTeleporte(CFrame.new(5126, -454, -3279)) end })
-    TabMain:Button({ Title = "Cracking Up Laughing (+250)", Desc = "XP +6 (Hammers)", Callback = function() ExecutarTeleporte(CFrame.new(8908, 88, -11458)) end })
-    TabMain:Button({ Title = "The Big Beetle (+150)", Desc = "XP +5 (Royal Gilded Axe)", Callback = function() ExecutarTeleporte(CFrame.new(4340, -32, -6216)) end })
-    TabMain:Button({ Title = "Vilgax Attack (+500)", Desc = "XP +7 (Quantum Inversor 3%)", Callback = function() ExecutarTeleporte(CFrame.new(-19887, 3550, -16091)) end })
-    TabMain:Button({ Title = "On Our Honor! (+800)", Desc = "XP +6 (Eternal Ring 4%)", Callback = function() ExecutarTeleporte(CFrame.new(2508, 300, -7042)) end })
-    TabMain:Button({ Title = "Temple of the Sun (+1000)", Desc = "XP +12.50 (Ekchuaj Sword 100%)", Callback = function() ExecutarTeleporte(CFrame.new(6284, 7, -7843)) end })
-    TabMain:Button({ Title = "Infinity 1 (+2500)", Desc = "XP +17.80 (Pets)", Callback = function() ExecutarTeleporte(CFrame.new(-927, 25, 92757)) end })
-    TabMain:Button({ Title = "Malware (+3500)", Desc = "XP +32 (Malware DNA 3%)", Callback = function() ExecutarTeleporte(CFrame.new(89439, 127, -75263)) end })
-    TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
-    TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
+    local tpButtons = {
+        {"Camper (+0)", CFrame.new(-648,8,-3322)},
+        {"Primary Instinct (+0)", CFrame.new(349,9,-944)},
+        {"The Forest Of Terror (+150)", CFrame.new(5126,-454,-3279)},
+        {"Cracking Up Laughing (+250)", CFrame.new(8908,88,-11458)},
+        {"The Big Beetle (+150)", CFrame.new(4340,-32,-6216)},
+        {"Vilgax Attack (+500)", CFrame.new(-19887,3550,-16091)},
+        {"On Our Honor! (+800)", CFrame.new(2508,300,-7042)},
+        {"Temple of the Sun (+1000)", CFrame.new(6284,7,-7843)},
+        {"Infinity 1 (+2500)", CFrame.new(-927,25,92757)},
+        {"Malware (+3500)", CFrame.new(89439,127,-75263)},
+        {"The Revenge (+5000)", CFrame.new(-6264,111,2205)},
+        {"Turnaround (+5500)", CFrame.new(18265,4136,9041)}
+    }
+    for _, btn in ipairs(tpButtons) do
+        TabMain:Button({ Title = btn[1], Callback = function() ExecutarTeleporte(btn[2]) end })
+    end
 
-    -- ====== ABA BOSS ======
+    -- BOSS
     TabBoss:Section({ Title = lang.SecBossConfig })
     TabBoss:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescBossDist,
-        Step = 1,
+        Title = lang.Distancia, Desc = lang.DescBossDist, Step = 1,
         Value = { Min = 0, Max = 20, Default = Config.BossDistance },
-        Callback = function(value)
-            Config.BossDistance = math.floor(value)
-            print("[Slider] Boss Distância: " .. tostring(value))
-        end
+        Callback = function(v) Config.BossDistance = math.floor(v) end
     })
     TabBoss:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescBossMulti,
-        Value = tostring(Config.BossShotMultiplier),
+        Title = lang.ChatMulti, Desc = lang.DescBossMulti, Value = tostring(Config.BossShotMultiplier),
         Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.BossShotMultiplier = numero
-                print("[Input] Boss Multiplicador: " .. tostring(numero))
-            end
+        Callback = function(t)
+            local n = tonumber(t)
+            if n and n > 0 then Config.BossShotMultiplier = n end
         end
     })
-
     TabBoss:Section({ Title = lang.SecBoss })
     TabBoss:Toggle({
-        Title = lang.ToggleShip,
-        Value = Config.BossShip,
-        Callback = function(value)
-            Config.BossShip = value
-            print("[Toggle] Ship: " .. tostring(value))
-            if value or Config.BossKraken or Config.BossTransDimensional then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
+        Title = lang.ToggleShip, Value = Config.BossShip,
+        Callback = function(v)
+            Config.BossShip = v
+            if v or Config.BossKraken or Config.BossTransDimensional then task.spawn(startBossLoop)
+            else if bossConnection then bossConnection:Disconnect() bossConnection = nil end end
         end
     })
     TabBoss:Toggle({
-        Title = lang.ToggleKraken,
-        Value = Config.BossKraken,
-        Callback = function(value)
-            Config.BossKraken = value
-            print("[Toggle] Kraken: " .. tostring(value))
-            if Config.BossShip or value or Config.BossTransDimensional then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
+        Title = lang.ToggleKraken, Value = Config.BossKraken,
+        Callback = function(v)
+            Config.BossKraken = v
+            if Config.BossShip or v or Config.BossTransDimensional then task.spawn(startBossLoop)
+            else if bossConnection then bossConnection:Disconnect() bossConnection = nil end end
         end
     })
     TabBoss:Toggle({
-        Title = lang.ToggleTrans,
-        Value = Config.BossTransDimensional,
-        Callback = function(value)
-            Config.BossTransDimensional = value
-            print("[Toggle] Trans Dimensional: " .. tostring(value))
-            if Config.BossShip or Config.BossKraken or value then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
+        Title = lang.ToggleTrans, Value = Config.BossTransDimensional,
+        Callback = function(v)
+            Config.BossTransDimensional = v
+            if Config.BossShip or Config.BossKraken or v then task.spawn(startBossLoop)
+            else if bossConnection then bossConnection:Disconnect() bossConnection = nil end end
         end
     })
 
-    -- ====== ABA TELEPORTE ======
-    TabTeleport:Section({ Title = lang.SecTerra })
-    TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
-    TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
-    TabTeleport:Button({ Title = lang.BtnMansao, Callback = function() ExecutarTeleporte(CFrame.new(668, 131, -1374)) end })
-    TabTeleport:Button({ Title = lang.BtnFloresta, Callback = function() ExecutarTeleporte(CFrame.new(84, 7, -3524)) end })
-    TabTeleport:Button({ Title = lang.BtnColiseu, Callback = function() ExecutarTeleporte(CFrame.new(-1124, 8, -6871)) end })
-    TabTeleport:Button({ Title = lang.BtnYggasill, Callback = function() ExecutarTeleporte(CFrame.new(-8206, -368, -12277)) end })
-    TabTeleport:Button({ Title = lang.BtnLedgerDomain, Callback = function() ExecutarTeleporte(CFrame.new(913, -2514, -1566)) end })
+    -- TELEPORTE
+    local function addTeleportSection(title, coords)
+        TabTeleport:Section({ Title = title })
+        for name, cf in pairs(coords) do
+            TabTeleport:Button({ Title = name, Callback = function() ExecutarTeleporte(cf) end })
+        end
+    end
 
-    TabTeleport:Section({ Title = lang.SecLua })
-    TabTeleport:Button({ Title = lang.BtnCentroLua, Callback = function() ExecutarTeleporte(CFrame.new(-1426, 8, 49003)) end })
+    addTeleportSection(lang.SecTerra, {
+        [lang.BtnParker] = CFrame.new(295,7,-73),
+        [lang.BtnPredioBilly] = CFrame.new(715,8,-79),
+        [lang.BtnMansao] = CFrame.new(668,131,-1374),
+        [lang.BtnFloresta] = CFrame.new(84,7,-3524),
+        [lang.BtnColiseu] = CFrame.new(-1124,8,-6871),
+        [lang.BtnYggasill] = CFrame.new(-8206,-368,-12277),
+        [lang.BtnLedgerDomain] = CFrame.new(913,-2514,-1566)
+    })
+    addTeleportSection(lang.SecLua, { [lang.BtnCentroLua] = CFrame.new(-1426,8,49003) })
+    addTeleportSection(lang.SecFogoFrio, { [lang.BtnCentroFogoFrio] = CFrame.new(-916,25,91948) })
+    addTeleportSection(lang.SecEstacaoAcademia, { [lang.BtnAcademia] = CFrame.new(72994,1933,-3128) })
+    addTeleportSection(lang.SecMarte, { [lang.BtnArenaMarte] = CFrame.new(64779,30,65676) })
+    addTeleportSection(lang.SecAlienX, {
+        [lang.BtnCubo] = CFrame.new(78944,2547,-3139),
+        [lang.BtnBBAlienX] = CFrame.new(1143,1930,300137),
+        [lang.BtnAlienXDNA] = CFrame.new(188,1496,300251)
+    })
+    addTeleportSection(lang.SecGalvanPrime, { [lang.BtnPredioGalvan] = CFrame.new(80324,-56,-79417) })
 
-    TabTeleport:Section({ Title = lang.SecFogoFrio })
-    TabTeleport:Button({ Title = lang.BtnCentroFogoFrio, Callback = function() ExecutarTeleporte(CFrame.new(-916, 25, 91948)) end })
-
-    TabTeleport:Section({ Title = lang.SecEstacaoAcademia })
-    TabTeleport:Button({ Title = lang.BtnAcademia, Callback = function() ExecutarTeleporte(CFrame.new(72994, 1933, -3128)) end })
-
-    TabTeleport:Section({ Title = lang.SecMarte })
-    TabTeleport:Button({ Title = lang.BtnArenaMarte, Callback = function() ExecutarTeleporte(CFrame.new(64779, 30, 65676)) end })
-
-    TabTeleport:Section({ Title = lang.SecAlienX })
-    TabTeleport:Button({ Title = lang.BtnCubo, Callback = function() ExecutarTeleporte(CFrame.new(78944, 2547, -3139)) end })
-    TabTeleport:Button({ Title = lang.BtnBBAlienX, Callback = function() ExecutarTeleporte(CFrame.new(1143, 1930, 300137)) end })
-    TabTeleport:Button({ Title = lang.BtnAlienXDNA, Callback = function() ExecutarTeleporte(CFrame.new(188, 1496, 300251)) end })
-
-    TabTeleport:Section({ Title = lang.SecGalvanPrime })
-    TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
-
-    -- ====== ABA CONFIG ======
+    -- CONFIG
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
-        Title = lang.DropIdioma,
-        Desc = lang.DescIdioma,
-        Values = {"Português", "Espanhol", "English"},
-        Value = Config.Language,
-        Callback = function(value)
-            if Config.Language ~= value then
-                Config.Language = value
-                print("[Dropdown] Idioma: " .. value)
+        Title = lang.DropIdioma, Desc = lang.DescIdioma,
+        Values = {"Português", "Espanhol", "English"}, Value = Config.Language,
+        Callback = function(v)
+            if Config.Language ~= v then
+                Config.Language = v
                 CriarMenu()
             end
         end
     })
     TabConfig:Toggle({
-        Title = lang.ToggleIntro,
-        Desc = lang.DescIntro,
-        Value = Config.RemoverIntro,
-        Callback = function(value)
-            Config.RemoverIntro = value
-            print("[Toggle] Remover Intro: " .. tostring(value))
-        end
+        Title = lang.ToggleIntro, Desc = lang.DescIntro, Value = Config.RemoverIntro,
+        Callback = function(v) Config.RemoverIntro = v end
     })
     TabConfig:Toggle({
-        Title = lang.ToggleAFK,
-        Desc = lang.DescAFK,
-        Value = Config.AntiAFK,
-        Callback = function(value)
-            Config.AntiAFK = value
-            print("[Toggle] Anti-AFK: " .. tostring(value))
-            if value then
-                task.spawn(startAntiAFK)
-            else
-                antiAFKRunning = false
-                if antiAFKConnection then
-                    task.cancel(antiAFKConnection)
-                    antiAFKConnection = nil
-                end
-            end
+        Title = lang.ToggleAFK, Desc = lang.DescAFK, Value = Config.AntiAFK,
+        Callback = function(v)
+            Config.AntiAFK = v
+            if v then task.spawn(startAntiAFK) else if antiAFKThread then task.cancel(antiAFKThread) antiAFKThread = nil end end
         end
     })
-
-    -- Botão de salvamento manual
     TabConfig:Button({
-        Title = lang.BtnManualSave,
-        Desc = lang.DescManualSave,
+        Title = lang.BtnManualSave, Desc = lang.DescManualSave,
         Callback = ManualSave
     })
-
     TabConfig:Button({
-        Title = lang.BtnReset,
-        Desc = lang.DescReset,
+        Title = lang.BtnReset, Desc = lang.DescReset,
         Callback = function()
             Config.RaidEnabled = false
             Config.Language = "Português"
@@ -1003,43 +683,24 @@ local function CriarMenu()
             Config.BossShip = false
             Config.BossKraken = false
             Config.BossTransDimensional = false
-            print("[Reset] Configurações resetadas.")
-            if Window.Notify then
-                Window:Notify({
-                    Title = lang.NotifTitle,
-                    Desc = lang.NotifDesc,
-                    Duration = 3,
-                })
-            end
+            if Window.Notify then Window:Notify({Title = lang.NotifTitle, Desc = lang.NotifDesc, Duration = 3}) end
             CriarMenu()
         end
     })
-
     TabConfig:Section({ Title = lang.SecServer })
-    TabConfig:Button({
-        Title = "Rejoin",
-        Desc = lang.DescRejoin,
-        Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
-    })
-    TabConfig:Button({
-        Title = "ServeHop",
-        Desc = lang.DescHop,
-        Callback = function() MudarServidor("Desc") end
-    })
-    TabConfig:Button({
-        Title = "SmallServe",
-        Desc = lang.DescSmall,
-        Callback = function() MudarServidor("Asc") end
-    })
+    TabConfig:Button({ Title = "Rejoin", Desc = lang.DescRejoin, Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end })
+    TabConfig:Button({ Title = "ServeHop", Desc = lang.DescHop, Callback = function() MudarServidor("Desc") end })
+    TabConfig:Button({ Title = "SmallServe", Desc = lang.DescSmall, Callback = function() MudarServidor("Asc") end })
 end
 
+-- Inicia o menu
 pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Salvamento automático ativo.",
+    Text = "Persistência ativa! Tudo será salvo automaticamente.",
     Duration = 3
 })
 
-print("Project Sor carregado. Salvamento automático ativo a cada " .. autoSaveInterval .. "s.")
-print("Use o console para ver logs de salvamento.")
+print("✅ Project Sor carregado com persistência total.")
+print("📁 Arquivo de configuração: " .. CONFIG_FILE .. " (ou fallback)")
