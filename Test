@@ -13,7 +13,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
--- Configurações padrão
+-- Configurações padrão (serão sobrescritas pelo arquivo se existir)
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -29,37 +29,89 @@ local Config = {
 }
 
 local FILE_NAME = "WindUI_SorOminiX_Config.json"
+local saveInterval = 0.5  -- segundos entre salvamentos automáticos
 
 -- =============================================
--- SALVAMENTO E CARREGAMENTO (SEGURO)
+-- FUNÇÕES DE SALVAMENTO E CARREGAMENTO (ROBUSTAS)
 -- =============================================
 local function SaveConfig()
-    if not writefile then return end
+    if not writefile then
+        warn("writefile não disponível, configuração não salva.")
+        return false
+    end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
-    if success then
-        pcall(function() writefile(FILE_NAME, json) end)
+    if success and json then
+        local written, err = pcall(function()
+            writefile(FILE_NAME, json)
+        end)
+        if written then
+            return true
+        else
+            warn("Erro ao escrever arquivo: ", err)
+        end
+    else
+        warn("Erro ao codificar JSON: ", json)
     end
+    return false
 end
 
 local function LoadConfig()
-    if not isfile then return end
-    if isfile(FILE_NAME) then
-        local success, data = pcall(function()
-            return readfile(FILE_NAME)
-        end)
-        if success then
-            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
-            if decoded and type(decoded) == "table" then
-                for k, v in pairs(decoded) do
-                    Config[k] = v
-                end
+    if not isfile then
+        warn("isfile não disponível, não é possível carregar.")
+        return false
+    end
+    if not isfile(FILE_NAME) then
+        print("Arquivo de configuração não encontrado, usando padrões.")
+        return false
+    end
+    local success, data = pcall(function()
+        return readfile(FILE_NAME)
+    end)
+    if not success or not data then
+        warn("Erro ao ler arquivo de configuração.")
+        return false
+    end
+    local decoded, err = pcall(function()
+        return HttpService:JSONDecode(data)
+    end)
+    if decoded and type(decoded) == "table" then
+        for k, v in pairs(decoded) do
+            if Config[k] ~= nil then
+                Config[k] = v
             end
         end
+        print("Configurações carregadas com sucesso.")
+        return true
+    else
+        warn("Erro ao decodificar JSON: ", err)
+        return false
     end
 end
-pcall(LoadConfig) -- Carrega assim que o script inicia
+
+-- Carrega as configurações ao iniciar
+LoadConfig()
+
+-- =============================================
+-- LOOP DE SALVAMENTO AUTOMÁTICO (A CADA 0.5s)
+-- =============================================
+local autoSaveConnection = nil
+local function startAutoSave()
+    if autoSaveConnection then return end
+    autoSaveConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        -- Se o FPS cair muito, aumenta o intervalo para 1s
+        local currentInterval = (deltaTime > 0.1) and 1.0 or saveInterval
+        if not lastSaveTime then lastSaveTime = tick() end
+        if tick() - lastSaveTime >= currentInterval then
+            SaveConfig()
+            lastSaveTime = tick()
+        end
+    end)
+end
+
+local lastSaveTime = tick()
+startAutoSave()
 
 -- =============================================
 -- INTRO (SPLASH)
@@ -179,7 +231,10 @@ local Idiomas = {
         DescHop = "Teleporta pro servidor antigo",
         DescSmall = "Teleporta pra servidor criado recentemente",
         NotifTitle = "Configuração Resetada",
-        NotifDesc = "Raid desativada e idioma resetado."
+        NotifDesc = "Raid desativada e idioma resetado.",
+        BtnSave = "💾 Salvar Configurações",
+        DescSave = "Salva as configurações atuais manualmente",
+        NotifSave = "Configurações salvas com sucesso!"
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
@@ -238,7 +293,10 @@ local Idiomas = {
         DescHop = "Teletransporta al servidor antiguo",
         DescSmall = "Teletransporte a servidor reciente",
         NotifTitle = "Configuración Reiniciada",
-        NotifDesc = "Raid desactivada e idioma restablecido."
+        NotifDesc = "Raid desactivada e idioma restablecido.",
+        BtnSave = "💾 Guardar Configuración",
+        DescSave = "Guarda la configuración actual manualmente",
+        NotifSave = "Configuración guardada exitosamente!"
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
@@ -297,7 +355,10 @@ local Idiomas = {
         DescHop = "Teleport to an old server",
         DescSmall = "Teleport to a recently created server",
         NotifTitle = "Config Reset",
-        NotifDesc = "Raid disabled and language reset."
+        NotifDesc = "Raid disabled and language reset.",
+        BtnSave = "💾 Save Settings",
+        DescSave = "Save current settings manually",
+        NotifSave = "Settings saved successfully!"
     }
 }
 
@@ -437,6 +498,10 @@ local function startRaidLoop()
     end)
 end
 
+if Config.RaidEnabled then
+    task.spawn(startRaidLoop)
+end
+
 -- =============================================
 -- LOOP DOS BOSSES
 -- =============================================
@@ -513,6 +578,10 @@ local function startBossLoop()
     end)
 end
 
+if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
+    task.spawn(startBossLoop)
+end
+
 -- =============================================
 -- ANTI‑AFK
 -- =============================================
@@ -536,17 +605,6 @@ local function startAntiAFK()
         end
         antiAFKConnection = nil
     end)
-end
-
--- =============================================
--- INICIALIZAR LOOPS COM BASE NO CONFIG CARREGADO
--- =============================================
-if Config.RaidEnabled then
-    task.spawn(startRaidLoop)
-end
-
-if Config.BossShip or Config.BossKraken or Config.BossTransDimensional then
-    task.spawn(startBossLoop)
 end
 
 if Config.AntiAFK then
@@ -637,7 +695,6 @@ local function CriarMenu()
         Value = Config.RaidEnabled,
         Callback = function(value)
             Config.RaidEnabled = value
-            SaveConfig()
             if value then
                 task.spawn(startRaidLoop)
             else
@@ -657,7 +714,6 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.ShotSpeedIndex = numero
-                SaveConfig()
             end
         end
     })
@@ -668,7 +724,6 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
-            SaveConfig()
         end
     })
 
@@ -695,7 +750,6 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.BossDistance },
         Callback = function(value)
             Config.BossDistance = math.floor(value)
-            SaveConfig()
         end
     })
     TabBoss:Input({
@@ -707,7 +761,6 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.BossShotMultiplier = numero
-                SaveConfig()
             end
         end
     })
@@ -718,7 +771,6 @@ local function CriarMenu()
         Value = Config.BossShip,
         Callback = function(value)
             Config.BossShip = value
-            SaveConfig()
             if value or Config.BossKraken or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -734,7 +786,6 @@ local function CriarMenu()
         Value = Config.BossKraken,
         Callback = function(value)
             Config.BossKraken = value
-            SaveConfig()
             if Config.BossShip or value or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -750,7 +801,6 @@ local function CriarMenu()
         Value = Config.BossTransDimensional,
         Callback = function(value)
             Config.BossTransDimensional = value
-            SaveConfig()
             if Config.BossShip or Config.BossKraken or value then
                 task.spawn(startBossLoop)
             else
@@ -802,7 +852,6 @@ local function CriarMenu()
         Callback = function(value)
             if Config.Language ~= value then
                 Config.Language = value
-                SaveConfig()
                 CriarMenu()
             end
         end
@@ -813,7 +862,6 @@ local function CriarMenu()
         Value = Config.RemoverIntro,
         Callback = function(value)
             Config.RemoverIntro = value
-            SaveConfig()
         end
     })
     TabConfig:Toggle({
@@ -822,7 +870,6 @@ local function CriarMenu()
         Value = Config.AntiAFK,
         Callback = function(value)
             Config.AntiAFK = value
-            SaveConfig()
             if value then
                 task.spawn(startAntiAFK)
             else
@@ -834,6 +881,36 @@ local function CriarMenu()
             end
         end
     })
+
+    -- Botão Salvar Configurações
+    TabConfig:Button({
+        Title = lang.BtnSave,
+        Desc = lang.DescSave,
+        Callback = function()
+            if SaveConfig() then
+                if Window.Notify then
+                    Window:Notify({
+                        Title = "Sucesso",
+                        Desc = lang.NotifSave,
+                        Duration = 3,
+                    })
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Sucesso",
+                        Text = lang.NotifSave,
+                        Duration = 3
+                    })
+                end
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Falha ao salvar as configurações.",
+                    Duration = 3
+                })
+            end
+        end
+    })
+
     TabConfig:Button({
         Title = lang.BtnReset,
         Desc = lang.DescReset,
@@ -885,4 +962,4 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-print("Project Sor carregado. Pressione o botão do menu para abrir.")
+print("Project Sor carregado. Configurações salvas automaticamente a cada 0.5s.")
