@@ -21,7 +21,6 @@ local Config = {
     Language = "Português",
     RemoverIntro = false,
     AntiAFK = false,
-    -- Boss
     BossDistance = 2,
     BossShotMultiplier = 1,
     BossShip = false,
@@ -34,63 +33,129 @@ local Config = {
 -- =============================================
 local CONFIG_FOLDER = "SorOminiXConfig"
 local FILE_NAME = CONFIG_FOLDER .. "/SorOminiX_Config.json"
+local FALLBACK_FILE = "SorOminiX_Config_Backup.json"
 
 -- =============================================
--- SALVAMENTO E CARREGAMENTO (COM CRIAÇÃO DE PASTA)
+-- SALVAMENTO E CARREGAMENTO (COM DEBUG)
 -- =============================================
 local function SaveConfig()
-    if not writefile then return end
-    -- Tenta criar a pasta (se o executor suportar)
-    pcall(function()
-        if not isfolder then return end
-        if not isfolder(CONFIG_FOLDER) then
-            makefolder(CONFIG_FOLDER)
-        end
-    end)
+    print("[SaveConfig] Iniciando salvamento...")
+    if not writefile then
+        print("[SaveConfig] writefile não disponível!")
+        return false
+    end
+
+    local folderCreated = false
+    if isfolder then
+        pcall(function()
+            if not isfolder(CONFIG_FOLDER) then
+                makefolder(CONFIG_FOLDER)
+                print("[SaveConfig] Pasta criada: " .. CONFIG_FOLDER)
+            end
+            folderCreated = true
+        end)
+    end
+
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
-    if success then
-        pcall(function() writefile(FILE_NAME, json) end)
+    if not success then
+        print("[SaveConfig] Erro ao codificar JSON: " .. tostring(json))
+        return false
+    end
+
+    local saved = false
+    if folderCreated then
+        pcall(function()
+            writefile(FILE_NAME, json)
+            print("[SaveConfig] Salvo em: " .. FILE_NAME)
+            saved = true
+        end)
+    end
+
+    if not saved then
+        pcall(function()
+            writefile(FALLBACK_FILE, json)
+            print("[SaveConfig] Salvo em fallback: " .. FALLBACK_FILE)
+            saved = true
+        end)
+    end
+
+    if saved then
+        print("[SaveConfig] Salvamento concluído com sucesso!")
+        return true
+    else
+        print("[SaveConfig] FALHA ao salvar! Verifique permissões do executor.")
+        return false
     end
 end
 
 local function LoadConfig()
-    if not isfile then return end
+    print("[LoadConfig] Iniciando carregamento...")
+    if not isfile then
+        print("[LoadConfig] isfile não disponível!")
+        return false
+    end
+
+    local data = nil
     if isfile(FILE_NAME) then
-        local success, data = pcall(function()
+        local success, content = pcall(function()
             return readfile(FILE_NAME)
         end)
-        if success then
-            local decoded = pcall(function() return HttpService:JSONDecode(data) end)
-            if decoded and type(decoded) == "table" then
-                for k, v in pairs(decoded) do
-                    Config[k] = v
-                end
-                return true
-            end
+        if success and content then
+            data = content
+            print("[LoadConfig] Lido de: " .. FILE_NAME)
         end
     end
-    return false
+
+    if not data and isfile(FALLBACK_FILE) then
+        local success, content = pcall(function()
+            return readfile(FALLBACK_FILE)
+        end)
+        if success and content then
+            data = content
+            print("[LoadConfig] Lido de fallback: " .. FALLBACK_FILE)
+        end
+    end
+
+    if data then
+        local decoded = pcall(function() return HttpService:JSONDecode(data) end)
+        if decoded and type(decoded) == "table" then
+            for k, v in pairs(decoded) do
+                Config[k] = v
+            end
+            print("[LoadConfig] Configurações carregadas com sucesso!")
+            return true
+        else
+            print("[LoadConfig] Erro ao decodificar JSON.")
+            return false
+        end
+    else
+        print("[LoadConfig] Nenhum arquivo de configuração encontrado.")
+        return false
+    end
 end
 
--- Carrega as configurações salvas
+-- Carrega as configurações
 local configLoaded = LoadConfig()
+if configLoaded then
+    print("[LoadConfig] Configurações restauradas com sucesso.")
+else
+    print("[LoadConfig] Usando configurações padrão.")
+end
 
 -- =============================================
--- SALVAMENTO AUTOMÁTICO (LOOP INTELIGENTE)
+-- SALVAMENTO AUTOMÁTICO
 -- =============================================
 local autoSaveRunning = false
 local autoSaveConnection = nil
 local lastSaveTime = 0
-local autoSaveInterval = 0.5 -- segundos (padrão)
+local autoSaveInterval = 0.5
 local fpsMonitor = 0
 local frameCount = 0
 local frameTime = 0
 
--- Função para ajustar o intervalo baseado no FPS
 local function updateAutoSaveInterval()
-    -- Se o FPS cair abaixo de 30, aumenta o intervalo para 1 segundo
     if fpsMonitor < 30 then
         autoSaveInterval = 1.0
     else
@@ -98,12 +163,10 @@ local function updateAutoSaveInterval()
     end
 end
 
--- Inicia o loop de salvamento automático
 local function startAutoSave()
     if autoSaveRunning then return end
     autoSaveRunning = true
     autoSaveConnection = RunService.Heartbeat:Connect(function(deltaTime)
-        -- Atualiza o contador de FPS (média simples)
         frameCount = frameCount + 1
         frameTime = frameTime + deltaTime
         if frameTime >= 0.5 then
@@ -113,37 +176,36 @@ local function startAutoSave()
             updateAutoSaveInterval()
         end
 
-        -- Salva automaticamente a cada intervalo definido
         local now = tick()
         if now - lastSaveTime >= autoSaveInterval then
             SaveConfig()
             lastSaveTime = now
         end
     end)
+    print("[AutoSave] Loop iniciado. Intervalo atual: " .. autoSaveInterval .. "s")
 end
 
--- Para o loop de salvamento (se necessário)
-local function stopAutoSave()
-    autoSaveRunning = false
-    if autoSaveConnection then
-        autoSaveConnection:Disconnect()
-        autoSaveConnection = nil
-    end
-end
-
--- Inicia o salvamento automático
 startAutoSave()
 
 -- =============================================
--- SALVAMENTO MANUAL (BOTÃO)
+-- SALVAMENTO MANUAL
 -- =============================================
 local function ManualSave()
-    SaveConfig()
-    StarterGui:SetCore("SendNotification", {
-        Title = "Configurações",
-        Text = "Salvas com sucesso!",
-        Duration = 2
-    })
+    print("[ManualSave] Salvando manualmente...")
+    local success = SaveConfig()
+    if success then
+        StarterGui:SetCore("SendNotification", {
+            Title = "Configurações",
+            Text = "Salvas com sucesso!",
+            Duration = 2
+        })
+    else
+        StarterGui:SetCore("SendNotification", {
+            Title = "Erro",
+            Text = "Falha ao salvar! Verifique o console.",
+            Duration = 3
+        })
+    end
 end
 
 -- =============================================
@@ -725,7 +787,7 @@ local function CriarMenu()
         Value = Config.RaidEnabled,
         Callback = function(value)
             Config.RaidEnabled = value
-            -- O salvamento automático cuida do save
+            print("[Toggle] Auto Raid: " .. tostring(value))
             if value then
                 task.spawn(startRaidLoop)
             else
@@ -745,7 +807,7 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.ShotSpeedIndex = numero
-                -- Auto save
+                print("[Input] Multiplicador: " .. tostring(numero))
             end
         end
     })
@@ -756,7 +818,7 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
         Callback = function(value)
             Config.NpcDistance = math.floor(value)
-            -- Auto save
+            print("[Slider] Distância: " .. tostring(value))
         end
     })
 
@@ -783,7 +845,7 @@ local function CriarMenu()
         Value = { Min = 0, Max = 20, Default = Config.BossDistance },
         Callback = function(value)
             Config.BossDistance = math.floor(value)
-            -- Auto save
+            print("[Slider] Boss Distância: " .. tostring(value))
         end
     })
     TabBoss:Input({
@@ -795,7 +857,7 @@ local function CriarMenu()
             local numero = tonumber(text)
             if numero and numero > 0 then
                 Config.BossShotMultiplier = numero
-                -- Auto save
+                print("[Input] Boss Multiplicador: " .. tostring(numero))
             end
         end
     })
@@ -806,7 +868,7 @@ local function CriarMenu()
         Value = Config.BossShip,
         Callback = function(value)
             Config.BossShip = value
-            -- Auto save
+            print("[Toggle] Ship: " .. tostring(value))
             if value or Config.BossKraken or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -822,7 +884,7 @@ local function CriarMenu()
         Value = Config.BossKraken,
         Callback = function(value)
             Config.BossKraken = value
-            -- Auto save
+            print("[Toggle] Kraken: " .. tostring(value))
             if Config.BossShip or value or Config.BossTransDimensional then
                 task.spawn(startBossLoop)
             else
@@ -838,7 +900,7 @@ local function CriarMenu()
         Value = Config.BossTransDimensional,
         Callback = function(value)
             Config.BossTransDimensional = value
-            -- Auto save
+            print("[Toggle] Trans Dimensional: " .. tostring(value))
             if Config.BossShip or Config.BossKraken or value then
                 task.spawn(startBossLoop)
             else
@@ -890,7 +952,7 @@ local function CriarMenu()
         Callback = function(value)
             if Config.Language ~= value then
                 Config.Language = value
-                -- Auto save
+                print("[Dropdown] Idioma: " .. value)
                 CriarMenu()
             end
         end
@@ -901,7 +963,7 @@ local function CriarMenu()
         Value = Config.RemoverIntro,
         Callback = function(value)
             Config.RemoverIntro = value
-            -- Auto save
+            print("[Toggle] Remover Intro: " .. tostring(value))
         end
     })
     TabConfig:Toggle({
@@ -910,7 +972,7 @@ local function CriarMenu()
         Value = Config.AntiAFK,
         Callback = function(value)
             Config.AntiAFK = value
-            -- Auto save
+            print("[Toggle] Anti-AFK: " .. tostring(value))
             if value then
                 task.spawn(startAntiAFK)
             else
@@ -941,7 +1003,7 @@ local function CriarMenu()
             Config.BossShip = false
             Config.BossKraken = false
             Config.BossTransDimensional = false
-            -- Salva automaticamente
+            print("[Reset] Configurações resetadas.")
             if Window.Notify then
                 Window:Notify({
                     Title = lang.NotifTitle,
@@ -975,8 +1037,9 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! (Salvamento automático ativo)",
+    Text = "Carregado! Salvamento automático ativo.",
     Duration = 3
 })
 
 print("Project Sor carregado. Salvamento automático ativo a cada " .. autoSaveInterval .. "s.")
+print("Use o console para ver logs de salvamento.")
