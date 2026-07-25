@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor)
+-- SCRIPT COMPLETO (Project Sor) - CORRIGIDO
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -57,7 +57,6 @@ local Config = {
     BossShip = false,
     BossKraken = false,
     BossTransDimensional = false,
-    -- Slots do Omnitrix (5 aliens)
     AlienSlots = {
         "heatblast",  -- slot 1
         "fourarms",   -- slot 2
@@ -616,9 +615,9 @@ end
 local omnitrixMenu = nil
 local isOmnitrixOpen = false
 local aplicativoSCriado = false
-local appIcon = nil -- referência ao botão "S" dentro do celular
+local appIcon = nil
 
--- Cria o menu central com 5 slots (já existente)
+-- Cria o menu central com 5 slots (corrigido)
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
@@ -675,7 +674,7 @@ local function criarMenu()
         isOmnitrixOpen = false
     end)
 
-    -- Criar 5 linhas
+    -- Criar 5 linhas com conexão direta ao slot
     for i = 1, 5 do
         local yPos = 45 + (i - 1) * 50
 
@@ -705,6 +704,7 @@ local function criarMenu()
         boxCorner.CornerRadius = UDim.new(0, 6)
         boxCorner.Parent = textBox
 
+        -- Função para salvar o slot
         local function salvarSlot()
             local valor = textBox.Text
             if valor ~= "" then
@@ -712,15 +712,21 @@ local function criarMenu()
                 SaveConfig()
                 textBox.PlaceholderText = valor
                 print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
+                return valor
             else
                 textBox.Text = Config.AlienSlots[i] or "heatblast"
+                return textBox.Text
             end
         end
 
+        -- Salva ao perder foco (Enter ou clicar fora)
         textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then salvarSlot() end
+            if enterPressed then
+                salvarSlot()
+            end
         end)
 
+        -- Botão Transformar (agora salva e transforma)
         local transformBtn = Instance.new("TextButton")
         transformBtn.Size = UDim2.new(0, 100, 0, 35)
         transformBtn.Position = UDim2.new(0, 245, 0, yPos)
@@ -742,13 +748,19 @@ local function criarMenu()
             transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         end)
 
+        -- Ação do botão: salva o valor atual e transforma
         transformBtn.MouseButton1Click:Connect(function()
             local nomeAlien = textBox.Text
             if nomeAlien ~= "" then
+                -- Salva no config
                 Config.AlienSlots[i] = nomeAlien
                 SaveConfig()
+                textBox.PlaceholderText = nomeAlien
+                print("[Omnitrix] Slot " .. i .. " salvo e transformando em: " .. nomeAlien)
+                -- Transforma
                 transformarAlien(nomeAlien)
             else
+                -- Se vazio, restaura o valor salvo
                 textBox.Text = Config.AlienSlots[i] or "heatblast"
             end
         end)
@@ -773,14 +785,13 @@ end
 -- =============================================
 local function criarAplicativoS()
     if aplicativoSCriado then
-        -- se já existe, apenas mostra
         if appIcon then
             appIcon.Visible = true
         end
         return
     end
 
-    -- Tenta encontrar o Cellphone (estrutura do jogo)
+    -- Tenta encontrar o Cellphone
     local cellphone = LocalPlayer:FindFirstChild("PlayerGui")
         and LocalPlayer.PlayerGui:FindFirstChild("HUD")
         and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
@@ -788,11 +799,10 @@ local function criarAplicativoS()
         and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
 
     if cellphone then
-        -- Injetar dentro da pasta Apps
         local appFrame = Instance.new("Frame")
         appFrame.Name = "App_S"
         appFrame.Size = UDim2.new(0, 60, 0, 60)
-        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0) -- posição dentro da grade de apps
+        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
         appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         appFrame.BackgroundTransparency = 0
         appFrame.BorderSizePixel = 0
@@ -807,7 +817,6 @@ local function criarAplicativoS()
         stroke.Thickness = 2
         stroke.Parent = appFrame
 
-        -- Letra "S" vermelha
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
@@ -817,7 +826,6 @@ local function criarAplicativoS()
         label.Font = Enum.Font.GothamBold
         label.Parent = appFrame
 
-        -- Nome do app (opcional)
         local nameLabel = Instance.new("TextLabel")
         nameLabel.Size = UDim2.new(1, 0, 0, 20)
         nameLabel.Position = UDim2.new(0, 0, 1, 0)
@@ -828,7 +836,6 @@ local function criarAplicativoS()
         nameLabel.Font = Enum.Font.Gotham
         nameLabel.Parent = appFrame
 
-        -- Clique para abrir menu
         appFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 toggleOmnitrixMenu()
@@ -839,7 +846,7 @@ local function criarAplicativoS()
         aplicativoSCriado = true
         print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
     else
-        -- Fallback: cria um ScreenGui separado imitando um app
+        -- Fallback
         local iconGui = Instance.new("ScreenGui")
         iconGui.Name = "OmnitrixApp"
         iconGui.ResetOnSpawn = false
@@ -848,7 +855,7 @@ local function criarAplicativoS()
 
         local appFrame = Instance.new("Frame")
         appFrame.Size = UDim2.new(0, 60, 0, 60)
-        appFrame.Position = UDim2.new(0.8, 0, 0.8, 0) -- canto inferior direito
+        appFrame.Position = UDim2.new(0.8, 0, 0.8, 0)
         appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         appFrame.BackgroundTransparency = 0
         appFrame.BorderSizePixel = 0
@@ -941,7 +948,7 @@ local function ativarControleMestre()
 end
 
 -- =============================================
--- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
+-- LEITOR DE TECLAS (1-5) - USA O VALOR SALVO
 -- =============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
