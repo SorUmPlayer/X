@@ -18,7 +18,7 @@ local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES
+-- CONFIGURAÇÕES PERSISTENTES (inclui os slots)
 -- =============================================
 local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
 
@@ -187,8 +187,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Controle Mestre (App)",
-        DescControleMestre = "Cria o botão 'S' flutuante com 5 slots",
+        BtnControleMestre = "⚡ Controle Mestre",
+        DescControleMestre = "Abrir/fechar interface do Omnitrix",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -206,6 +206,7 @@ local Idiomas = {
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente",
+        -- Slots (usado no menu central)
         SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
         SlotPlaceholder = "Digite o nome do alien..."
     },
@@ -254,8 +255,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Control Maestro (App)",
-        DescControleMestre = "Crea el botón 'S' flotante con 5 slots",
+        BtnControleMestre = "⚡ Control Maestro",
+        DescControleMestre = "Abrir/cerrar interfaz del Omnitrix",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -321,8 +322,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Master Control (App)",
-        DescControleMestre = "Creates floating 'S' button with 5 slots",
+        BtnControleMestre = "⚡ Master Control",
+        DescControleMestre = "Open/close Omnitrix interface",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -595,75 +596,85 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - BOTÃO FLUTUANTE E PAINEL CENTRAL
+-- CONTROLE MESTRE - INTERFACE DO APLICATIVO (NOVA VERSÃO)
 -- =============================================
+local alienMorphRemote = nil
+pcall(function()
+    alienMorphRemote = ReplicatedStorage:FindFirstChild("RemoteFunctions")
+        and ReplicatedStorage.RemoteFunctions:FindFirstChild("Character")
+        and ReplicatedStorage.RemoteFunctions.Character:FindFirstChild("Morph")
+        and ReplicatedStorage.RemoteFunctions.Character.Morph:FindFirstChild("AlienMorph")
+end)
+
+-- Função para transformar
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
+    if not alienMorphRemote then
+        print("[Omnitrix] Remote não encontrado!")
+        return
+    end
     pcall(function()
-        local remote = ReplicatedStorage:FindFirstChild("RemoteFunctions")
-            and ReplicatedStorage.RemoteFunctions:FindFirstChild("Character")
-            and ReplicatedStorage.RemoteFunctions.Character:FindFirstChild("Morph")
-            and ReplicatedStorage.RemoteFunctions.Character.Morph:FindFirstChild("AlienMorph")
-        if remote then
-            remote:InvokeServer(tostring(nomeAlien), 0.3)
-            print("[Omnitrix] Transformando em: " .. tostring(nomeAlien))
-        else
-            warn("[Omnitrix] Remote não encontrado!")
-        end
+        alienMorphRemote:InvokeServer(tostring(nomeAlien), 0.3)
+        print("[Omnitrix] Transformado em: " .. tostring(nomeAlien))
     end)
 end
 
 -- Variáveis da interface
-local floatingButton = nil
-local panelGui = nil
-local panelVisible = false
+local omnitrixGui = nil
+local omnitrixMenu = nil
+local isOmnitrixOpen = false
 
--- Função para criar o botão flutuante e o painel
-local function criarInterfaceFlutuante()
-    -- Remove interfaces antigas se existirem
-    if floatingButton then floatingButton:Destroy() end
-    if panelGui then panelGui:Destroy() end
+-- Cria o ícone flutuante "S" vermelho com fundo preto
+local function criarIcone()
+    if coreGui:FindFirstChild("OmnitrixIcon") then
+        coreGui.OmnitrixIcon:Destroy()
+    end
 
-    -- Cria ScreenGui para o botão flutuante
-    local btnGui = Instance.new("ScreenGui")
-    btnGui.Name = "FloatingButton_S"
-    btnGui.ResetOnSpawn = false
-    btnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    btnGui.Parent = coreGui
+    local iconGui = Instance.new("ScreenGui")
+    iconGui.Name = "OmnitrixIcon"
+    iconGui.ResetOnSpawn = false
+    iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    iconGui.Parent = coreGui
 
-    -- Botão flutuante (arrastável) - fundo preto com "S" vermelho
-    local btn = Instance.new("TextButton")
-    btn.Name = "S_Button"
-    btn.Size = UDim2.new(0, 60, 0, 60)
-    btn.Position = UDim2.new(0.8, 0, 0.2, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    btn.BackgroundTransparency = 0.1
-    btn.BorderSizePixel = 0
-    btn.Text = "S"
-    btn.TextColor3 = Color3.fromRGB(255, 0, 0)
-    btn.TextSize = 40
-    btn.Font = Enum.Font.GothamBold
-    btn.TextScaled = true
-    btn.Parent = btnGui
+    local iconButton = Instance.new("ImageButton")
+    iconButton.Name = "IconButton"
+    iconButton.Size = UDim2.new(0, 60, 0, 60)
+    iconButton.Position = UDim2.new(0.85, 0, 0.5, -30)
+    iconButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- fundo preto
+    iconButton.BackgroundTransparency = 0
+    iconButton.BorderSizePixel = 0
+    iconButton.Image = "" -- sem imagem, usaremos um TextLabel para a letra S
+    iconButton.Parent = iconGui
 
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 12)
-    btnCorner.Parent = btn
+    -- Borda vermelha
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 0, 0)
+    stroke.Thickness = 3
+    stroke.Parent = iconButton
 
-    local btnStroke = Instance.new("UIStroke")
-    btnStroke.Color = Color3.fromRGB(200, 0, 0)
-    btnStroke.Thickness = 2
-    btnStroke.Parent = btn
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = iconButton
 
-    -- Lógica de arrastar
+    -- Letra "S" vermelha
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "S"
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextSize = 36
+    label.Font = Enum.Font.GothamBold
+    label.Parent = iconButton
+
+    -- Arrastar o ícone
     local dragging = false
-    local dragStart, startPos
+    local dragInput, dragStart, startPos
 
-    btn.InputBegan:Connect(function(input)
+    iconButton.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = btn.Position
+            startPos = iconButton.Position
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -672,11 +683,11 @@ local function criarInterfaceFlutuante()
         end
     end)
 
-    btn.InputChanged:Connect(function(input)
+    iconButton.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             if dragging then
                 local delta = input.Position - dragStart
-                btn.Position = UDim2.new(
+                iconButton.Position = UDim2.new(
                     startPos.X.Scale, startPos.X.Offset + delta.X,
                     startPos.Y.Scale, startPos.Y.Offset + delta.Y
                 )
@@ -684,48 +695,59 @@ local function criarInterfaceFlutuante()
         end
     end)
 
-    floatingButton = btnGui
+    -- Clique no ícone abre/fecha o menu
+    iconButton.MouseButton1Click:Connect(function()
+        toggleOmnitrixMenu()
+    end)
 
-    -- Cria o painel central (inicialmente oculto)
-    local panel = Instance.new("ScreenGui")
-    panel.Name = "OmnitrixPanel"
-    panel.ResetOnSpawn = false
-    panel.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    panel.Parent = coreGui
-    panel.Enabled = false  -- começa oculto
+    return iconGui
+end
+
+-- Cria o menu central com 5 slots
+local function criarMenu()
+    if omnitrixMenu then
+        omnitrixMenu.Enabled = true
+        isOmnitrixOpen = true
+        return
+    end
+
+    local menuGui = Instance.new("ScreenGui")
+    menuGui.Name = "OmnitrixMenu"
+    menuGui.ResetOnSpawn = false
+    menuGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    menuGui.Parent = coreGui
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 320, 0, 320)
-    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -160)
+    mainFrame.Size = UDim2.new(0, 400, 0, 320)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -160)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BackgroundTransparency = 0.05
     mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = panel
+    mainFrame.Parent = menuGui
 
-    local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 16)
-    panelCorner.Parent = mainFrame
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = mainFrame
 
-    local panelStroke = Instance.new("UIStroke")
-    panelStroke.Color = Color3.fromRGB(200, 0, 0)
-    panelStroke.Thickness = 2
-    panelStroke.Parent = mainFrame
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(200, 50, 50)
+    stroke.Thickness = 2
+    stroke.Parent = mainFrame
 
     -- Título
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 40)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Aliens (Teclas 1-5)"
+    title.Text = "🔢 Omnitrix - Slots 1 a 5"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
+    title.TextSize = 20
     title.Font = Enum.Font.GothamBold
     title.Parent = mainFrame
 
-    -- Botão fechar (X)
+    -- Botão fechar
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -45, 0, 5)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Text = "✕"
@@ -734,15 +756,17 @@ local function criarInterfaceFlutuante()
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.Parent = mainFrame
     closeBtn.MouseButton1Click:Connect(function()
-        panel.Enabled = false
-        panelVisible = false
+        menuGui.Enabled = false
+        isOmnitrixOpen = false
     end)
 
-    -- 5 campos de texto
+    -- Criar 5 linhas (cada uma com TextBox + Botão Transformar)
     for i = 1, 5 do
-        local yPos = 50 + (i - 1) * 50
+        local yPos = 45 + (i - 1) * 50
+
+        -- Label do slot
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 50, 0, 35)
+        label.Size = UDim2.new(0, 40, 0, 35)
         label.Position = UDim2.new(0, 10, 0, yPos)
         label.BackgroundTransparency = 1
         label.Text = "Slot " .. i .. ":"
@@ -752,11 +776,11 @@ local function criarInterfaceFlutuante()
         label.TextXAlignment = Enum.TextXAlignment.Right
         label.Parent = mainFrame
 
+        -- TextBox para o nome do alien
         local textBox = Instance.new("TextBox")
-        textBox.Name = "Slot" .. i
-        textBox.Size = UDim2.new(0, 220, 0, 35)
-        textBox.Position = UDim2.new(0, 65, 0, yPos)
-        textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        textBox.Size = UDim2.new(0, 180, 0, 35)
+        textBox.Position = UDim2.new(0, 55, 0, yPos)
+        textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         textBox.TextSize = 14
         textBox.Font = Enum.Font.Gotham
@@ -768,7 +792,7 @@ local function criarInterfaceFlutuante()
         boxCorner.CornerRadius = UDim.new(0, 6)
         boxCorner.Parent = textBox
 
-        -- Salvar ao perder foco
+        -- Função para salvar o slot
         local function salvarSlot()
             local valor = textBox.Text
             if valor ~= "" then
@@ -781,39 +805,66 @@ local function criarInterfaceFlutuante()
             end
         end
 
+        -- Salva ao perder foco (Enter ou clicar fora)
         textBox.FocusLost:Connect(function(enterPressed)
             if enterPressed then
                 salvarSlot()
             end
         end)
 
-        textBox.FocusLost:Connect(function()
-            salvarSlot()
+        -- Botão Transformar
+        local transformBtn = Instance.new("TextButton")
+        transformBtn.Size = UDim2.new(0, 100, 0, 35)
+        transformBtn.Position = UDim2.new(0, 245, 0, yPos)
+        transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        transformBtn.Text = "🔄 Transformar"
+        transformBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        transformBtn.TextSize = 13
+        transformBtn.Font = Enum.Font.GothamBold
+        transformBtn.Parent = mainFrame
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = transformBtn
+
+        -- Efeito hover
+        transformBtn.MouseEnter:Connect(function()
+            transformBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        end)
+        transformBtn.MouseLeave:Connect(function()
+            transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        end)
+
+        -- Ação do botão: transforma no alien do slot
+        transformBtn.MouseButton1Click:Connect(function()
+            local nomeAlien = textBox.Text
+            if nomeAlien ~= "" then
+                -- Salva antes de transformar (caso o texto tenha mudado)
+                Config.AlienSlots[i] = nomeAlien
+                SaveConfig()
+                transformarAlien(nomeAlien)
+            else
+                textBox.Text = Config.AlienSlots[i] or "heatblast"
+            end
         end)
     end
 
-    panelGui = panel
-
-    -- Clique no botão flutuante abre/fecha o painel
-    btn.MouseButton1Click:Connect(function()
-        if panelGui then
-            panelVisible = not panelVisible
-            panelGui.Enabled = panelVisible
-            if panelVisible then
-                -- Atualiza os valores nos campos
-                for i = 1, 5 do
-                    local tb = mainFrame:FindFirstChild("Slot" .. i)
-                    if tb then
-                        tb.Text = Config.AlienSlots[i] or ""
-                        tb.PlaceholderText = Config.AlienSlots[i] or "heatblast"
-                    end
-                end
-            end
-        end
-    end)
-
-    print("[Omnitrix] Interface flutuante criada!")
+    omnitrixMenu = menuGui
+    isOmnitrixOpen = true
 end
+
+-- Função para abrir/fechar o menu
+local function toggleOmnitrixMenu()
+    if omnitrixMenu and omnitrixMenu.Enabled == true then
+        omnitrixMenu.Enabled = false
+        isOmnitrixOpen = false
+    else
+        criarMenu()
+    end
+end
+
+-- Inicializa o ícone
+criarIcone()
 
 -- =============================================
 -- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
@@ -838,7 +889,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI
+-- MENU – WINDUI (integrado ao Controle Mestre)
 -- =============================================
 local oldWindow = nil
 
@@ -1083,7 +1134,8 @@ local function CriarMenu()
         Title = lang.BtnControleMestre,
         Desc = lang.DescControleMestre,
         Callback = function()
-            -- Ativa Master Control
+            toggleOmnitrixMenu()
+            -- Ativa os valores do Master Control no jogo (opcional)
             pcall(function()
                 local function addValor(caminho, nome)
                     if caminho then
@@ -1113,14 +1165,12 @@ local function CriarMenu()
                     f2.Name = "Ominitrix_Unlocker"
                     addValor(f2, "Give_Master_Control")
                 end
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Omnitrix",
+                    Text = "Master Control ativado!",
+                    Duration = 2
+                })
             end)
-            -- Cria interface flutuante
-            criarInterfaceFlutuante()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Omnitrix",
-                Text = "Botão 'S' criado! Clique para abrir os slots.",
-                Duration = 3
-            })
         end
     })
 
@@ -1226,8 +1276,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Clique em 'Controle Mestre' para criar o botão 'S'.",
+    Text = "Carregado! Ícone 'S' no canto superior direito.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use o botão 'Controle Mestre' para criar o botão flutuante.")
+print("Project Sor carregado. Clique no ícone 'S' para abrir o Omnitrix.")
