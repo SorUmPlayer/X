@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - VERSÃO FINAL
+-- SCRIPT COMPLETO (Project Sor) - CORRIGIDO
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -66,7 +66,7 @@ local Config = {
         "stinkfly"
     },
     MostrarBotoes = true,
-    MasterControlEnabled = false  -- novo toggle
+    MasterControlEnabled = false
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -623,7 +623,7 @@ local function transformarAlien(nomeAlien)
 end
 
 -- Variáveis do sistema Omnitrix
-local omnitrixApp = nil      -- ScreenGui do app "S"
+local omnitrixApp = nil      -- Frame do app "S" dentro do celular
 local omnitrixMenu = nil     -- ScreenGui do menu central
 local botoesGui = nil        -- ScreenGui dos botões 1-5
 local chatConnection = nil   -- conexão do monitor de chat
@@ -681,15 +681,20 @@ local function criarAppS()
         nameLabel.Font = Enum.Font.Gotham
         nameLabel.Parent = appFrame
 
-        appFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                toggleMenu()
-            end
+        -- Cria um TextButton invisível sobre todo o app para capturar clique
+        local clickBtn = Instance.new("TextButton")
+        clickBtn.Size = UDim2.new(1, 0, 1, 0)
+        clickBtn.BackgroundTransparency = 1
+        clickBtn.Text = ""
+        clickBtn.Parent = appFrame
+
+        clickBtn.MouseButton1Click:Connect(function()
+            toggleMenu()
         end)
 
         omnitrixApp = appFrame
     else
-        -- Fallback: não encontrou o celular, cria um ScreenGui flutuante (mas o usuário pediu app no celular, então avisamos)
+        -- Fallback: não encontrou o celular, cria um ScreenGui flutuante
         warn("[Omnitrix] Pasta 'Apps' do celular não encontrada. Usando fallback.")
         local iconGui = Instance.new("ScreenGui")
         iconGui.Name = "OmnitrixAppFallback"
@@ -723,10 +728,14 @@ local function criarAppS()
         label.Font = Enum.Font.GothamBold
         label.Parent = appFrame
 
-        appFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                toggleMenu()
-            end
+        local clickBtn = Instance.new("TextButton")
+        clickBtn.Size = UDim2.new(1, 0, 1, 0)
+        clickBtn.BackgroundTransparency = 1
+        clickBtn.Text = ""
+        clickBtn.Parent = appFrame
+
+        clickBtn.MouseButton1Click:Connect(function()
+            toggleMenu()
         end)
 
         omnitrixApp = appFrame
@@ -1000,22 +1009,18 @@ local function desativarOmnitrix()
     if not isOmnitrixActive then return end
     isOmnitrixActive = false
 
-    -- Destrói app
     if omnitrixApp then
         omnitrixApp:Destroy()
         omnitrixApp = nil
     end
-    -- Destrói menu
     if omnitrixMenu then
         omnitrixMenu:Destroy()
         omnitrixMenu = nil
     end
-    -- Destrói botões
     if botoesGui then
         botoesGui:Destroy()
         botoesGui = nil
     end
-    -- Desconecta chat
     if chatConnection then
         chatConnection:Disconnect()
         chatConnection = nil
