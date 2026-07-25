@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor)
+-- SCRIPT COMPLETO (Project Sor) - VERSÃO FINAL
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -59,13 +59,14 @@ local Config = {
     BossKraken = false,
     BossTransDimensional = false,
     AlienSlots = {
-        "heatblast",  -- slot 1
-        "fourarms",   -- slot 2
-        "diamondhead",-- slot 3
-        "xrl8",       -- slot 4
-        "stinkfly"    -- slot 5
+        "heatblast",
+        "fourarms",
+        "diamondhead",
+        "xrl8",
+        "stinkfly"
     },
-    MostrarBotoes = true  -- toggle para mostrar/ocultar botões 1-5
+    MostrarBotoes = true,
+    MasterControlEnabled = false  -- novo toggle
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -83,7 +84,7 @@ local function SaveConfig()
 end
 
 -- =============================================
--- INTRO (SPLASH)
+-- INTRO (SPLASH) - mantido
 -- =============================================
 if not Config.RemoverIntro then
     pcall(function()
@@ -140,16 +141,17 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS
+-- DICIONÁRIO DE IDIOMAS (completo)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
+        TabExtras = "Extras",
         TabConfig = "Configurações",
         SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
+        ToggleRaid = "Auto Raid",
         DescRaid = "Ativa o ataque e o teleporte em loop",
         ChatMulti = "Multiplicador de Tiro",
         DescMulti = "Número de tiros por ciclo (Ex: 9)",
@@ -157,7 +159,7 @@ local Idiomas = {
         Distancia = "Distância",
         DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
-        SecBossConfig = "Boss Config",
+        SecBossConfig = "Config Boss",
         DescBossDist = "Distância acima do Boss (0 a 20)",
         DescBossMulti = "Multiplicador de tiros para Boss",
         SecBoss = "Boss",
@@ -186,6 +188,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
+        SecGamePassFree = "🎮 Game Pass Free",
+        ToggleMasterControl = "Controle Mestre",
+        DescMasterControl = "Ativa o sistema Omnitrix (app + botões 1-5 + chat)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -202,15 +207,21 @@ local Idiomas = {
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente"
+        DescManualSave = "Salva todas as opções manualmente",
+        -- App
+        AppTitle = "🔢 Configurar Aliens",
+        ToggleBotoes = "Mostrar botões na tela",
+        BtnMostrar = "ON",
+        BtnOcultar = "OFF"
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
+        TabExtras = "Extras",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
+        ToggleRaid = "Auto Raid",
         DescRaid = "Activa el ataque y el teletransporte en bucle",
         ChatMulti = "Multiplicador de Tiro",
         DescMulti = "Número de disparos por ciclo (Ej: 9)",
@@ -247,6 +258,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
+        SecGamePassFree = "🎮 Game Pass Free",
+        ToggleMasterControl = "Control Maestro",
+        DescMasterControl = "Activa el sistema Omnitrix (app + botones 1-5 + chat)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -263,15 +277,20 @@ local Idiomas = {
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido.",
         BtnManualSave = "💾 Guardar Configuraciones",
-        DescManualSave = "Guarda todas las opciones manualmente"
+        DescManualSave = "Guarda todas las opciones manualmente",
+        AppTitle = "🔢 Configurar Aliens",
+        ToggleBotoes = "Mostrar botones en pantalla",
+        BtnMostrar = "ON",
+        BtnOcultar = "OFF"
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
         TabBoss = "Boss",
         TabTeleport = "Teleport",
+        TabExtras = "Extras",
         TabConfig = "Settings",
         SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
+        ToggleRaid = "Auto Raid",
         DescRaid = "Activates loop attack and teleport",
         ChatMulti = "Shot Multiplier",
         DescMulti = "Number of shots per cycle (Ex: 9)",
@@ -308,6 +327,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
+        SecGamePassFree = "🎮 Game Pass Free",
+        ToggleMasterControl = "Master Control",
+        DescMasterControl = "Activates Omnitrix system (app + buttons 1-5 + chat)",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -324,12 +346,16 @@ local Idiomas = {
         NotifTitle = "Config Reset",
         NotifDesc = "Raid disabled and language reset.",
         BtnManualSave = "💾 Save Settings",
-        DescManualSave = "Saves all options manually"
+        DescManualSave = "Saves all options manually",
+        AppTitle = "🔢 Configure Aliens",
+        ToggleBotoes = "Show buttons on screen",
+        BtnMostrar = "ON",
+        BtnOcultar = "OFF"
     }
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES) - mantido igual
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -578,7 +604,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- SISTEMA DE TRANSFORMAÇÃO (OMNITRIX)
+-- SISTEMA OMNITRIX (controlado pelo toggle MasterControl)
 -- =============================================
 local alienMorphRemote = nil
 pcall(function()
@@ -590,141 +616,133 @@ end)
 
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
-    if not alienMorphRemote then
-        print("[Omnitrix] Remote não encontrado!")
-        return
-    end
+    if not alienMorphRemote then return end
     pcall(function()
         alienMorphRemote:InvokeServer(tostring(nomeAlien), 0.3)
-        print("[Omnitrix] Transformado em: " .. tostring(nomeAlien))
     end)
 end
 
--- =============================================
--- MONITOR DE CHAT (digite nome do alien)
--- =============================================
-local function setupChatListener()
-    -- Sistema de chat novo (TextChatService)
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        TextChatService.MessageReceived:Connect(function(message)
-            if message.TextSource then
-                local player = players:GetPlayerByUserId(message.TextSource.UserId)
-                if player == LocalPlayer then
-                    local texto = message.Text
-                    if texto and texto ~= "" then
-                        -- Verifica se é um nome de alien (qualquer texto)
-                        transformarAlien(texto)
-                    end
-                end
-            end
-        end)
-    else
-        -- Sistema antigo
-        local sayMsg = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
-        if sayMsg then
-            sayMsg.OnClientEvent:Connect(function(message, speaker)
-                if speaker == LocalPlayer.Name then
-                    transformarAlien(message)
-                end
-            end)
-        end
-    end
-end
-setupChatListener()
+-- Variáveis do sistema Omnitrix
+local omnitrixApp = nil      -- ScreenGui do app "S"
+local omnitrixMenu = nil     -- ScreenGui do menu central
+local botoesGui = nil        -- ScreenGui dos botões 1-5
+local chatConnection = nil   -- conexão do monitor de chat
+local isOmnitrixActive = false
 
 -- =============================================
--- BOTÕES 1-5 (vermelhos, centro superior)
+-- CRIA O APLICATIVO "S" DENTRO DO CELULAR
 -- =============================================
-local botoesGui = nil
-local botoesVisiveis = Config.MostrarBotoes
+local function criarAppS()
+    if omnitrixApp then return end
 
-local function criarBotoes()
-    if botoesGui then
-        botoesGui.Enabled = botoesVisiveis
-        return
-    end
+    -- Tenta encontrar a pasta Apps do celular
+    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
 
-    botoesGui = Instance.new("ScreenGui")
-    botoesGui.Name = "BotoesOmnitrix"
-    botoesGui.ResetOnSpawn = false
-    botoesGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    botoesGui.Parent = coreGui
-
-    local frame = Instance.new("Frame")
-    frame.Name = "BotoesFrame"
-    frame.Size = UDim2.new(0, 350, 0, 50)
-    frame.Position = UDim2.new(0.5, -175, 0, 10)
-    frame.BackgroundTransparency = 1
-    frame.Parent = botoesGui
-
-    local cores = {
-        Color3.fromRGB(200, 50, 50),
-        Color3.fromRGB(200, 50, 50),
-        Color3.fromRGB(200, 50, 50),
-        Color3.fromRGB(200, 50, 50),
-        Color3.fromRGB(200, 50, 50)
-    }
-
-    for i = 1, 5 do
-        local btn = Instance.new("TextButton")
-        btn.Name = "Btn" .. i
-        btn.Size = UDim2.new(0, 55, 0, 40)
-        btn.Position = UDim2.new(0, 10 + (i-1) * 65, 0, 5)
-        btn.BackgroundColor3 = cores[i]
-        btn.BackgroundTransparency = 0.3
-        btn.Text = tostring(i)
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 20
-        btn.Font = Enum.Font.GothamBold
-        btn.BorderSizePixel = 0
-        btn.Parent = frame
+    if appsFolder then
+        -- App dentro do celular
+        local appFrame = Instance.new("Frame")
+        appFrame.Name = "App_S"
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = appsFolder
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = btn
+        corner.Parent = appFrame
 
         local stroke = Instance.new("UIStroke")
         stroke.Color = Color3.fromRGB(255, 0, 0)
         stroke.Thickness = 2
-        stroke.Transparency = 0.5
-        stroke.Parent = btn
+        stroke.Parent = appFrame
 
-        btn.MouseButton1Click:Connect(function()
-            local nome = Config.AlienSlots[i] or ""
-            if nome ~= "" then
-                transformarAlien(nome)
-            else
-                print("[Omnitrix] Slot " .. i .. " vazio.")
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 20)
+        nameLabel.Position = UDim2.new(0, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Omnitrix"
+        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = appFrame
+
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleMenu()
             end
         end)
 
-        -- Efeito hover
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundTransparency = 0.1
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundTransparency = 0.3
-        end)
-    end
+        omnitrixApp = appFrame
+    else
+        -- Fallback: não encontrou o celular, cria um ScreenGui flutuante (mas o usuário pediu app no celular, então avisamos)
+        warn("[Omnitrix] Pasta 'Apps' do celular não encontrada. Usando fallback.")
+        local iconGui = Instance.new("ScreenGui")
+        iconGui.Name = "OmnitrixAppFallback"
+        iconGui.ResetOnSpawn = false
+        iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        iconGui.Parent = coreGui
 
-    botoesGui.Enabled = botoesVisiveis
+        local appFrame = Instance.new("Frame")
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.8, 0, 0.2, 0)
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = iconGui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = appFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = appFrame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleMenu()
+            end
+        end)
+
+        omnitrixApp = appFrame
+    end
 end
 
 -- =============================================
--- APLICATIVO "S" (ícone e menu)
+-- MENU CENTRAL (5 chats + toggle)
 -- =============================================
-local omnitrixMenu = nil
-local isOmnitrixOpen = false
-local appIcon = nil
-local aplicativoCriado = false
-
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
-        isOmnitrixOpen = true
         return
     end
+
+    local lang = Idiomas[Config.Language] or Idiomas["Português"]
 
     local menuGui = Instance.new("ScreenGui")
     menuGui.Name = "OmnitrixMenu"
@@ -754,13 +772,13 @@ local function criarMenu()
     title.Size = UDim2.new(1, 0, 0, 35)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Configurar Aliens"
+    title.Text = lang.AppTitle
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
     title.Parent = mainFrame
 
-    -- Botão fechar
+    -- Fechar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -772,11 +790,9 @@ local function criarMenu()
     closeBtn.Parent = mainFrame
     closeBtn.MouseButton1Click:Connect(function()
         menuGui.Enabled = false
-        isOmnitrixOpen = false
     end)
 
-    -- 5 campos de texto (chats)
-    local teclas = {"1", "2", "3", "4", "5"}
+    -- 5 campos
     for i = 1, 5 do
         local yPos = 40 + (i - 1) * 50
 
@@ -784,7 +800,7 @@ local function criarMenu()
         label.Size = UDim2.new(0, 35, 0, 30)
         label.Position = UDim2.new(0, 10, 0, yPos)
         label.BackgroundTransparency = 1
-        label.Text = teclas[i] .. "."
+        label.Text = tostring(i) .. "."
         label.TextColor3 = Color3.fromRGB(255, 200, 100)
         label.TextSize = 16
         label.Font = Enum.Font.GothamBold
@@ -812,7 +828,6 @@ local function criarMenu()
                     Config.AlienSlots[i] = valor
                     SaveConfig()
                     textBox.PlaceholderText = valor
-                    print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
                 else
                     textBox.Text = Config.AlienSlots[i] or "heatblast"
                 end
@@ -820,7 +835,7 @@ local function criarMenu()
         end)
     end
 
-    -- Toggle para mostrar/ocultar botões
+    -- Toggle mostrar botões
     local toggleRow = Instance.new("Frame")
     toggleRow.Size = UDim2.new(1, 0, 0, 40)
     toggleRow.Position = UDim2.new(0, 0, 1, -45)
@@ -831,7 +846,7 @@ local function criarMenu()
     toggleLabel.Size = UDim2.new(0, 200, 0, 30)
     toggleLabel.Position = UDim2.new(0, 10, 0, 5)
     toggleLabel.BackgroundTransparency = 1
-    toggleLabel.Text = "Mostrar botões na tela"
+    toggleLabel.Text = lang.ToggleBotoes
     toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     toggleLabel.TextSize = 14
     toggleLabel.Font = Enum.Font.Gotham
@@ -842,7 +857,7 @@ local function criarMenu()
     toggleBtn.Size = UDim2.new(0, 40, 0, 30)
     toggleBtn.Position = UDim2.new(1, -50, 0, 5)
     toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-    toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
+    toggleBtn.Text = Config.MostrarBotoes and lang.BtnMostrar or lang.BtnOcultar
     toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleBtn.TextSize = 14
     toggleBtn.Font = Enum.Font.GothamBold
@@ -854,118 +869,162 @@ local function criarMenu()
 
     toggleBtn.MouseButton1Click:Connect(function()
         Config.MostrarBotoes = not Config.MostrarBotoes
-        botoesVisiveis = Config.MostrarBotoes
         if botoesGui then
-            botoesGui.Enabled = botoesVisiveis
+            botoesGui.Enabled = Config.MostrarBotoes
         end
         toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-        toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
+        toggleBtn.Text = Config.MostrarBotoes and lang.BtnMostrar or lang.BtnOcultar
         SaveConfig()
     end)
 
     omnitrixMenu = menuGui
-    isOmnitrixOpen = true
 end
 
-local function toggleOmnitrixMenu()
+local function toggleMenu()
     if omnitrixMenu and omnitrixMenu.Enabled == true then
         omnitrixMenu.Enabled = false
-        isOmnitrixOpen = false
     else
         criarMenu()
     end
 end
 
 -- =============================================
--- CRIA ÍCONE "S" (arrastável)
+-- BOTÕES 1-5 (vermelhos, centro superior)
 -- =============================================
-local function criarIconeS()
-    if aplicativoCriado then
-        if appIcon then
-            appIcon.Visible = true
-        end
+local function criarBotoes()
+    if botoesGui then
+        botoesGui.Enabled = Config.MostrarBotoes
         return
     end
 
-    local iconGui = Instance.new("ScreenGui")
-    iconGui.Name = "OmnitrixIcon"
-    iconGui.ResetOnSpawn = false
-    iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    iconGui.Parent = coreGui
+    botoesGui = Instance.new("ScreenGui")
+    botoesGui.Name = "BotoesOmnitrix"
+    botoesGui.ResetOnSpawn = false
+    botoesGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    botoesGui.Parent = coreGui
 
-    local iconBtn = Instance.new("ImageButton")
-    iconBtn.Name = "IconButton"
-    iconBtn.Size = UDim2.new(0, 50, 0, 50)
-    iconBtn.Position = UDim2.new(0.85, 0, 0.5, -25)
-    iconBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    iconBtn.BackgroundTransparency = 0
-    iconBtn.BorderSizePixel = 0
-    iconBtn.Image = ""
-    iconBtn.Parent = iconGui
+    local frame = Instance.new("Frame")
+    frame.Name = "BotoesFrame"
+    frame.Size = UDim2.new(0, 350, 0, 50)
+    frame.Position = UDim2.new(0.5, -175, 0, 10)
+    frame.BackgroundTransparency = 1
+    frame.Parent = botoesGui
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = iconBtn
+    for i = 1, 5 do
+        local btn = Instance.new("TextButton")
+        btn.Name = "Btn" .. i
+        btn.Size = UDim2.new(0, 55, 0, 40)
+        btn.Position = UDim2.new(0, 10 + (i-1) * 65, 0, 5)
+        btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        btn.BackgroundTransparency = 0.3
+        btn.Text = tostring(i)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 20
+        btn.Font = Enum.Font.GothamBold
+        btn.BorderSizePixel = 0
+        btn.Parent = frame
 
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 0, 0)
-    stroke.Thickness = 2
-    stroke.Parent = iconBtn
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = btn
 
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = "S"
-    label.TextColor3 = Color3.fromRGB(255, 0, 0)
-    label.TextSize = 30
-    label.Font = Enum.Font.GothamBold
-    label.Parent = iconBtn
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Transparency = 0.5
+        stroke.Parent = btn
 
-    -- Arrastar
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    iconBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = iconBtn.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    iconBtn.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then
-                local delta = input.Position - dragStart
-                iconBtn.Position = UDim2.new(
-                    startPos.X.Scale, startPos.X.Offset + delta.X,
-                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
-                )
+        btn.MouseButton1Click:Connect(function()
+            local nome = Config.AlienSlots[i] or ""
+            if nome ~= "" then
+                transformarAlien(nome)
             end
-        end
-    end)
+        end)
 
-    iconBtn.MouseButton1Click:Connect(function()
-        toggleOmnitrixMenu()
-    end)
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundTransparency = 0.1
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundTransparency = 0.3
+        end)
+    end
 
-    appIcon = iconBtn
-    aplicativoCriado = true
+    botoesGui.Enabled = Config.MostrarBotoes
 end
 
 -- =============================================
--- INICIALIZAÇÃO
+-- MONITOR DE CHAT (digite nome do alien)
 -- =============================================
-criarIconeS()
-criarBotoes()
+local function criarChatListener()
+    if chatConnection then return end
+
+    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+        chatConnection = TextChatService.MessageReceived:Connect(function(message)
+            if message.TextSource then
+                local player = players:GetPlayerByUserId(message.TextSource.UserId)
+                if player == LocalPlayer then
+                    local texto = message.Text
+                    if texto and texto ~= "" then
+                        transformarAlien(texto)
+                    end
+                end
+            end
+        end)
+    else
+        local sayMsg = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+        if sayMsg then
+            chatConnection = sayMsg.OnClientEvent:Connect(function(message, speaker)
+                if speaker == LocalPlayer.Name then
+                    transformarAlien(message)
+                end
+            end)
+        end
+    end
+end
 
 -- =============================================
--- MENU – WINDUI (sem a aba Extras)
+-- ATIVAR / DESATIVAR OMNITRIX
+-- =============================================
+local function ativarOmnitrix()
+    if isOmnitrixActive then return end
+    isOmnitrixActive = true
+
+    criarAppS()
+    criarBotoes()
+    criarChatListener()
+    print("[Omnitrix] Sistema ativado.")
+end
+
+local function desativarOmnitrix()
+    if not isOmnitrixActive then return end
+    isOmnitrixActive = false
+
+    -- Destrói app
+    if omnitrixApp then
+        omnitrixApp:Destroy()
+        omnitrixApp = nil
+    end
+    -- Destrói menu
+    if omnitrixMenu then
+        omnitrixMenu:Destroy()
+        omnitrixMenu = nil
+    end
+    -- Destrói botões
+    if botoesGui then
+        botoesGui:Destroy()
+        botoesGui = nil
+    end
+    -- Desconecta chat
+    if chatConnection then
+        chatConnection:Disconnect()
+        chatConnection = nil
+    end
+    print("[Omnitrix] Sistema desativado.")
+end
+
+-- =============================================
+-- MENU – WINDUI
 -- =============================================
 local oldWindow = nil
 
@@ -1038,6 +1097,7 @@ local function CriarMenu()
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
+    local TabExtras = Window:Tab({ Title = lang.TabExtras, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
     -- ====== ABA MAIN ======
@@ -1203,6 +1263,23 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
+    -- ====== ABA EXTRAS ======
+    TabExtras:Section({ Title = lang.SecGamePassFree })
+    TabExtras:Toggle({
+        Title = lang.ToggleMasterControl,
+        Desc = lang.DescMasterControl,
+        Value = Config.MasterControlEnabled,
+        Callback = function(value)
+            Config.MasterControlEnabled = value
+            SaveConfig()
+            if value then
+                ativarOmnitrix()
+            else
+                desativarOmnitrix()
+            end
+        end
+    })
+
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
@@ -1271,6 +1348,8 @@ local function CriarMenu()
             Config.BossKraken = false
             Config.BossTransDimensional = false
             Config.AlienSlots = { "heatblast", "fourarms", "diamondhead", "xrl8", "stinkfly" }
+            Config.MasterControlEnabled = false
+            if isOmnitrixActive then desativarOmnitrix() end
             SaveConfig()
             if Window.Notify then
                 Window:Notify({
@@ -1303,10 +1382,15 @@ end
 
 pcall(CriarMenu)
 
+-- Inicializa o Omnitrix se estiver ativado no config
+if Config.MasterControlEnabled then
+    ativarOmnitrix()
+end
+
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Botões 1-5 no topo.",
+    Text = "Carregado! Ative o Controle Mestre na aba Extras.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use os botões 1-5 ou digite no chat.")
+print("Project Sor carregado. Use o toggle 'Controle Mestre' na aba Extras.")
