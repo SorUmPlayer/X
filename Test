@@ -188,7 +188,7 @@ local Idiomas = {
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Abrir/fechar interface do Omnitrix",
+        DescControleMestre = "Ativar Master Control e abrir app no celular",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -205,10 +205,7 @@ local Idiomas = {
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente",
-        -- Slots (usado no menu central)
-        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
-        SlotPlaceholder = "Digite o nome do alien..."
+        DescManualSave = "Salva todas as opções manualmente"
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
@@ -256,7 +253,7 @@ local Idiomas = {
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Abrir/cerrar interfaz del Omnitrix",
+        DescControleMestre = "Activar Master Control y abrir app en el celular",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -273,9 +270,7 @@ local Idiomas = {
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido.",
         BtnManualSave = "💾 Guardar Configuraciones",
-        DescManualSave = "Guarda todas las opciones manualmente",
-        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
-        SlotPlaceholder = "Escribe el nombre del alien..."
+        DescManualSave = "Guarda todas las opciones manualmente"
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
@@ -323,7 +318,7 @@ local Idiomas = {
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Master Control",
-        DescControleMestre = "Open/close Omnitrix interface",
+        DescControleMestre = "Activate Master Control and open app on cellphone",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -340,9 +335,7 @@ local Idiomas = {
         NotifTitle = "Config Reset",
         NotifDesc = "Raid disabled and language reset.",
         BtnManualSave = "💾 Save Settings",
-        DescManualSave = "Saves all options manually",
-        SlotTitle = "🔢 Configure Aliens (Keys 1-5)",
-        SlotPlaceholder = "Type alien name..."
+        DescManualSave = "Saves all options manually"
     }
 }
 
@@ -596,7 +589,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - INTERFACE DO APLICATIVO (NOVA VERSÃO)
+-- CONTROLE MESTRE - APLICATIVO DENTRO DO CELULAR
 -- =============================================
 local alienMorphRemote = nil
 pcall(function()
@@ -620,90 +613,12 @@ local function transformarAlien(nomeAlien)
 end
 
 -- Variáveis da interface
-local omnitrixGui = nil
 local omnitrixMenu = nil
 local isOmnitrixOpen = false
+local aplicativoSCriado = false
+local appIcon = nil -- referência ao botão "S" dentro do celular
 
--- Cria o ícone flutuante "S" vermelho com fundo preto
-local function criarIcone()
-    if coreGui:FindFirstChild("OmnitrixIcon") then
-        coreGui.OmnitrixIcon:Destroy()
-    end
-
-    local iconGui = Instance.new("ScreenGui")
-    iconGui.Name = "OmnitrixIcon"
-    iconGui.ResetOnSpawn = false
-    iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    iconGui.Parent = coreGui
-
-    local iconButton = Instance.new("ImageButton")
-    iconButton.Name = "IconButton"
-    iconButton.Size = UDim2.new(0, 60, 0, 60)
-    iconButton.Position = UDim2.new(0.85, 0, 0.5, -30)
-    iconButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- fundo preto
-    iconButton.BackgroundTransparency = 0
-    iconButton.BorderSizePixel = 0
-    iconButton.Image = "" -- sem imagem, usaremos um TextLabel para a letra S
-    iconButton.Parent = iconGui
-
-    -- Borda vermelha
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 0, 0)
-    stroke.Thickness = 3
-    stroke.Parent = iconButton
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = iconButton
-
-    -- Letra "S" vermelha
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = "S"
-    label.TextColor3 = Color3.fromRGB(255, 0, 0)
-    label.TextSize = 36
-    label.Font = Enum.Font.GothamBold
-    label.Parent = iconButton
-
-    -- Arrastar o ícone
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    iconButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = iconButton.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    iconButton.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then
-                local delta = input.Position - dragStart
-                iconButton.Position = UDim2.new(
-                    startPos.X.Scale, startPos.X.Offset + delta.X,
-                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
-                )
-            end
-        end
-    end)
-
-    -- Clique no ícone abre/fecha o menu
-    iconButton.MouseButton1Click:Connect(function()
-        toggleOmnitrixMenu()
-    end)
-
-    return iconGui
-end
-
--- Cria o menu central com 5 slots
+-- Cria o menu central com 5 slots (já existente)
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
@@ -760,11 +675,10 @@ local function criarMenu()
         isOmnitrixOpen = false
     end)
 
-    -- Criar 5 linhas (cada uma com TextBox + Botão Transformar)
+    -- Criar 5 linhas
     for i = 1, 5 do
         local yPos = 45 + (i - 1) * 50
 
-        -- Label do slot
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(0, 40, 0, 35)
         label.Position = UDim2.new(0, 10, 0, yPos)
@@ -776,7 +690,6 @@ local function criarMenu()
         label.TextXAlignment = Enum.TextXAlignment.Right
         label.Parent = mainFrame
 
-        -- TextBox para o nome do alien
         local textBox = Instance.new("TextBox")
         textBox.Size = UDim2.new(0, 180, 0, 35)
         textBox.Position = UDim2.new(0, 55, 0, yPos)
@@ -792,7 +705,6 @@ local function criarMenu()
         boxCorner.CornerRadius = UDim.new(0, 6)
         boxCorner.Parent = textBox
 
-        -- Função para salvar o slot
         local function salvarSlot()
             local valor = textBox.Text
             if valor ~= "" then
@@ -805,14 +717,10 @@ local function criarMenu()
             end
         end
 
-        -- Salva ao perder foco (Enter ou clicar fora)
         textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                salvarSlot()
-            end
+            if enterPressed then salvarSlot() end
         end)
 
-        -- Botão Transformar
         local transformBtn = Instance.new("TextButton")
         transformBtn.Size = UDim2.new(0, 100, 0, 35)
         transformBtn.Position = UDim2.new(0, 245, 0, yPos)
@@ -827,7 +735,6 @@ local function criarMenu()
         btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = transformBtn
 
-        -- Efeito hover
         transformBtn.MouseEnter:Connect(function()
             transformBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
         end)
@@ -835,11 +742,9 @@ local function criarMenu()
             transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         end)
 
-        -- Ação do botão: transforma no alien do slot
         transformBtn.MouseButton1Click:Connect(function()
             local nomeAlien = textBox.Text
             if nomeAlien ~= "" then
-                -- Salva antes de transformar (caso o texto tenha mudado)
                 Config.AlienSlots[i] = nomeAlien
                 SaveConfig()
                 transformarAlien(nomeAlien)
@@ -863,8 +768,177 @@ local function toggleOmnitrixMenu()
     end
 end
 
--- Inicializa o ícone
-criarIcone()
+-- =============================================
+-- CRIA O APLICATIVO "S" DENTRO DO CELULAR
+-- =============================================
+local function criarAplicativoS()
+    if aplicativoSCriado then
+        -- se já existe, apenas mostra
+        if appIcon then
+            appIcon.Visible = true
+        end
+        return
+    end
+
+    -- Tenta encontrar o Cellphone (estrutura do jogo)
+    local cellphone = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
+
+    if cellphone then
+        -- Injetar dentro da pasta Apps
+        local appFrame = Instance.new("Frame")
+        appFrame.Name = "App_S"
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0) -- posição dentro da grade de apps
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = cellphone
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = appFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = appFrame
+
+        -- Letra "S" vermelha
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        -- Nome do app (opcional)
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 20)
+        nameLabel.Position = UDim2.new(0, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Omnitrix"
+        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = appFrame
+
+        -- Clique para abrir menu
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleOmnitrixMenu()
+            end
+        end)
+
+        appIcon = appFrame
+        aplicativoSCriado = true
+        print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
+    else
+        -- Fallback: cria um ScreenGui separado imitando um app
+        local iconGui = Instance.new("ScreenGui")
+        iconGui.Name = "OmnitrixApp"
+        iconGui.ResetOnSpawn = false
+        iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        iconGui.Parent = coreGui
+
+        local appFrame = Instance.new("Frame")
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.8, 0, 0.8, 0) -- canto inferior direito
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = iconGui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = appFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = appFrame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 20)
+        nameLabel.Position = UDim2.new(0, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Omnitrix"
+        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = appFrame
+
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleOmnitrixMenu()
+            end
+        end)
+
+        appIcon = appFrame
+        aplicativoSCriado = true
+        print("[Omnitrix] Aplicativo 'S' criado (fallback).")
+    end
+end
+
+-- =============================================
+-- ATIVA MASTER CONTROL E CRIA APLICATIVO
+-- =============================================
+local function ativarControleMestre()
+    -- Injeção de valores Master Control
+    pcall(function()
+        local function addValor(caminho, nome)
+            if caminho then
+                local item = caminho:FindFirstChild(nome)
+                if not item then
+                    item = Instance.new("BoolValue")
+                    item.Name = nome
+                    item.Value = true
+                    item.Parent = caminho
+                else
+                    if item:IsA("BoolValue") then item.Value = true end
+                end
+            end
+        end
+        local attrs = LocalPlayer:FindFirstChild("atributos")
+        if attrs then
+            local props = attrs:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", attrs)
+            props.Name = "Ominitrix_Properties"
+            addValor(props, "MasterControl")
+            addValor(props, "Partial_MasterControl")
+        end
+        local inv = LocalPlayer:FindFirstChild("Inventory")
+        if inv then
+            local f1 = inv:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", inv)
+            f1.Name = "Ominitrix_Unlocker"
+            local f2 = f1:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", f1)
+            f2.Name = "Ominitrix_Unlocker"
+            addValor(f2, "Give_Master_Control")
+        end
+    end)
+
+    -- Cria o aplicativo "S"
+    criarAplicativoS()
+
+    StarterGui:SetCore("SendNotification", {
+        Title = "Omnitrix",
+        Text = "Master Control ativado! App 'S' no celular.",
+        Duration = 3
+    })
+end
 
 -- =============================================
 -- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
@@ -889,7 +963,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (integrado ao Controle Mestre)
+-- MENU – WINDUI
 -- =============================================
 local oldWindow = nil
 
@@ -1134,43 +1208,7 @@ local function CriarMenu()
         Title = lang.BtnControleMestre,
         Desc = lang.DescControleMestre,
         Callback = function()
-            toggleOmnitrixMenu()
-            -- Ativa os valores do Master Control no jogo (opcional)
-            pcall(function()
-                local function addValor(caminho, nome)
-                    if caminho then
-                        local item = caminho:FindFirstChild(nome)
-                        if not item then
-                            item = Instance.new("BoolValue")
-                            item.Name = nome
-                            item.Value = true
-                            item.Parent = caminho
-                        else
-                            if item:IsA("BoolValue") then item.Value = true end
-                        end
-                    end
-                end
-                local attrs = LocalPlayer:FindFirstChild("atributos")
-                if attrs then
-                    local props = attrs:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", attrs)
-                    props.Name = "Ominitrix_Properties"
-                    addValor(props, "MasterControl")
-                    addValor(props, "Partial_MasterControl")
-                end
-                local inv = LocalPlayer:FindFirstChild("Inventory")
-                if inv then
-                    local f1 = inv:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", inv)
-                    f1.Name = "Ominitrix_Unlocker"
-                    local f2 = f1:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", f1)
-                    f2.Name = "Ominitrix_Unlocker"
-                    addValor(f2, "Give_Master_Control")
-                end
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Omnitrix",
-                    Text = "Master Control ativado!",
-                    Duration = 2
-                })
-            end)
+            ativarControleMestre()
         end
     })
 
@@ -1276,8 +1314,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Ícone 'S' no canto superior direito.",
+    Text = "Carregado! Clique em Controle Mestre para ativar.",
     Duration = 3
 })
 
-print("Project Sor carregado. Clique no ícone 'S' para abrir o Omnitrix.")
+print("Project Sor carregado. Use o botão 'Controle Mestre' na aba Extras.")
