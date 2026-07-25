@@ -631,7 +631,7 @@ end
 setupChatListener()
 
 -- =============================================
--- BOTÕES 1-5 (vermelhos, centro superior)
+-- BOTÕES FLUTUANTES (1-5) - APENAS NÚMEROS
 -- =============================================
 local botoesGui = nil
 local botoesVisiveis = Config.MostrarBotoes
@@ -655,8 +655,6 @@ local function criarBotoes()
     frame.BackgroundTransparency = 1
     frame.Parent = botoesGui
 
-    local teclas = {"G", "H", "J", "K", "L"}
-
     for i = 1, 5 do
         local btn = Instance.new("TextButton")
         btn.Name = "Btn" .. i
@@ -664,9 +662,9 @@ local function criarBotoes()
         btn.Position = UDim2.new(0, 10 + (i-1) * 65, 0, 5)
         btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         btn.BackgroundTransparency = 0.3
-        btn.Text = teclas[i] .. "\n" .. i
+        btn.Text = tostring(i)
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 14
+        btn.TextSize = 20
         btn.Font = Enum.Font.GothamBold
         btn.BorderSizePixel = 0
         btn.Parent = frame
@@ -771,19 +769,20 @@ local function criarMenu()
     for i = 1, 5 do
         local yPos = 55 + (i - 1) * 55
 
+        -- Label com o número e a tecla
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 40, 0, 30)
+        label.Size = UDim2.new(0, 60, 0, 30)
         label.Position = UDim2.new(0, 10, 0, yPos)
         label.BackgroundTransparency = 1
-        label.Text = teclas[i] .. "."
+        label.Text = tostring(i) .. ". " .. teclas[i]
         label.TextColor3 = Color3.fromRGB(255, 200, 100)
         label.TextSize = 16
         label.Font = Enum.Font.GothamBold
         label.Parent = mainFrame
 
         local textBox = Instance.new("TextBox")
-        textBox.Size = UDim2.new(0, 260, 0, 30)
-        textBox.Position = UDim2.new(0, 55, 0, yPos)
+        textBox.Size = UDim2.new(0, 240, 0, 30)
+        textBox.Position = UDim2.new(0, 75, 0, yPos)
         textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         textBox.TextSize = 14
