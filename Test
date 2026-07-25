@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - CORRIGIDO
+-- SCRIPT COMPLETO (Project Sor) - COM BOTÕES Z X C V B
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -18,7 +18,7 @@ local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES (inclui os slots)
+-- CONFIGURAÇÕES PERSISTENTES
 -- =============================================
 local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
 
@@ -58,11 +58,11 @@ local Config = {
     BossKraken = false,
     BossTransDimensional = false,
     AlienSlots = {
-        "heatblast",  -- slot 1
-        "fourarms",   -- slot 2
-        "diamondhead",-- slot 3
-        "xrl8",       -- slot 4
-        "stinkfly"    -- slot 5
+        "heatblast",  -- slot 1 (Z)
+        "fourarms",   -- slot 2 (X)
+        "diamondhead",-- slot 3 (C)
+        "xrl8",       -- slot 4 (V)
+        "stinkfly"    -- slot 5 (B)
     }
 }
 local savedConfig = LoadConfig()
@@ -339,7 +339,7 @@ local Idiomas = {
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES)
+-- SISTEMA DE COMBATE (REMOTES) - mantido igual
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -588,7 +588,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - APLICATIVO DENTRO DO CELULAR
+-- CONTROLE MESTRE - APLICATIVO "S" COM BOTÕES Z X C V B
 -- =============================================
 local alienMorphRemote = nil
 pcall(function()
@@ -598,7 +598,6 @@ pcall(function()
         and ReplicatedStorage.RemoteFunctions.Character.Morph:FindFirstChild("AlienMorph")
 end)
 
--- Função para transformar
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
     if not alienMorphRemote then
@@ -617,7 +616,7 @@ local isOmnitrixOpen = false
 local aplicativoSCriado = false
 local appIcon = nil
 
--- Cria o menu central com 5 slots (corrigido)
+-- Cria o menu central com 5 slots e botões Z X C V B
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
@@ -632,8 +631,8 @@ local function criarMenu()
     menuGui.Parent = coreGui
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 400, 0, 320)
-    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -160)
+    mainFrame.Size = UDim2.new(0, 470, 0, 380)
+    mainFrame.Position = UDim2.new(0.5, -235, 0.5, -190)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     mainFrame.BackgroundTransparency = 0.05
     mainFrame.BorderSizePixel = 0
@@ -648,15 +647,17 @@ local function criarMenu()
     stroke.Thickness = 2
     stroke.Parent = mainFrame
 
-    -- Título
+    -- Título com descrição
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Omnitrix - Slots 1 a 5"
+    title.Text = "🔢 Omnitrix - Slots Z X C V B\nDigite o nome do alien e clique no botão"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 20
+    title.TextSize = 15
     title.Font = Enum.Font.GothamBold
+    title.TextWrapped = true
+    title.TextScaled = false
     title.Parent = mainFrame
 
     -- Botão fechar
@@ -674,24 +675,28 @@ local function criarMenu()
         isOmnitrixOpen = false
     end)
 
-    -- Criar 5 linhas com conexão direta ao slot
-    for i = 1, 5 do
-        local yPos = 45 + (i - 1) * 50
+    -- Mapeamento das teclas
+    local teclas = {"Z", "X", "C", "V", "B"}
 
+    -- Criar 5 linhas
+    for i = 1, 5 do
+        local yPos = 55 + (i - 1) * 60
+
+        -- Label do slot com a tecla
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 40, 0, 35)
-        label.Position = UDim2.new(0, 10, 0, yPos)
+        label.Size = UDim2.new(0, 55, 0, 35)
+        label.Position = UDim2.new(0, 5, 0, yPos)
         label.BackgroundTransparency = 1
-        label.Text = "Slot " .. i .. ":"
-        label.TextColor3 = Color3.fromRGB(200, 200, 200)
-        label.TextSize = 14
-        label.Font = Enum.Font.Gotham
+        label.Text = teclas[i] .. ")"
+        label.TextColor3 = Color3.fromRGB(255, 200, 100)
+        label.TextSize = 16
+        label.Font = Enum.Font.GothamBold
         label.TextXAlignment = Enum.TextXAlignment.Right
         label.Parent = mainFrame
 
         local textBox = Instance.new("TextBox")
         textBox.Size = UDim2.new(0, 180, 0, 35)
-        textBox.Position = UDim2.new(0, 55, 0, yPos)
+        textBox.Position = UDim2.new(0, 70, 0, yPos)
         textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         textBox.TextSize = 14
@@ -704,36 +709,14 @@ local function criarMenu()
         boxCorner.CornerRadius = UDim.new(0, 6)
         boxCorner.Parent = textBox
 
-        -- Função para salvar o slot
-        local function salvarSlot()
-            local valor = textBox.Text
-            if valor ~= "" then
-                Config.AlienSlots[i] = valor
-                SaveConfig()
-                textBox.PlaceholderText = valor
-                print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
-                return valor
-            else
-                textBox.Text = Config.AlienSlots[i] or "heatblast"
-                return textBox.Text
-            end
-        end
-
-        -- Salva ao perder foco (Enter ou clicar fora)
-        textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                salvarSlot()
-            end
-        end)
-
-        -- Botão Transformar (agora salva e transforma)
+        -- Botão Transformar
         local transformBtn = Instance.new("TextButton")
-        transformBtn.Size = UDim2.new(0, 100, 0, 35)
-        transformBtn.Position = UDim2.new(0, 245, 0, yPos)
+        transformBtn.Size = UDim2.new(0, 150, 0, 35)
+        transformBtn.Position = UDim2.new(0, 265, 0, yPos)
         transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-        transformBtn.Text = "🔄 Transformar"
+        transformBtn.Text = "🔄 Transformar (" .. teclas[i] .. ")"
         transformBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        transformBtn.TextSize = 13
+        transformBtn.TextSize = 12
         transformBtn.Font = Enum.Font.GothamBold
         transformBtn.Parent = mainFrame
 
@@ -748,20 +731,32 @@ local function criarMenu()
             transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         end)
 
-        -- Ação do botão: salva o valor atual e transforma
+        -- Salva e transforma
         transformBtn.MouseButton1Click:Connect(function()
             local nomeAlien = textBox.Text
             if nomeAlien ~= "" then
-                -- Salva no config
                 Config.AlienSlots[i] = nomeAlien
                 SaveConfig()
                 textBox.PlaceholderText = nomeAlien
-                print("[Omnitrix] Slot " .. i .. " salvo e transformando em: " .. nomeAlien)
-                -- Transforma
+                print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. nomeAlien)
                 transformarAlien(nomeAlien)
             else
-                -- Se vazio, restaura o valor salvo
                 textBox.Text = Config.AlienSlots[i] or "heatblast"
+            end
+        end)
+
+        -- Salva ao perder foco
+        textBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                local valor = textBox.Text
+                if valor ~= "" then
+                    Config.AlienSlots[i] = valor
+                    SaveConfig()
+                    textBox.PlaceholderText = valor
+                    print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. valor)
+                else
+                    textBox.Text = Config.AlienSlots[i] or "heatblast"
+                end
             end
         end)
     end
@@ -770,7 +765,6 @@ local function criarMenu()
     isOmnitrixOpen = true
 end
 
--- Função para abrir/fechar o menu
 local function toggleOmnitrixMenu()
     if omnitrixMenu and omnitrixMenu.Enabled == true then
         omnitrixMenu.Enabled = false
@@ -791,7 +785,6 @@ local function criarAplicativoS()
         return
     end
 
-    -- Tenta encontrar o Cellphone
     local cellphone = LocalPlayer:FindFirstChild("PlayerGui")
         and LocalPlayer.PlayerGui:FindFirstChild("HUD")
         and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
@@ -905,7 +898,6 @@ end
 -- ATIVA MASTER CONTROL E CRIA APLICATIVO
 -- =============================================
 local function ativarControleMestre()
-    -- Injeção de valores Master Control
     pcall(function()
         local function addValor(caminho, nome)
             if caminho then
@@ -937,9 +929,7 @@ local function ativarControleMestre()
         end
     end)
 
-    -- Cria o aplicativo "S"
     criarAplicativoS()
-
     StarterGui:SetCore("SendNotification", {
         Title = "Omnitrix",
         Text = "Master Control ativado! App 'S' no celular.",
@@ -948,16 +938,16 @@ local function ativarControleMestre()
 end
 
 -- =============================================
--- LEITOR DE TECLAS (1-5) - USA O VALOR SALVO
+-- LEITOR DE TECLAS (Z X C V B)
 -- =============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     local slotNumero = nil
-    if input.KeyCode == Enum.KeyCode.One then slotNumero = 1 end
-    if input.KeyCode == Enum.KeyCode.Two then slotNumero = 2 end
-    if input.KeyCode == Enum.KeyCode.Three then slotNumero = 3 end
-    if input.KeyCode == Enum.KeyCode.Four then slotNumero = 4 end
-    if input.KeyCode == Enum.KeyCode.Five then slotNumero = 5 end
+    if input.KeyCode == Enum.KeyCode.Z then slotNumero = 1 end
+    if input.KeyCode == Enum.KeyCode.X then slotNumero = 2 end
+    if input.KeyCode == Enum.KeyCode.C then slotNumero = 3 end
+    if input.KeyCode == Enum.KeyCode.V then slotNumero = 4 end
+    if input.KeyCode == Enum.KeyCode.B then slotNumero = 5 end
 
     if slotNumero then
         local alienNome = Config.AlienSlots[slotNumero] or ""
@@ -970,7 +960,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI
+-- MENU – WINDUI (Restante)
 -- =============================================
 local oldWindow = nil
 
