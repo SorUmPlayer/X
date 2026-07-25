@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor)
+-- SCRIPT COMPLETO (Project Sor) - ÍCONE "S" COMO APP
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -65,8 +65,7 @@ local Config = {
         "xrl8",       -- slot 4
         "stinkfly"    -- slot 5
     },
-    MostrarBotoes = true,      -- toggle dentro do app
-    ControleMestreAtivo = false -- toggle principal
+    MostrarBotoes = true
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -141,14 +140,13 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
-        TabExtras = "Extras",
         TabConfig = "Configurações",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -188,9 +186,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
-        SecGamePass = "🎮 Game Pass Free",
-        ToggleControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Ativa o Omnitrix (app, botões e chat)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -207,18 +202,12 @@ local Idiomas = {
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente",
-        -- App Omnitrix
-        TitleApp = "🔢 Configurar Aliens",
-        BtnMostrar = "Mostrar botões na tela",
-        ToggleOn = "ON",
-        ToggleOff = "OFF"
+        DescManualSave = "Salva todas as opções manualmente"
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
-        TabExtras = "Extras",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -258,9 +247,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
-        SecGamePass = "🎮 Game Pass Free",
-        ToggleControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Activa el Omnitrix (app, botones y chat)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -277,17 +263,12 @@ local Idiomas = {
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido.",
         BtnManualSave = "💾 Guardar Configuraciones",
-        DescManualSave = "Guarda todas las opciones manualmente",
-        TitleApp = "🔢 Configurar Aliens",
-        BtnMostrar = "Mostrar botones en pantalla",
-        ToggleOn = "ON",
-        ToggleOff = "OFF"
+        DescManualSave = "Guarda todas las opciones manualmente"
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
         TabBoss = "Boss",
         TabTeleport = "Teleport",
-        TabExtras = "Extras",
         TabConfig = "Settings",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -327,9 +308,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
-        SecGamePass = "🎮 Game Pass Free",
-        ToggleControleMestre = "⚡ Master Control",
-        DescControleMestre = "Activates Omnitrix (app, buttons and chat)",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -346,16 +324,12 @@ local Idiomas = {
         NotifTitle = "Config Reset",
         NotifDesc = "Raid disabled and language reset.",
         BtnManualSave = "💾 Save Settings",
-        DescManualSave = "Saves all options manually",
-        TitleApp = "🔢 Configure Aliens",
-        BtnMostrar = "Show buttons on screen",
-        ToggleOn = "ON",
-        ToggleOff = "OFF"
+        DescManualSave = "Saves all options manually"
     }
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES) - mantido igual
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -627,7 +601,7 @@ local function transformarAlien(nomeAlien)
 end
 
 -- =============================================
--- MONITOR DE CHAT (digite nome do alien)
+-- MONITOR DE CHAT
 -- =============================================
 local function setupChatListener()
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
@@ -657,23 +631,14 @@ end
 setupChatListener()
 
 -- =============================================
--- VARIÁVEIS DO CONTROLE MESTRE
+-- BOTÕES 1-5 (vermelhos, centro superior)
 -- =============================================
 local botoesGui = nil
 local botoesVisiveis = Config.MostrarBotoes
-local appIcon = nil
-local appMenu = nil
-local appCriado = false
-local botoesCriados = false
 
--- =============================================
--- CRIA BOTÕES 1-5 (vermelhos, centro superior)
--- =============================================
 local function criarBotoes()
-    if botoesCriados then
-        if botoesGui then
-            botoesGui.Enabled = botoesVisiveis
-        end
+    if botoesGui then
+        botoesGui.Enabled = botoesVisiveis
         return
     end
 
@@ -732,112 +697,21 @@ local function criarBotoes()
     end
 
     botoesGui.Enabled = botoesVisiveis
-    botoesCriados = true
 end
 
 -- =============================================
--- REMOVE BOTÕES
+-- APLICATIVO "S" (dentro do celular)
 -- =============================================
-local function removerBotoes()
-    if botoesGui then
-        botoesGui:Destroy()
-        botoesGui = nil
-        botoesCriados = false
-    end
-end
+local omnitrixMenu = nil
+local isOmnitrixOpen = false
+local appS = nil
+local appCriado = false
 
--- =============================================
--- CRIA APLICATIVO "S" DENTRO DO CELULAR
--- =============================================
-local function criarAppS()
-    if appCriado then
-        if appIcon then
-            appIcon.Visible = true
-        end
-        return
-    end
-
-    local cellphone = LocalPlayer:FindFirstChild("PlayerGui")
-        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
-        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
-        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
-        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
-
-    if not cellphone then
-        print("[Omnitrix] Celular não encontrado, tentando fallback...")
-        -- Fallback: cria um ícone na tela (mas o usuário quer no celular, então tentamos novamente depois)
-        return
-    end
-
-    local appFrame = Instance.new("Frame")
-    appFrame.Name = "App_S"
-    appFrame.Size = UDim2.new(0, 60, 0, 60)
-    appFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
-    appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    appFrame.BackgroundTransparency = 0
-    appFrame.BorderSizePixel = 0
-    appFrame.Parent = cellphone
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = appFrame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 0, 0)
-    stroke.Thickness = 2
-    stroke.Parent = appFrame
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = "S"
-    label.TextColor3 = Color3.fromRGB(255, 0, 0)
-    label.TextSize = 36
-    label.Font = Enum.Font.GothamBold
-    label.Parent = appFrame
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0, 20)
-    nameLabel.Position = UDim2.new(0, 0, 1, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = "Omnitrix"
-    nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    nameLabel.TextSize = 11
-    nameLabel.Font = Enum.Font.Gotham
-    nameLabel.Parent = appFrame
-
-    appFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            toggleMenu()
-        end
-    end)
-
-    appIcon = appFrame
-    appCriado = true
-    print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
-end
-
--- =============================================
--- REMOVE APLICATIVO
--- =============================================
-local function removerAppS()
-    if appIcon then
-        appIcon:Destroy()
-        appIcon = nil
-        appCriado = false
-    end
-    if appMenu then
-        appMenu:Destroy()
-        appMenu = nil
-    end
-end
-
--- =============================================
--- MENU DO APLICATIVO (com 5 chats e 1 toggle)
--- =============================================
+-- Cria o menu (mesmo de antes)
 local function criarMenu()
-    if appMenu then
-        appMenu.Enabled = true
+    if omnitrixMenu then
+        omnitrixMenu.Enabled = true
+        isOmnitrixOpen = true
         return
     end
 
@@ -864,20 +738,16 @@ local function criarMenu()
     stroke.Thickness = 2
     stroke.Parent = mainFrame
 
-    local lang = Idiomas[Config.Language] or Idiomas["Português"]
-
-    -- Título
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 35)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = lang.TitleApp
+    title.Text = "🔢 Configurar Aliens"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
     title.Parent = mainFrame
 
-    -- Fechar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -889,9 +759,9 @@ local function criarMenu()
     closeBtn.Parent = mainFrame
     closeBtn.MouseButton1Click:Connect(function()
         menuGui.Enabled = false
+        isOmnitrixOpen = false
     end)
 
-    -- 5 campos de texto
     for i = 1, 5 do
         local yPos = 40 + (i - 1) * 50
 
@@ -946,7 +816,7 @@ local function criarMenu()
     toggleLabel.Size = UDim2.new(0, 200, 0, 30)
     toggleLabel.Position = UDim2.new(0, 10, 0, 5)
     toggleLabel.BackgroundTransparency = 1
-    toggleLabel.Text = lang.BtnMostrar
+    toggleLabel.Text = "Mostrar botões na tela"
     toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     toggleLabel.TextSize = 14
     toggleLabel.Font = Enum.Font.Gotham
@@ -957,7 +827,7 @@ local function criarMenu()
     toggleBtn.Size = UDim2.new(0, 40, 0, 30)
     toggleBtn.Position = UDim2.new(1, -50, 0, 5)
     toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-    toggleBtn.Text = Config.MostrarBotoes and lang.ToggleOn or lang.ToggleOff
+    toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
     toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleBtn.TextSize = 14
     toggleBtn.Font = Enum.Font.GothamBold
@@ -974,64 +844,153 @@ local function criarMenu()
             botoesGui.Enabled = botoesVisiveis
         end
         toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-        toggleBtn.Text = Config.MostrarBotoes and lang.ToggleOn or lang.ToggleOff
+        toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
         SaveConfig()
     end)
 
-    appMenu = menuGui
+    omnitrixMenu = menuGui
+    isOmnitrixOpen = true
 end
 
-local function toggleMenu()
-    if appMenu and appMenu.Enabled == true then
-        appMenu.Enabled = false
+local function toggleOmnitrixMenu()
+    if omnitrixMenu and omnitrixMenu.Enabled == true then
+        omnitrixMenu.Enabled = false
+        isOmnitrixOpen = false
     else
         criarMenu()
     end
 end
 
 -- =============================================
--- FUNÇÕES PRINCIPAIS: ATIVAR / DESATIVAR CONTROLE MESTRE
+-- INJETAR APLICATIVO "S" DENTRO DO CELULAR
 -- =============================================
-local function ativarControleMestre()
-    if Config.ControleMestreAtivo then return end
-    Config.ControleMestreAtivo = true
-    SaveConfig()
+local function criarAppS()
+    if appCriado then
+        if appS then
+            appS.Visible = true
+        end
+        return
+    end
 
-    -- Cria o aplicativo no celular
-    criarAppS()
-    -- Cria os botões 1-5
-    criarBotoes()
+    -- Procura a pasta Apps do celular
+    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
 
-    StarterGui:SetCore("SendNotification", {
-        Title = "Omnitrix",
-        Text = "Controle Mestre ativado!",
-        Duration = 2
-    })
+    if appsFolder then
+        -- Cria o aplicativo dentro da pasta Apps
+        local appFrame = Instance.new("Frame")
+        appFrame.Name = "App_Omnitrix"
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0) -- posição na grade
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = appsFolder
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = appFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = appFrame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 20)
+        nameLabel.Position = UDim2.new(0, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Omnitrix"
+        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = appFrame
+
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleOmnitrixMenu()
+            end
+        end)
+
+        appS = appFrame
+        appCriado = true
+        print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
+    else
+        -- Fallback: se não encontrar o celular, cria um ícone flutuante (mas ainda é um app)
+        local iconGui = Instance.new("ScreenGui")
+        iconGui.Name = "OmnitrixApp"
+        iconGui.ResetOnSpawn = false
+        iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        iconGui.Parent = coreGui
+
+        local appFrame = Instance.new("Frame")
+        appFrame.Size = UDim2.new(0, 60, 0, 60)
+        appFrame.Position = UDim2.new(0.85, 0, 0.5, -30)
+        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        appFrame.BackgroundTransparency = 0
+        appFrame.BorderSizePixel = 0
+        appFrame.Parent = iconGui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = appFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = appFrame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "S"
+        label.TextColor3 = Color3.fromRGB(255, 0, 0)
+        label.TextSize = 36
+        label.Font = Enum.Font.GothamBold
+        label.Parent = appFrame
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 20)
+        nameLabel.Position = UDim2.new(0, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Omnitrix"
+        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = appFrame
+
+        appFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                toggleOmnitrixMenu()
+            end
+        end)
+
+        appS = appFrame
+        appCriado = true
+        print("[Omnitrix] Aplicativo 'S' criado (fallback).")
+    end
 end
 
-local function desativarControleMestre()
-    if not Config.ControleMestreAtivo then return end
-    Config.ControleMestreAtivo = false
-    SaveConfig()
+-- Inicializa o app "S"
+criarAppS()
 
-    removerAppS()
-    removerBotoes()
-
-    StarterGui:SetCore("SendNotification", {
-        Title = "Omnitrix",
-        Text = "Controle Mestre desativado.",
-        Duration = 2
-    })
-end
-
--- Se o config já estiver ativo ao carregar, inicia
-if Config.ControleMestreAtivo then
-    task.wait(1) -- aguarda o jogo carregar
-    ativarControleMestre()
-end
+-- Inicializa os botões 1-5
+criarBotoes()
 
 -- =============================================
--- MENU – WINDUI (com aba Extras e toggle)
+-- MENU – WINDUI (sem Extras)
 -- =============================================
 local oldWindow = nil
 
@@ -1100,11 +1059,9 @@ local function CriarMenu()
         Draggable = false
     })
 
-    -- Abas
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
-    local TabExtras = Window:Tab({ Title = lang.TabExtras, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
     -- ====== ABA MAIN ======
@@ -1270,21 +1227,6 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
-    -- ====== ABA EXTRAS (com toggle Controle Mestre) ======
-    TabExtras:Section({ Title = lang.SecGamePass })
-    TabExtras:Toggle({
-        Title = lang.ToggleControleMestre,
-        Desc = lang.DescControleMestre,
-        Value = Config.ControleMestreAtivo,
-        Callback = function(value)
-            if value then
-                ativarControleMestre()
-            else
-                desativarControleMestre()
-            end
-        end
-    })
-
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
@@ -1353,9 +1295,6 @@ local function CriarMenu()
             Config.BossKraken = false
             Config.BossTransDimensional = false
             Config.AlienSlots = { "heatblast", "fourarms", "diamondhead", "xrl8", "stinkfly" }
-            if Config.ControleMestreAtivo then
-                desativarControleMestre()
-            end
             SaveConfig()
             if Window.Notify then
                 Window:Notify({
@@ -1390,8 +1329,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Ative o Controle Mestre na aba Extras.",
+    Text = "Carregado! App 'S' no celular.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use o toggle 'Controle Mestre' na aba Extras.")
+print("Project Sor carregado.")
