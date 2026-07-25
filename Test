@@ -2,18 +2,18 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
-if CoreGui:FindFirstChild("Btn_MasterControl") then CoreGui.Btn_MasterControl:Destroy() end
+if CoreGui:FindFirstChild("Btn_PartialMaster") then CoreGui.Btn_PartialMaster:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "Btn_MasterControl"
+ScreenGui.Name = "Btn_PartialMaster"
 
 local Button = Instance.new("TextButton", ScreenGui)
-Button.Size = UDim2.new(0, 150, 0, 40)
-Button.Position = UDim2.new(0.5, -75, 0.2, 0)
+Button.Size = UDim2.new(0, 180, 0, 40)
+Button.Position = UDim2.new(0.5, -90, 0.3, 0)
 Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Button.TextColor3 = Color3.fromRGB(0, 255, 0)
+Button.TextColor3 = Color3.fromRGB(255, 170, 0)
 Button.Font = Enum.Font.GothamBold
-Button.Text = "1. MasterControl"
+Button.Text = "2. Partial_MasterControl"
 Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
 
 local arrastando, inputInicio, posInicio
@@ -36,9 +36,9 @@ Button.MouseButton1Click:Connect(function()
         local folder = atributos:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", atributos)
         folder.Name = "Ominitrix_Properties"
         
-        local val = folder:FindFirstChild("MasterControl") or Instance.new("BoolValue", folder)
-        val.Name = "MasterControl"
+        local val = folder:FindFirstChild("Partial_MasterControl") or Instance.new("BoolValue", folder)
+        val.Name = "Partial_MasterControl"
         val.Value = true
-        print("[Teste 1]: MasterControl Ativado!")
+        print("[Teste 2]: Partial_MasterControl Ativado!")
     end
 end)
