@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - COM BOTÕES Z X C V B
+-- SCRIPT COMPLETO (Project Sor) - BOTÕES 1-5 VERMELHOS + APP "S"
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -58,11 +58,11 @@ local Config = {
     BossKraken = false,
     BossTransDimensional = false,
     AlienSlots = {
-        "heatblast",  -- slot 1 (Z)
-        "fourarms",   -- slot 2 (X)
-        "diamondhead",-- slot 3 (C)
-        "xrl8",       -- slot 4 (V)
-        "stinkfly"    -- slot 5 (B)
+        "heatblast",  -- slot 1
+        "fourarms",   -- slot 2
+        "diamondhead",-- slot 3
+        "xrl8",       -- slot 4
+        "stinkfly"    -- slot 5
     }
 }
 local savedConfig = LoadConfig()
@@ -138,14 +138,13 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS
+-- DICIONÁRIO DE IDIOMAS (sem Controle Mestre)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
-        TabExtras = "Extras",
         TabConfig = "Configurações",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -185,9 +184,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
-        SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Ativar Master Control e abrir app no celular",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -210,7 +206,6 @@ local Idiomas = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
-        TabExtras = "Extras",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -250,9 +245,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
-        SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Activar Master Control y abrir app en el celular",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -275,7 +267,6 @@ local Idiomas = {
         TabMain = "Raid & Teleports",
         TabBoss = "Boss",
         TabTeleport = "Teleport",
-        TabExtras = "Extras",
         TabConfig = "Settings",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -315,9 +306,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
-        SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Master Control",
-        DescControleMestre = "Activate Master Control and open app on cellphone",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -339,7 +327,7 @@ local Idiomas = {
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES) - mantido igual
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -588,7 +576,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - APLICATIVO "S" COM BOTÕES Z X C V B
+-- APLICATIVO "S" E BOTÕES 1-5 VERMELHOS (SEM CONTROLE MESTRE)
 -- =============================================
 local alienMorphRemote = nil
 pcall(function()
@@ -615,8 +603,9 @@ local omnitrixMenu = nil
 local isOmnitrixOpen = false
 local aplicativoSCriado = false
 local appIcon = nil
+local botoes = {} -- para guardar os botões 1-5
 
--- Cria o menu central com 5 slots e botões Z X C V B
+-- Cria o menu central com 5 slots e chat para transformar
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
@@ -631,8 +620,8 @@ local function criarMenu()
     menuGui.Parent = coreGui
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 470, 0, 380)
-    mainFrame.Position = UDim2.new(0.5, -235, 0.5, -190)
+    mainFrame.Size = UDim2.new(0, 420, 0, 370)
+    mainFrame.Position = UDim2.new(0.5, -210, 0.5, -185)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     mainFrame.BackgroundTransparency = 0.05
     mainFrame.BorderSizePixel = 0
@@ -647,17 +636,15 @@ local function criarMenu()
     stroke.Thickness = 2
     stroke.Parent = mainFrame
 
-    -- Título com descrição
+    -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Size = UDim2.new(1, 0, 0, 35)
+    title.Position = UDim2.new(0, 0, 0, 5)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Omnitrix - Slots Z X C V B\nDigite o nome do alien e clique no botão"
+    title.Text = "🔢 Omnitrix - Digite o nome do alien"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 15
+    title.TextSize = 16
     title.Font = Enum.Font.GothamBold
-    title.TextWrapped = true
-    title.TextScaled = false
     title.Parent = mainFrame
 
     -- Botão fechar
@@ -675,88 +662,111 @@ local function criarMenu()
         isOmnitrixOpen = false
     end)
 
-    -- Mapeamento das teclas
-    local teclas = {"Z", "X", "C", "V", "B"}
+    -- Chat para digitar o nome do alien e transformar
+    local chatLabel = Instance.new("TextLabel")
+    chatLabel.Size = UDim2.new(0, 80, 0, 30)
+    chatLabel.Position = UDim2.new(0, 10, 0, 45)
+    chatLabel.BackgroundTransparency = 1
+    chatLabel.Text = "Chat:"
+    chatLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    chatLabel.TextSize = 14
+    chatLabel.Font = Enum.Font.Gotham
+    chatLabel.TextXAlignment = Enum.TextXAlignment.Right
+    chatLabel.Parent = mainFrame
 
-    -- Criar 5 linhas
+    local chatBox = Instance.new("TextBox")
+    chatBox.Size = UDim2.new(0, 220, 0, 30)
+    chatBox.Position = UDim2.new(0, 95, 0, 45)
+    chatBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    chatBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    chatBox.TextSize = 14
+    chatBox.Font = Enum.Font.Gotham
+    chatBox.PlaceholderText = "Digite o nome do alien..."
+    chatBox.Parent = mainFrame
+
+    local chatCorner = Instance.new("UICorner")
+    chatCorner.CornerRadius = UDim.new(0, 6)
+    chatCorner.Parent = chatBox
+
+    local transformChatBtn = Instance.new("TextButton")
+    transformChatBtn.Size = UDim2.new(0, 70, 0, 30)
+    transformChatBtn.Position = UDim2.new(0, 320, 0, 45)
+    transformChatBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    transformChatBtn.Text = "Transformar"
+    transformChatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    transformChatBtn.TextSize = 12
+    transformChatBtn.Font = Enum.Font.GothamBold
+    transformChatBtn.Parent = mainFrame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = transformChatBtn
+
+    transformChatBtn.MouseButton1Click:Connect(function()
+        local nome = chatBox.Text
+        if nome ~= "" then
+            transformarAlien(nome)
+            chatBox.Text = ""
+        end
+    end)
+
+    chatBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local nome = chatBox.Text
+            if nome ~= "" then
+                transformarAlien(nome)
+                chatBox.Text = ""
+            end
+        end
+    end)
+
+    -- Slots 1-5 (visuais, para mostrar os nomes salvos e transformar)
     for i = 1, 5 do
-        local yPos = 55 + (i - 1) * 60
+        local yPos = 85 + (i - 1) * 50
 
-        -- Label do slot com a tecla
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 55, 0, 35)
-        label.Position = UDim2.new(0, 5, 0, yPos)
+        label.Size = UDim2.new(0, 40, 0, 35)
+        label.Position = UDim2.new(0, 10, 0, yPos)
         label.BackgroundTransparency = 1
-        label.Text = teclas[i] .. ")"
-        label.TextColor3 = Color3.fromRGB(255, 200, 100)
-        label.TextSize = 16
-        label.Font = Enum.Font.GothamBold
+        label.Text = "Slot " .. i .. ":"
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.TextSize = 14
+        label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Right
         label.Parent = mainFrame
 
-        local textBox = Instance.new("TextBox")
-        textBox.Size = UDim2.new(0, 180, 0, 35)
-        textBox.Position = UDim2.new(0, 70, 0, yPos)
-        textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textBox.TextSize = 14
-        textBox.Font = Enum.Font.Gotham
-        textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
-        textBox.Text = Config.AlienSlots[i] or "heatblast"
-        textBox.Parent = mainFrame
+        local slotText = Instance.new("TextLabel")
+        slotText.Size = UDim2.new(0, 180, 0, 35)
+        slotText.Position = UDim2.new(0, 55, 0, yPos)
+        slotText.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        slotText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        slotText.TextSize = 14
+        slotText.Font = Enum.Font.Gotham
+        slotText.Text = Config.AlienSlots[i] or "heatblast"
+        slotText.Parent = mainFrame
 
-        local boxCorner = Instance.new("UICorner")
-        boxCorner.CornerRadius = UDim.new(0, 6)
-        boxCorner.Parent = textBox
+        local slotCorner = Instance.new("UICorner")
+        slotCorner.CornerRadius = UDim.new(0, 6)
+        slotCorner.Parent = slotText
 
-        -- Botão Transformar
-        local transformBtn = Instance.new("TextButton")
-        transformBtn.Size = UDim2.new(0, 150, 0, 35)
-        transformBtn.Position = UDim2.new(0, 265, 0, yPos)
-        transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-        transformBtn.Text = "🔄 Transformar (" .. teclas[i] .. ")"
-        transformBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        transformBtn.TextSize = 12
-        transformBtn.Font = Enum.Font.GothamBold
-        transformBtn.Parent = mainFrame
+        local transformSlotBtn = Instance.new("TextButton")
+        transformSlotBtn.Size = UDim2.new(0, 90, 0, 35)
+        transformSlotBtn.Position = UDim2.new(0, 240, 0, yPos)
+        transformSlotBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        transformSlotBtn.Text = "🔁 Transformar"
+        transformSlotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        transformSlotBtn.TextSize = 11
+        transformSlotBtn.Font = Enum.Font.GothamBold
+        transformSlotBtn.Parent = mainFrame
 
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 8)
-        btnCorner.Parent = transformBtn
+        local btnCorner2 = Instance.new("UICorner")
+        btnCorner2.CornerRadius = UDim.new(0, 6)
+        btnCorner2.Parent = transformSlotBtn
 
-        transformBtn.MouseEnter:Connect(function()
-            transformBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-        end)
-        transformBtn.MouseLeave:Connect(function()
-            transformBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-        end)
-
-        -- Salva e transforma
-        transformBtn.MouseButton1Click:Connect(function()
-            local nomeAlien = textBox.Text
-            if nomeAlien ~= "" then
-                Config.AlienSlots[i] = nomeAlien
-                SaveConfig()
-                textBox.PlaceholderText = nomeAlien
-                print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. nomeAlien)
-                transformarAlien(nomeAlien)
-            else
-                textBox.Text = Config.AlienSlots[i] or "heatblast"
-            end
-        end)
-
-        -- Salva ao perder foco
-        textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                local valor = textBox.Text
-                if valor ~= "" then
-                    Config.AlienSlots[i] = valor
-                    SaveConfig()
-                    textBox.PlaceholderText = valor
-                    print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. valor)
-                else
-                    textBox.Text = Config.AlienSlots[i] or "heatblast"
-                end
+        transformSlotBtn.MouseButton1Click:Connect(function()
+            local nome = Config.AlienSlots[i] or ""
+            if nome ~= "" then
+                transformarAlien(nome)
             end
         end)
     end
@@ -775,7 +785,92 @@ local function toggleOmnitrixMenu()
 end
 
 -- =============================================
--- CRIA O APLICATIVO "S" DENTRO DO CELULAR
+-- BOTÕES FLUTUANTES 1-5 (VERMELHOS, MENORES)
+-- =============================================
+local function criarBotoes()
+    -- Remove botões antigos se existirem
+    for _, btn in ipairs(botoes) do
+        pcall(function() btn:Destroy() end)
+    end
+    botoes = {}
+
+    local botaoGui = Instance.new("ScreenGui")
+    botaoGui.Name = "OmnitrixBotoes"
+    botaoGui.ResetOnSpawn = false
+    botaoGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    botaoGui.Parent = coreGui
+
+    -- Posicionar em fileira horizontal no canto superior direito
+    local startX = 0.7 -- escala
+    local startY = 0.05
+    local spacing = 0.045
+
+    for i = 1, 5 do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 35, 0, 35)
+        btn.Position = UDim2.new(startX + (i-1) * spacing, 0, startY, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- vermelho
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Text = tostring(i)
+        btn.TextSize = 20
+        btn.Font = Enum.Font.GothamBold
+        btn.BorderSizePixel = 0
+        btn.Parent = botaoGui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = btn
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 200, 0) -- borda amarela para destaque
+        stroke.Thickness = 1.5
+        stroke.Parent = btn
+
+        -- Ao clicar, transforma no slot correspondente e abre o menu (opcional)
+        btn.MouseButton1Click:Connect(function()
+            local nome = Config.AlienSlots[i] or ""
+            if nome ~= "" then
+                transformarAlien(nome)
+                -- Abre o menu para mostrar os slots
+                toggleOmnitrixMenu()
+            end
+        end)
+
+        -- Arrastar (opcional)
+        local dragging = false
+        local dragInput, dragStart, startPos
+
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = btn.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+
+        btn.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                if dragging then
+                    local delta = input.Position - dragStart
+                    btn.Position = UDim2.new(
+                        startPos.X.Scale, startPos.X.Offset + delta.X,
+                        startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                    )
+                end
+            end
+        end)
+
+        table.insert(botoes, btn)
+    end
+end
+
+-- =============================================
+-- APLICATIVO "S" (DENTRO DO CELULAR OU FALLBACK)
 -- =============================================
 local function criarAplicativoS()
     if aplicativoSCriado then
@@ -839,7 +934,7 @@ local function criarAplicativoS()
         aplicativoSCriado = true
         print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
     else
-        -- Fallback
+        -- Fallback: cria um ícone "S" flutuante
         local iconGui = Instance.new("ScreenGui")
         iconGui.Name = "OmnitrixApp"
         iconGui.ResetOnSpawn = false
@@ -895,47 +990,13 @@ local function criarAplicativoS()
 end
 
 -- =============================================
--- ATIVA MASTER CONTROL E CRIA APLICATIVO
+-- INICIALIZAÇÃO: BOTÕES E APP "S" (SEM CONTROLE MESTRE)
 -- =============================================
-local function ativarControleMestre()
-    pcall(function()
-        local function addValor(caminho, nome)
-            if caminho then
-                local item = caminho:FindFirstChild(nome)
-                if not item then
-                    item = Instance.new("BoolValue")
-                    item.Name = nome
-                    item.Value = true
-                    item.Parent = caminho
-                else
-                    if item:IsA("BoolValue") then item.Value = true end
-                end
-            end
-        end
-        local attrs = LocalPlayer:FindFirstChild("atributos")
-        if attrs then
-            local props = attrs:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", attrs)
-            props.Name = "Ominitrix_Properties"
-            addValor(props, "MasterControl")
-            addValor(props, "Partial_MasterControl")
-        end
-        local inv = LocalPlayer:FindFirstChild("Inventory")
-        if inv then
-            local f1 = inv:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", inv)
-            f1.Name = "Ominitrix_Unlocker"
-            local f2 = f1:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", f1)
-            f2.Name = "Ominitrix_Unlocker"
-            addValor(f2, "Give_Master_Control")
-        end
-    end)
+-- Criar botões 1-5 imediatamente
+criarBotoes()
 
-    criarAplicativoS()
-    StarterGui:SetCore("SendNotification", {
-        Title = "Omnitrix",
-        Text = "Master Control ativado! App 'S' no celular.",
-        Duration = 3
-    })
-end
+-- Criar o aplicativo "S" também imediatamente
+criarAplicativoS()
 
 -- =============================================
 -- LEITOR DE TECLAS (Z X C V B)
@@ -960,7 +1021,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (Restante)
+-- MENU – WINDUI (sem aba Extras)
 -- =============================================
 local oldWindow = nil
 
@@ -1033,7 +1094,6 @@ local function CriarMenu()
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
-    local TabExtras = Window:Tab({ Title = lang.TabExtras, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
     -- ====== ABA MAIN ======
@@ -1199,16 +1259,6 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
-    -- ====== ABA EXTRAS ======
-    TabExtras:Section({ Title = lang.SecGamePass })
-    TabExtras:Button({
-        Title = lang.BtnControleMestre,
-        Desc = lang.DescControleMestre,
-        Callback = function()
-            ativarControleMestre()
-        end
-    })
-
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
@@ -1311,8 +1361,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Clique em Controle Mestre para ativar.",
+    Text = "Carregado! Botões 1-5 e app 'S' ativos.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use o botão 'Controle Mestre' na aba Extras.")
+print("Project Sor carregado. Botões 1-5 vermelhos e aplicativo 'S' ativos.")
