@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - Teclas G H J K L
+-- SCRIPT COMPLETO (Project Sor) - Com Música
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -14,6 +14,7 @@ local StarterGui = game:GetService("StarterGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local TextChatService = game:GetService("TextChatService")
+local SoundService = game:GetService("SoundService")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
@@ -46,6 +47,7 @@ local function SaveConfigToFile(configTable)
     end
 end
 
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -59,13 +61,19 @@ local Config = {
     BossKraken = false,
     BossTransDimensional = false,
     AlienSlots = {
-        "heatblast",  -- slot 1 (G)
-        "fourarms",   -- slot 2 (H)
-        "diamondhead",-- slot 3 (J)
-        "xrl8",       -- slot 4 (K)
-        "stinkfly"    -- slot 5 (L)
+        "heatblast",
+        "fourarms",
+        "diamondhead",
+        "xrl8",
+        "stinkfly"
     },
-    MostrarBotoes = true
+    MostrarBotoes = true,
+    -- Novas configurações de música
+    MusicasSalvas = {
+        { nome = "Bem 10", id = "92524084286516" }
+    },
+    MusicaAtual = "Bem 10",
+    TocarMusica = false
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -73,6 +81,8 @@ for k, v in pairs(savedConfig) do
         for i = 1, 5 do
             if v[i] then Config.AlienSlots[i] = v[i] end
         end
+    elseif k == "MusicasSalvas" and type(v) == "table" then
+        Config.MusicasSalvas = v
     else
         Config[k] = v
     end
@@ -80,6 +90,41 @@ end
 
 local function SaveConfig()
     SaveConfigToFile(Config)
+end
+
+-- =============================================
+-- SISTEMA DE MÚSICA
+-- =============================================
+local soundObject = nil
+local currentSoundId = nil
+
+local function tocarMusica(id)
+    if not id or id == "" then return end
+    -- Para a música atual se estiver tocando
+    if soundObject then
+        soundObject:Stop()
+        soundObject:Destroy()
+        soundObject = nil
+    end
+    -- Cria um novo Sound
+    soundObject = Instance.new("Sound")
+    soundObject.SoundId = "rbxassetid://" .. tostring(id)
+    soundObject.Looped = true
+    soundObject.Volume = 0.5
+    soundObject.Parent = SoundService
+    soundObject:Play()
+    currentSoundId = id
+    print("[Música] Tocando: " .. id)
+end
+
+local function pararMusica()
+    if soundObject then
+        soundObject:Stop()
+        soundObject:Destroy()
+        soundObject = nil
+        currentSoundId = nil
+        print("[Música] Parada")
+    end
 end
 
 -- =============================================
@@ -140,13 +185,14 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS
+-- DICIONÁRIO DE IDIOMAS (atualizado)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
+        TabExtra = "Extra",
         TabConfig = "Configurações",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -186,6 +232,14 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
+        SecExtra = "🎵 Música",
+        DropMusica = "Selecionar Música",
+        ToggleMusica = "Tocar Música",
+        BtnSalvarMusica = "Salva Música",
+        TituloSalvarMusica = "Salvar Música",
+        LabelID = "ID da Música",
+        LabelNome = "Nome da Música",
+        BtnAplicar = "Aplicar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -208,6 +262,7 @@ local Idiomas = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
+        TabExtra = "Extra",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -247,6 +302,14 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
+        SecExtra = "🎵 Música",
+        DropMusica = "Seleccionar Música",
+        ToggleMusica = "Tocar Música",
+        BtnSalvarMusica = "Guardar Música",
+        TituloSalvarMusica = "Guardar Música",
+        LabelID = "ID de la Música",
+        LabelNome = "Nombre de la Música",
+        BtnAplicar = "Aplicar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -269,6 +332,7 @@ local Idiomas = {
         TabMain = "Raid & Teleports",
         TabBoss = "Boss",
         TabTeleport = "Teleport",
+        TabExtra = "Extra",
         TabConfig = "Settings",
         SecRaid = "Raid",
         ToggleRaid = "Toggle Auto Raid",
@@ -308,6 +372,14 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
+        SecExtra = "🎵 Music",
+        DropMusica = "Select Music",
+        ToggleMusica = "Play Music",
+        BtnSalvarMusica = "Save Music",
+        TituloSalvarMusica = "Save Music",
+        LabelID = "Music ID",
+        LabelNome = "Music Name",
+        BtnAplicar = "Apply",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -631,7 +703,7 @@ end
 setupChatListener()
 
 -- =============================================
--- BOTÕES FLUTUANTES (1-5) - APENAS NÚMEROS
+-- BOTÕES FLUTUANTES (1-5)
 -- =============================================
 local botoesGui = nil
 local botoesVisiveis = Config.MostrarBotoes
@@ -737,7 +809,6 @@ local function criarMenu()
     stroke.Thickness = 2
     stroke.Parent = mainFrame
 
-    -- Título com descrição das teclas
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 0)
@@ -749,7 +820,6 @@ local function criarMenu()
     title.TextWrapped = true
     title.Parent = mainFrame
 
-    -- Botão fechar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -769,7 +839,6 @@ local function criarMenu()
     for i = 1, 5 do
         local yPos = 55 + (i - 1) * 55
 
-        -- Label com o número e a tecla
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(0, 60, 0, 30)
         label.Position = UDim2.new(0, 10, 0, yPos)
@@ -810,7 +879,6 @@ local function criarMenu()
         end)
     end
 
-    -- Toggle para mostrar/ocultar botões
     local toggleRow = Instance.new("Frame")
     toggleRow.Size = UDim2.new(1, 0, 0, 40)
     toggleRow.Position = UDim2.new(0, 0, 1, -45)
@@ -931,7 +999,6 @@ local function criarAppS()
         appCriado = true
         print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
     else
-        -- Fallback
         local iconGui = Instance.new("ScreenGui")
         iconGui.Name = "OmnitrixApp"
         iconGui.ResetOnSpawn = false
@@ -986,10 +1053,8 @@ local function criarAppS()
     end
 end
 
--- Inicializa o app "S"
+-- Inicializa app e botões
 criarAppS()
-
--- Inicializa os botões 1-5
 criarBotoes()
 
 -- =============================================
@@ -1015,7 +1080,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (sem Extras)
+-- MENU – WINDUI (com aba Extra)
 -- =============================================
 local oldWindow = nil
 
@@ -1084,9 +1149,11 @@ local function CriarMenu()
         Draggable = false
     })
 
+    -- Abas
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
+    local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
     -- ====== ABA MAIN ======
@@ -1252,6 +1319,231 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
+    -- ====== ABA EXTRA ======
+    -- Variáveis para o dropdown e toggle
+    local dropdownMusica = nil
+    local toggleMusicaRef = nil
+
+    TabExtra:Section({ Title = lang.SecExtra })
+
+    -- Dropdown de músicas
+    local nomesMusicas = {}
+    for _, musica in ipairs(Config.MusicasSalvas) do
+        table.insert(nomesMusicas, musica.nome)
+    end
+
+    dropdownMusica = TabExtra:Dropdown({
+        Title = lang.DropMusica,
+        Values = nomesMusicas,
+        Value = Config.MusicaAtual or "Bem 10",
+        Callback = function(value)
+            Config.MusicaAtual = value
+            SaveConfig()
+            -- Se o toggle estiver ativo, troca a música automaticamente
+            if Config.TocarMusica then
+                local musicaEncontrada = nil
+                for _, m in ipairs(Config.MusicasSalvas) do
+                    if m.nome == value then
+                        musicaEncontrada = m
+                        break
+                    end
+                end
+                if musicaEncontrada then
+                    pararMusica()
+                    tocarMusica(musicaEncontrada.id)
+                end
+            end
+        end
+    })
+
+    -- Toggle Tocar Música
+    toggleMusicaRef = TabExtra:Toggle({
+        Title = lang.ToggleMusica,
+        Value = Config.TocarMusica,
+        Callback = function(value)
+            Config.TocarMusica = value
+            SaveConfig()
+            if value then
+                -- Toca a música selecionada
+                local musicaSelecionada = Config.MusicaAtual or "Bem 10"
+                local musicaEncontrada = nil
+                for _, m in ipairs(Config.MusicasSalvas) do
+                    if m.nome == musicaSelecionada then
+                        musicaEncontrada = m
+                        break
+                    end
+                end
+                if musicaEncontrada then
+                    tocarMusica(musicaEncontrada.id)
+                else
+                    -- Fallback para a primeira música da lista
+                    if Config.MusicasSalvas[1] then
+                        tocarMusica(Config.MusicasSalvas[1].id)
+                    end
+                end
+            else
+                pararMusica()
+            end
+        end
+    })
+
+    -- Botão Salvar Música
+    TabExtra:Button({
+        Title = lang.BtnSalvarMusica,
+        Callback = function()
+            -- Cria um menu flutuante para salvar música
+            local saveGui = Instance.new("ScreenGui")
+            saveGui.Name = "SalvarMusicaGui"
+            saveGui.ResetOnSpawn = false
+            saveGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            saveGui.Parent = coreGui
+
+            local mainFrame = Instance.new("Frame")
+            mainFrame.Size = UDim2.new(0, 400, 0, 250)
+            mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+            mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+            mainFrame.BackgroundTransparency = 0.05
+            mainFrame.BorderSizePixel = 0
+            mainFrame.Parent = saveGui
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 16)
+            corner.Parent = mainFrame
+
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.fromRGB(200, 50, 50)
+            stroke.Thickness = 2
+            stroke.Parent = mainFrame
+
+            -- Título
+            local titleLabel = Instance.new("TextLabel")
+            titleLabel.Size = UDim2.new(1, 0, 0, 40)
+            titleLabel.Position = UDim2.new(0, 0, 0, 0)
+            titleLabel.BackgroundTransparency = 1
+            titleLabel.Text = lang.TituloSalvarMusica
+            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLabel.TextSize = 18
+            titleLabel.Font = Enum.Font.GothamBold
+            titleLabel.Parent = mainFrame
+
+            -- Botão fechar (X vermelho)
+            local closeBtn = Instance.new("TextButton")
+            closeBtn.Size = UDim2.new(0, 35, 0, 35)
+            closeBtn.Position = UDim2.new(1, -45, 0, 5)
+            closeBtn.BackgroundTransparency = 1
+            closeBtn.Text = "✕"
+            closeBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
+            closeBtn.TextSize = 22
+            closeBtn.Font = Enum.Font.GothamBold
+            closeBtn.Parent = mainFrame
+            closeBtn.MouseButton1Click:Connect(function()
+                saveGui:Destroy()
+            end)
+
+            -- Campo ID da Música
+            local idLabel = Instance.new("TextLabel")
+            idLabel.Size = UDim2.new(0, 80, 0, 30)
+            idLabel.Position = UDim2.new(0, 15, 0, 50)
+            idLabel.BackgroundTransparency = 1
+            idLabel.Text = lang.LabelID .. ":"
+            idLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            idLabel.TextSize = 14
+            idLabel.Font = Enum.Font.Gotham
+            idLabel.Parent = mainFrame
+
+            local idBox = Instance.new("TextBox")
+            idBox.Size = UDim2.new(0, 280, 0, 30)
+            idBox.Position = UDim2.new(0, 100, 0, 50)
+            idBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+            idBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            idBox.TextSize = 14
+            idBox.Font = Enum.Font.Gotham
+            idBox.PlaceholderText = "Ex: 92524084286516"
+            idBox.Text = ""
+            idBox.Parent = mainFrame
+
+            local idBoxCorner = Instance.new("UICorner")
+            idBoxCorner.CornerRadius = UDim.new(0, 6)
+            idBoxCorner.Parent = idBox
+
+            -- Campo Nome da Música
+            local nomeLabel = Instance.new("TextLabel")
+            nomeLabel.Size = UDim2.new(0, 80, 0, 30)
+            nomeLabel.Position = UDim2.new(0, 15, 0, 95)
+            nomeLabel.BackgroundTransparency = 1
+            nomeLabel.Text = lang.LabelNome .. ":"
+            nomeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            nomeLabel.TextSize = 14
+            nomeLabel.Font = Enum.Font.Gotham
+            nomeLabel.Parent = mainFrame
+
+            local nomeBox = Instance.new("TextBox")
+            nomeBox.Size = UDim2.new(0, 280, 0, 30)
+            nomeBox.Position = UDim2.new(0, 100, 0, 95)
+            nomeBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+            nomeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nomeBox.TextSize = 14
+            nomeBox.Font = Enum.Font.Gotham
+            nomeBox.PlaceholderText = "Ex: Bem 10"
+            nomeBox.Text = ""
+            nomeBox.Parent = mainFrame
+
+            local nomeBoxCorner = Instance.new("UICorner")
+            nomeBoxCorner.CornerRadius = UDim.new(0, 6)
+            nomeBoxCorner.Parent = nomeBox
+
+            -- Botão Aplicar
+            local aplicarBtn = Instance.new("TextButton")
+            aplicarBtn.Size = UDim2.new(0, 120, 0, 40)
+            aplicarBtn.Position = UDim2.new(0.5, -60, 1, -55)
+            aplicarBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            aplicarBtn.Text = lang.BtnAplicar
+            aplicarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            aplicarBtn.TextSize = 16
+            aplicarBtn.Font = Enum.Font.GothamBold
+            aplicarBtn.Parent = mainFrame
+
+            local aplicarCorner = Instance.new("UICorner")
+            aplicarCorner.CornerRadius = UDim.new(0, 8)
+            aplicarCorner.Parent = aplicarBtn
+
+            aplicarBtn.MouseButton1Click:Connect(function()
+                local id = idBox.Text
+                local nome = nomeBox.Text
+                if id ~= "" and nome ~= "" then
+                    -- Adiciona à lista
+                    table.insert(Config.MusicasSalvas, { nome = nome, id = id })
+                    Config.MusicaAtual = nome
+                    SaveConfig()
+                    -- Atualiza o dropdown
+                    local novosNomes = {}
+                    for _, m in ipairs(Config.MusicasSalvas) do
+                        table.insert(novosNomes, m.nome)
+                    end
+                    dropdownMusica:Refresh(novosNomes, true)
+                    dropdownMusica:SetValue(nome)
+                    -- Se o toggle estiver ativo, toca a nova música
+                    if Config.TocarMusica then
+                        pararMusica()
+                        tocarMusica(id)
+                    end
+                    saveGui:Destroy()
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Música",
+                        Text = "Música salva: " .. nome,
+                        Duration = 2
+                    })
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Erro",
+                        Text = "Preencha todos os campos!",
+                        Duration = 2
+                    })
+                end
+            end)
+        end
+    })
+
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
@@ -1320,6 +1612,10 @@ local function CriarMenu()
             Config.BossKraken = false
             Config.BossTransDimensional = false
             Config.AlienSlots = { "heatblast", "fourarms", "diamondhead", "xrl8", "stinkfly" }
+            Config.MusicasSalvas = { { nome = "Bem 10", id = "92524084286516" } }
+            Config.MusicaAtual = "Bem 10"
+            Config.TocarMusica = false
+            pararMusica()
             SaveConfig()
             if Window.Notify then
                 Window:Notify({
@@ -1354,8 +1650,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Teclas: G H J K L",
+    Text = "Carregado! Aba Extra com música.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use G H J K L para transformar.")
+print("Project Sor carregado. Aba Extra disponível.")
