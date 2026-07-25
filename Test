@@ -18,7 +18,7 @@ local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES (inclui os slots)
+-- CONFIGURAÇÕES PERSISTENTES
 -- =============================================
 local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
 
@@ -187,8 +187,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Abrir interface dos slots (1-5)",
+        BtnControleMestre = "⚡ Controle Mestre (App)",
+        DescControleMestre = "Cria o app 'S' no celular com 5 slots",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -254,8 +254,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Abrir interfaz de slots (1-5)",
+        BtnControleMestre = "⚡ Control Maestro (App)",
+        DescControleMestre = "Crea la app 'S' en el celular con 5 slots",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -321,8 +321,8 @@ local Idiomas = {
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
-        BtnControleMestre = "⚡ Master Control",
-        DescControleMestre = "Open slots interface (1-5)",
+        BtnControleMestre = "⚡ Master Control (App)",
+        DescControleMestre = "Creates 'S' app on cellphone with 5 slots",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -595,162 +595,193 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - INTERFACE DOS SLOTS (PERSISTENTE)
+-- CONTROLE MESTRE - APP NO CELULAR
 -- =============================================
-local slotGui = nil
-local slotsVisible = false
-
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
     pcall(function()
-        local remote = ReplicatedStorage:WaitForChild("RemoteFunctions", 3)
-            :WaitForChild("Character", 3)
-            :WaitForChild("Morph", 3)
-            :WaitForChild("AlienMorph", 3)
+        local remote = ReplicatedStorage:FindFirstChild("RemoteFunctions")
+            and ReplicatedStorage.RemoteFunctions:FindFirstChild("Character")
+            and ReplicatedStorage.RemoteFunctions.Character:FindFirstChild("Morph")
+            and ReplicatedStorage.RemoteFunctions.Character.Morph:FindFirstChild("AlienMorph")
         if remote then
             remote:InvokeServer(tostring(nomeAlien), 0.3)
             print("[Omnitrix] Transformando em: " .. tostring(nomeAlien))
+        else
+            warn("[Omnitrix] Remote não encontrado!")
         end
     end)
 end
 
--- Cria a interface dos slots (com salvação imediata)
-local function criarSlotGUI()
-    if slotGui then
-        slotGui.Enabled = true
-        slotsVisible = true
-        return
-    end
+-- Função para criar o app "S" no celular
+local function criarAppNoCelular()
+    -- Verifica se o celular existe
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    local hud = playerGui:FindFirstChild("HUD")
+    if not hud then return end
+    local cellphone = hud:FindFirstChild("Cellphone")
+    if not cellphone then return end
+    local interface = cellphone:FindFirstChild("Interface")
+    if not interface then return end
+    local apps = interface:FindFirstChild("Apps")
+    if not apps then return end
 
-    slotGui = Instance.new("ScreenGui")
-    slotGui.Name = "OmnitrixSlots"
-    slotGui.ResetOnSpawn = false
-    slotGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    slotGui.Parent = coreGui
+    -- Remove app antigo se existir
+    local oldApp = apps:FindFirstChild("SorOmnitrix")
+    if oldApp then oldApp:Destroy() end
 
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 300, 0, 280)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    mainFrame.BackgroundTransparency = 0.1
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = slotGui
+    -- Cria o app
+    local appFrame = Instance.new("Frame")
+    appFrame.Name = "SorOmnitrix"
+    appFrame.Size = UDim2.new(0, 60, 0, 60)
+    appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Fundo preto
+    appFrame.BorderSizePixel = 0
+    appFrame.Parent = apps
 
+    -- Bordas arredondadas
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = mainFrame
+    corner.Parent = appFrame
 
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(80, 180, 255)
-    stroke.Thickness = 2
-    stroke.Parent = mainFrame
+    -- Letra "S" vermelha
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "S"
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextSize = 40
+    label.Font = Enum.Font.GothamBold
+    label.TextScaled = true
+    label.Parent = appFrame
 
-    -- Título
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "🔢 Aliens (1-5)"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.Parent = mainFrame
-
-    -- Botão fechar
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0, 5)
-    closeBtn.BackgroundTransparency = 1
-    closeBtn.Text = "✕"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-    closeBtn.TextSize = 18
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = mainFrame
-    closeBtn.MouseButton1Click:Connect(function()
-        slotGui.Enabled = false
-        slotsVisible = false
-    end)
-
-    -- Criar 5 caixas de texto com salvamento automático
-    for i = 1, 5 do
-        local yPos = 35 + (i - 1) * 45
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 40, 0, 30)
-        label.Position = UDim2.new(0, 10, 0, yPos)
-        label.BackgroundTransparency = 1
-        label.Text = "Slot " .. i .. ":"
-        label.TextColor3 = Color3.fromRGB(200, 200, 200)
-        label.TextSize = 14
-        label.Font = Enum.Font.Gotham
-        label.TextXAlignment = Enum.TextXAlignment.Right
-        label.Parent = mainFrame
-
-        local textBox = Instance.new("TextBox")
-        textBox.Size = UDim2.new(0, 200, 0, 30)
-        textBox.Position = UDim2.new(0, 55, 0, yPos)
-        textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textBox.TextSize = 14
-        textBox.Font = Enum.Font.Gotham
-        textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
-        textBox.Text = Config.AlienSlots[i] or "heatblast"
-        textBox.Parent = mainFrame
-
-        local boxCorner = Instance.new("UICorner")
-        boxCorner.CornerRadius = UDim.new(0, 6)
-        boxCorner.Parent = textBox
-
-        -- Função para salvar o valor
-        local function salvarSlot()
-            local valor = textBox.Text
-            if valor ~= "" then
-                Config.AlienSlots[i] = valor
-                SaveConfig()
-                textBox.PlaceholderText = valor
-                print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
-            else
-                -- Se vazio, restaura o último valor salvo
-                textBox.Text = Config.AlienSlots[i] or "heatblast"
+    -- Ícone (opcional) - clique para abrir
+    local function abrirInterfaceSlots()
+        -- Cria a interface de slots dentro do app (ou em um Frame separado)
+        local slotInterface = appFrame:FindFirstChild("SlotsInterface")
+        if slotInterface then
+            slotInterface.Visible = not slotInterface.Visible
+            if slotInterface.Visible then
+                -- Atualiza valores
+                for i = 1, 5 do
+                    local tb = slotInterface:FindFirstChild("Slot" .. i)
+                    if tb then
+                        tb.Text = Config.AlienSlots[i] or ""
+                        tb.PlaceholderText = Config.AlienSlots[i] or "heatblast"
+                    end
+                end
             end
+            return
         end
 
-        -- Salva ao perder foco (quando clica fora ou pressiona Enter)
-        textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                salvarSlot()
+        -- Cria a interface de slots (sobreposta)
+        local slotFrame = Instance.new("Frame")
+        slotFrame.Name = "SlotsInterface"
+        slotFrame.Size = UDim2.new(0, 250, 0, 280)
+        slotFrame.Position = UDim2.new(0.5, -125, 0.5, -140)
+        slotFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+        slotFrame.BackgroundTransparency = 0.1
+        slotFrame.BorderSizePixel = 0
+        slotFrame.Parent = appFrame
+
+        local corner2 = Instance.new("UICorner")
+        corner2.CornerRadius = UDim.new(0, 12)
+        corner2.Parent = slotFrame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(200, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = slotFrame
+
+        -- Título
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 30)
+        title.Position = UDim2.new(0, 0, 0, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "🔢 Aliens (1-5)"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.TextSize = 16
+        title.Font = Enum.Font.GothamBold
+        title.Parent = slotFrame
+
+        -- Botão fechar
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 30, 0, 30)
+        closeBtn.Position = UDim2.new(1, -35, 0, 5)
+        closeBtn.BackgroundTransparency = 1
+        closeBtn.Text = "✕"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+        closeBtn.TextSize = 18
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.Parent = slotFrame
+        closeBtn.MouseButton1Click:Connect(function()
+            slotFrame.Visible = false
+        end)
+
+        -- Criar 5 campos de texto
+        for i = 1, 5 do
+            local yPos = 35 + (i - 1) * 45
+            local labelSlot = Instance.new("TextLabel")
+            labelSlot.Size = UDim2.new(0, 40, 0, 30)
+            labelSlot.Position = UDim2.new(0, 10, 0, yPos)
+            labelSlot.BackgroundTransparency = 1
+            labelSlot.Text = "Slot " .. i .. ":"
+            labelSlot.TextColor3 = Color3.fromRGB(200, 200, 200)
+            labelSlot.TextSize = 13
+            labelSlot.Font = Enum.Font.Gotham
+            labelSlot.TextXAlignment = Enum.TextXAlignment.Right
+            labelSlot.Parent = slotFrame
+
+            local textBox = Instance.new("TextBox")
+            textBox.Name = "Slot" .. i
+            textBox.Size = UDim2.new(0, 180, 0, 30)
+            textBox.Position = UDim2.new(0, 55, 0, yPos)
+            textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+            textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            textBox.TextSize = 13
+            textBox.Font = Enum.Font.Gotham
+            textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
+            textBox.Text = Config.AlienSlots[i] or "heatblast"
+            textBox.Parent = slotFrame
+
+            local boxCorner = Instance.new("UICorner")
+            boxCorner.CornerRadius = UDim.new(0, 6)
+            boxCorner.Parent = textBox
+
+            -- Função de salvar
+            local function salvarSlot()
+                local valor = textBox.Text
+                if valor ~= "" then
+                    Config.AlienSlots[i] = valor
+                    SaveConfig()
+                    textBox.PlaceholderText = valor
+                    print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
+                else
+                    textBox.Text = Config.AlienSlots[i] or "heatblast"
+                end
             end
-        end)
 
-        -- Também salva ao pressionar Enter diretamente
-        textBox:GetPropertyChangedSignal("Text"):Connect(function()
-            -- Não salva a cada caractere para não sobrecarregar, mas podemos
-            -- usar um debounce ou salvar apenas se o texto mudar e o Enter for pressionado
-        end)
+            textBox.FocusLost:Connect(function(enterPressed)
+                if enterPressed then
+                    salvarSlot()
+                end
+            end)
 
-        -- Para garantir que ao clicar em um botão ou tecla o valor seja salvo,
-        -- adicionamos um evento de perda de foco que sempre salva (quando o foco sai)
-        textBox.FocusLost:Connect(function()
-            -- Salva sempre que perder o foco, independente do Enter
-            salvarSlot()
-        end)
+            -- Salva ao perder foco de qualquer forma
+            textBox.FocusLost:Connect(function()
+                salvarSlot()
+            end)
+        end
+
+        slotFrame.Visible = true
     end
 
-    slotsVisible = true
-end
-
--- Toggle da interface
-local function toggleSlots()
-    if slotGui and slotGui.Enabled == true then
-        slotGui.Enabled = false
-        slotsVisible = false
-    else
-        criarSlotGUI()
-    end
+    appFrame.MouseButton1Click:Connect(abrirInterfaceSlots)
+    print("[Omnitrix] App 'S' criado no celular!")
 end
 
 -- =============================================
--- LEITOR DE TECLAS (1-5) - USA O VALOR SALVO
+-- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
 -- =============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -1017,8 +1048,7 @@ local function CriarMenu()
         Title = lang.BtnControleMestre,
         Desc = lang.DescControleMestre,
         Callback = function()
-            toggleSlots()
-            -- Ativa os valores do Master Control no jogo
+            -- Ativa o Master Control
             pcall(function()
                 local function addValor(caminho, nome)
                     if caminho then
@@ -1048,12 +1078,13 @@ local function CriarMenu()
                     f2.Name = "Ominitrix_Unlocker"
                     addValor(f2, "Give_Master_Control")
                 end
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Omnitrix",
-                    Text = "Master Control ativado! Interface aberta.",
-                    Duration = 3
-                })
             end)
+            criarAppNoCelular()
+            StarterGui:SetCore("SendNotification", {
+                Title = "Omnitrix",
+                Text = "App 'S' criado no celular!",
+                Duration = 3
+            })
         end
     })
 
@@ -1159,8 +1190,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Slots do Omnitrix salvos.",
+    Text = "Carregado! App 'S' no celular disponível.",
     Duration = 3
 })
 
-print("Project Sor carregado. Configurações persistentes ativas. Use 1-5 para transformar.")
+print("Project Sor carregado. Use o botão 'Controle Mestre' para criar o app no celular.")
