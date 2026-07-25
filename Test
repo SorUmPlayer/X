@@ -1,3 +1,6 @@
+-- =============================================
+-- SCRIPT PRINCIPAL (Project Sor)
+-- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
@@ -9,16 +12,16 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES (SALVAS EM ARQUIVO)
+-- CONFIGURAÇÕES PERSISTENTES
 -- =============================================
 local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
 
--- Carrega as configurações salvas ou usa padrões
 local function LoadConfig()
     if not isfile then return {} end
     if isfile(CONFIG_FILE) then
@@ -32,7 +35,6 @@ local function LoadConfig()
     return {}
 end
 
--- Salva as configurações no arquivo
 local function SaveConfigToFile(configTable)
     if not writefile then return end
     local success, json = pcall(function()
@@ -43,7 +45,6 @@ local function SaveConfigToFile(configTable)
     end
 end
 
--- Inicializa o Config com valores padrão e sobrescreve com os salvos
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -62,12 +63,9 @@ for k, v in pairs(savedConfig) do
     Config[k] = v
 end
 
--- Função para salvar imediatamente
 local function SaveConfig()
     SaveConfigToFile(Config)
 end
-
--- Salva automaticamente a cada alteração (já que chamaremos SaveConfig() em cada callback)
 
 -- =============================================
 -- INTRO (SPLASH)
@@ -127,7 +125,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo - igual ao anterior)
+-- DICIONÁRIO DE IDIOMAS (completo)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -174,6 +172,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
+        SecGamePass = "🎮 GamePass",
+        BtnControleMestre = "⚡ Controle Mestre",
+        DescControleMestre = "Ativa o Master Control e sincroniza com o Cell",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -236,6 +237,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
+        SecGamePass = "🎮 GamePass",
+        BtnControleMestre = "⚡ Control Maestro",
+        DescControleMestre = "Activa el Master Control y sincroniza con el Cell",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -298,6 +302,9 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
+        SecGamePass = "🎮 GamePass",
+        BtnControleMestre = "⚡ Master Control",
+        DescControleMestre = "Activates Master Control and syncs with Cell",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -319,7 +326,7 @@ local Idiomas = {
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES - igual ao anterior)
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -351,7 +358,7 @@ local function ArmFire(targetRoot)
 end
 
 -- =============================================
--- LÓGICA DE ALVO E TELEPORTE (igual)
+-- LÓGICA DE ALVO E TELEPORTE
 -- =============================================
 local function getLocalCharacter()
     local char = LocalPlayer.Character
@@ -566,6 +573,190 @@ end
 if Config.AntiAFK then
     task.spawn(startAntiAFK)
 end
+
+-- =============================================
+-- CONTROLE MESTRE (CORRIGIDO E INTEGRADO)
+-- =============================================
+local function darMasterControl()
+    local function adicionarValor(caminhoPai, nomeDoItem)
+        if not caminhoPai then return false end
+        local itemExistente = caminhoPai:FindFirstChild(nomeDoItem)
+        if not itemExistente then
+            local novoValor = Instance.new("BoolValue")
+            novoValor.Name = nomeDoItem
+            novoValor.Value = true
+            novoValor.Parent = caminhoPai
+        else
+            if itemExistente:IsA("BoolValue") then
+                itemExistente.Value = true
+            end
+        end
+        return true
+    end
+
+    -- 1 e 2: MasterControl e Partial_MasterControl
+    local atributos = LocalPlayer:FindFirstChild("atributos")
+    if atributos then
+        local omnitrixProps = atributos:FindFirstChild("Ominitrix_Properties")
+        if not omnitrixProps then
+            omnitrixProps = Instance.new("Folder")
+            omnitrixProps.Name = "Ominitrix_Properties"
+            omnitrixProps.Parent = atributos
+        end
+        adicionarValor(omnitrixProps, "MasterControl")
+        adicionarValor(omnitrixProps, "Partial_MasterControl")
+    end
+
+    -- 3: Give_Master_Control
+    local inventory = LocalPlayer:FindFirstChild("Inventory")
+    if inventory then
+        local unlocker1 = inventory:FindFirstChild("Ominitrix_Unlocker")
+        if not unlocker1 then
+            unlocker1 = Instance.new("Folder")
+            unlocker1.Name = "Ominitrix_Unlocker"
+            unlocker1.Parent = inventory
+        end
+        local unlocker2 = unlocker1:FindFirstChild("Ominitrix_Unlocker")
+        if not unlocker2 then
+            unlocker2 = Instance.new("Folder")
+            unlocker2.Name = "Ominitrix_Unlocker"
+            unlocker2.Parent = unlocker1
+        end
+        adicionarValor(unlocker2, "Give_Master_Control")
+    end
+
+    -- 4: Interface do Cellphone
+    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
+
+    if appsFolder then
+        local appPartialMaster = appsFolder:FindFirstChild("Partial_Master_Control")
+        if not appPartialMaster then
+            appPartialMaster = Instance.new("Frame")
+            appPartialMaster.Name = "Partial_Master_Control"
+            appPartialMaster.Size = UDim2.new(0, 50, 0, 50)
+            appPartialMaster.Parent = appsFolder
+        end
+
+        if not appPartialMaster:FindFirstChild("UICorner") then
+            local uiCorner = Instance.new("UICorner")
+            uiCorner.Name = "UICorner"
+            uiCorner.CornerRadius = UDim.new(0, 8)
+            uiCorner.Parent = appPartialMaster
+        end
+
+        -- alien_Cell
+        local alienCell = appPartialMaster:FindFirstChild("alien_Cell")
+        if not alienCell then
+            alienCell = Instance.new("Folder")
+            alienCell.Name = "alien_Cell"
+            alienCell.Parent = appPartialMaster
+        end
+
+        -- Cria os slots com valor padrão "heatblast"
+        for i = 1, 5 do
+            local slotName = tostring(i)
+            local alienSlot = alienCell:FindFirstChild(slotName)
+            if not alienSlot then
+                alienSlot = Instance.new("StringValue")
+                alienSlot.Name = slotName
+                alienSlot.Value = "heatblast"
+                alienSlot.Parent = alienCell
+            end
+        end
+
+        -- SINCRONIZADOR CORRIGIDO: monitora todas as TextBox e atualiza o slot correspondente
+        -- Vamos procurar por TextBox dentro do app Partial_Master_Control
+        local function sincronizarTextBoxes()
+            for _, elemento in ipairs(appPartialMaster:GetDescendants()) do
+                if elemento:IsA("TextBox") then
+                    -- Remove conexões antigas para evitar duplicidade
+                    if elemento._focusLostCon then
+                        elemento._focusLostCon:Disconnect()
+                    end
+                    elemento._focusLostCon = elemento.FocusLost:Connect(function()
+                        local textoDigitado = elemento.Text
+                        if textoDigitado == "" then return end
+                        -- Tenta identificar o slot (1 a 5) baseado no nome do elemento ou do pai
+                        local slotNumero = nil
+                        local nome = elemento.Name:lower()
+                        local paiNome = elemento.Parent and elemento.Parent.Name:lower()
+                        for i = 1, 5 do
+                            if nome:match(tostring(i)) or (paiNome and paiNome:match(tostring(i))) then
+                                slotNumero = tostring(i)
+                                break
+                            end
+                        end
+                        if slotNumero then
+                            local slot = alienCell:FindFirstChild(slotNumero)
+                            if slot then
+                                slot.Value = textoDigitado
+                                print("[Omnitrix] Slot " .. slotNumero .. " atualizado para: " .. textoDigitado)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+
+        -- Sincroniza agora e sempre que a interface for atualizada
+        sincronizarTextBoxes()
+        -- Observa mudanças na estrutura do app para sincronizar novas TextBox
+        appPartialMaster.DescendantAdded:Connect(function(desc)
+            if desc:IsA("TextBox") then
+                sincronizarTextBoxes()
+            end
+        end)
+
+        print("[Omnitrix] Master Control ativado e sincronizado com o Cell.")
+    end
+end
+
+-- =============================================
+-- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
+-- =============================================
+local function transformarAlien(nomeAlien)
+    if not nomeAlien or nomeAlien == "" then return end
+    pcall(function()
+        local remote = ReplicatedStorage:WaitForChild("RemoteFunctions", 3)
+            :WaitForChild("Character", 3)
+            :WaitForChild("Morph", 3)
+            :WaitForChild("AlienMorph", 3)
+        if remote then
+            remote:InvokeServer(tostring(nomeAlien), 0.3)
+            print("[Omnitrix] Transformando em: " .. tostring(nomeAlien))
+        end
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    local slotNumero = nil
+    if input.KeyCode == Enum.KeyCode.One then slotNumero = "1" end
+    if input.KeyCode == Enum.KeyCode.Two then slotNumero = "2" end
+    if input.KeyCode == Enum.KeyCode.Three then slotNumero = "3" end
+    if input.KeyCode == Enum.KeyCode.Four then slotNumero = "4" end
+    if input.KeyCode == Enum.KeyCode.Five then slotNumero = "5" end
+
+    if slotNumero then
+        local alienCell = LocalPlayer:FindFirstChild("PlayerGui")
+            and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+            and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+            and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps:FindFirstChild("Partial_Master_Control")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps.Partial_Master_Control:FindFirstChild("alien_Cell")
+        if alienCell then
+            local slot = alienCell:FindFirstChild(slotNumero)
+            if slot then
+                transformarAlien(slot.Value)
+            end
+        end
+    end
+end)
 
 -- =============================================
 -- MENU – WINDUI
@@ -807,8 +998,20 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
-    -- ====== ABA EXTRAS (vazia) ======
-    -- (nenhum conteúdo ainda)
+    -- ====== ABA EXTRAS ======
+    TabExtras:Section({ Title = lang.SecGamePass })
+    TabExtras:Button({
+        Title = lang.BtnControleMestre,
+        Desc = lang.DescControleMestre,
+        Callback = function()
+            darMasterControl()
+            StarterGui:SetCore("SendNotification", {
+                Title = "Omnitrix",
+                Text = "Master Control ativado! Use 1-5 para transformar.",
+                Duration = 3
+            })
+        end
+    })
 
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
@@ -853,7 +1056,6 @@ local function CriarMenu()
         end
     })
 
-    -- Botão de salvamento manual (opcional, pois já salvamos automaticamente)
     TabConfig:Button({
         Title = lang.BtnManualSave,
         Desc = lang.DescManualSave,
@@ -912,8 +1114,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso! Configurações persistentes.",
+    Text = "Carregado com sucesso!",
     Duration = 3
 })
 
-print("Project Sor carregado. Todas as opções são salvas automaticamente.")
+print("Project Sor carregado. Configurações persistentes ativas.")
