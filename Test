@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT PRINCIPAL (Project Sor)
+-- SCRIPT COMPLETO (Project Sor)
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -18,7 +18,7 @@ local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES
+-- CONFIGURAÇÕES PERSISTENTES (inclui os slots)
 -- =============================================
 local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
 
@@ -45,7 +45,6 @@ local function SaveConfigToFile(configTable)
     end
 end
 
--- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -58,11 +57,24 @@ local Config = {
     BossShip = false,
     BossKraken = false,
     BossTransDimensional = false,
-    AlienSlots = {}, -- { ["1"] = "heatblast", ["2"] = "diamondhead", ... }
+    -- Slots do Omnitrix (5 aliens)
+    AlienSlots = {
+        "heatblast",  -- slot 1
+        "fourarms",   -- slot 2
+        "diamondhead",-- slot 3
+        "xrl8",       -- slot 4
+        "stinkfly"    -- slot 5
+    }
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
-    Config[k] = v
+    if k == "AlienSlots" and type(v) == "table" then
+        for i = 1, 5 do
+            if v[i] then Config.AlienSlots[i] = v[i] end
+        end
+    else
+        Config[k] = v
+    end
 end
 
 local function SaveConfig()
@@ -176,7 +188,7 @@ local Idiomas = {
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Ativa o Master Control e cria os chats 1-5",
+        DescControleMestre = "Abrir interface dos slots (1-5)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -193,7 +205,9 @@ local Idiomas = {
         NotifTitle = "Configuração Resetada",
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente"
+        DescManualSave = "Salva todas as opções manualmente",
+        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
+        SlotPlaceholder = "Digite o nome do alien..."
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
@@ -241,7 +255,7 @@ local Idiomas = {
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Activa el Master Control y crea los chats 1-5",
+        DescControleMestre = "Abrir interfaz de slots (1-5)",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -258,7 +272,9 @@ local Idiomas = {
         NotifTitle = "Configuración Reiniciada",
         NotifDesc = "Raid desactivada e idioma restablecido.",
         BtnManualSave = "💾 Guardar Configuraciones",
-        DescManualSave = "Guarda todas las opciones manualmente"
+        DescManualSave = "Guarda todas las opciones manualmente",
+        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
+        SlotPlaceholder = "Escribe el nombre del alien..."
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
@@ -306,7 +322,7 @@ local Idiomas = {
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Master Control",
-        DescControleMestre = "Activates Master Control and creates chats 1-5",
+        DescControleMestre = "Open slots interface (1-5)",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -323,7 +339,9 @@ local Idiomas = {
         NotifTitle = "Config Reset",
         NotifDesc = "Raid disabled and language reset.",
         BtnManualSave = "💾 Save Settings",
-        DescManualSave = "Saves all options manually"
+        DescManualSave = "Saves all options manually",
+        SlotTitle = "🔢 Configure Aliens (Keys 1-5)",
+        SlotPlaceholder = "Type alien name..."
     }
 }
 
@@ -577,173 +595,11 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE (CORRIGIDO COM CHATS E SALVAMENTO)
+-- CONTROLE MESTRE - INTERFACE DOS SLOTS (PERSISTENTE)
 -- =============================================
-local function darMasterControl()
-    local function adicionarValor(caminhoPai, nomeDoItem)
-        if not caminhoPai then return false end
-        local itemExistente = caminhoPai:FindFirstChild(nomeDoItem)
-        if not itemExistente then
-            local novoValor = Instance.new("BoolValue")
-            novoValor.Name = nomeDoItem
-            novoValor.Value = true
-            novoValor.Parent = caminhoPai
-        else
-            if itemExistente:IsA("BoolValue") then
-                itemExistente.Value = true
-            end
-        end
-        return true
-    end
+local slotGui = nil
+local slotsVisible = false
 
-    -- 1 e 2: MasterControl e Partial_MasterControl
-    local atributos = LocalPlayer:FindFirstChild("atributos")
-    if atributos then
-        local omnitrixProps = atributos:FindFirstChild("Ominitrix_Properties")
-        if not omnitrixProps then
-            omnitrixProps = Instance.new("Folder")
-            omnitrixProps.Name = "Ominitrix_Properties"
-            omnitrixProps.Parent = atributos
-        end
-        adicionarValor(omnitrixProps, "MasterControl")
-        adicionarValor(omnitrixProps, "Partial_MasterControl")
-    end
-
-    -- 3: Give_Master_Control
-    local inventory = LocalPlayer:FindFirstChild("Inventory")
-    if inventory then
-        local unlocker1 = inventory:FindFirstChild("Ominitrix_Unlocker")
-        if not unlocker1 then
-            unlocker1 = Instance.new("Folder")
-            unlocker1.Name = "Ominitrix_Unlocker"
-            unlocker1.Parent = inventory
-        end
-        local unlocker2 = unlocker1:FindFirstChild("Ominitrix_Unlocker")
-        if not unlocker2 then
-            unlocker2 = Instance.new("Folder")
-            unlocker2.Name = "Ominitrix_Unlocker"
-            unlocker2.Parent = unlocker1
-        end
-        adicionarValor(unlocker2, "Give_Master_Control")
-    end
-
-    -- 4: Interface do Cellphone
-    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
-        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
-        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
-        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
-        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
-
-    if not appsFolder then
-        warn("[Omnitrix] Pasta Apps não encontrada.")
-        return
-    end
-
-    -- Criar o app Partial_Master_Control se não existir
-    local appPartialMaster = appsFolder:FindFirstChild("Partial_Master_Control")
-    if not appPartialMaster then
-        appPartialMaster = Instance.new("Frame")
-        appPartialMaster.Name = "Partial_Master_Control"
-        appPartialMaster.Size = UDim2.new(0, 220, 0, 250)
-        appPartialMaster.Position = UDim2.new(0.5, -110, 0.5, -125)
-        appPartialMaster.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        appPartialMaster.BackgroundTransparency = 0.2
-        appPartialMaster.Visible = true
-        appPartialMaster.Parent = appsFolder
-    else
-        appPartialMaster.Visible = true
-    end
-
-    -- Adicionar UICorner
-    if not appPartialMaster:FindFirstChild("UICorner") then
-        local uiCorner = Instance.new("UICorner")
-        uiCorner.Name = "UICorner"
-        uiCorner.CornerRadius = UDim.new(0, 8)
-        uiCorner.Parent = appPartialMaster
-    end
-
-    -- Criar alien_Cell e os slots
-    local alienCell = appPartialMaster:FindFirstChild("alien_Cell")
-    if not alienCell then
-        alienCell = Instance.new("Folder")
-        alienCell.Name = "alien_Cell"
-        alienCell.Parent = appPartialMaster
-    end
-
-    -- Carregar nomes salvos ou usar padrão
-    local savedSlots = Config.AlienSlots or {}
-    for i = 1, 5 do
-        local slotName = tostring(i)
-        local slot = alienCell:FindFirstChild(slotName)
-        if not slot then
-            slot = Instance.new("StringValue")
-            slot.Name = slotName
-            slot.Parent = alienCell
-        end
-        local defaultName = savedSlots[slotName] or "heatblast"
-        slot.Value = defaultName
-    end
-
-    -- Remover chats antigos para recriar
-    for _, child in ipairs(appPartialMaster:GetChildren()) do
-        if child:IsA("TextBox") and child.Name:match("^Chat%d$") then
-            child:Destroy()
-        end
-        if child:IsA("TextLabel") and child.Name:match("^Label%d$") then
-            child:Destroy()
-        end
-    end
-
-    -- Criar 5 chats (TextBox) com labels
-    local yOffset = 20
-    for i = 1, 5 do
-        -- Label do slot
-        local labelGui = Instance.new("TextLabel")
-        labelGui.Name = "Label" .. i
-        labelGui.Size = UDim2.new(0, 30, 0, 20)
-        labelGui.Position = UDim2.new(0, 10, 0, yOffset + (i-1)*40)
-        labelGui.Text = tostring(i)
-        labelGui.TextColor3 = Color3.fromRGB(255, 255, 255)
-        labelGui.BackgroundTransparency = 1
-        labelGui.Font = Enum.Font.GothamBold
-        labelGui.TextSize = 14
-        labelGui.Parent = appPartialMaster
-
-        -- TextBox para digitar o nome do alien
-        local chatBox = Instance.new("TextBox")
-        chatBox.Name = "Chat" .. i
-        chatBox.Size = UDim2.new(0, 140, 0, 25)
-        chatBox.Position = UDim2.new(0, 45, 0, yOffset + (i-1)*40 - 3)
-        chatBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        chatBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        chatBox.Font = Enum.Font.Gotham
-        chatBox.TextSize = 14
-        chatBox.PlaceholderText = "Alien " .. i
-        chatBox.Text = alienCell:FindFirstChild(tostring(i)).Value -- preencher com valor salvo
-        chatBox.Parent = appPartialMaster
-
-        -- Conectar evento para salvar ao perder foco
-        chatBox.FocusLost:Connect(function()
-            local texto = chatBox.Text
-            if texto ~= "" then
-                local slot = alienCell:FindFirstChild(tostring(i))
-                if slot then
-                    slot.Value = texto
-                    if not Config.AlienSlots then Config.AlienSlots = {} end
-                    Config.AlienSlots[tostring(i)] = texto
-                    SaveConfig()
-                    print("[Omnitrix] Slot " .. i .. " atualizado para: " .. texto)
-                end
-            end
-        end)
-    end
-
-    print("[Omnitrix] Master Control ativado e chats criados.")
-end
-
--- =============================================
--- LEITOR DE TECLAS (1-5) PARA TRANSFORMAÇÃO
--- =============================================
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
     pcall(function()
@@ -758,28 +614,159 @@ local function transformarAlien(nomeAlien)
     end)
 end
 
+-- Cria a interface dos slots (com salvação imediata)
+local function criarSlotGUI()
+    if slotGui then
+        slotGui.Enabled = true
+        slotsVisible = true
+        return
+    end
+
+    slotGui = Instance.new("ScreenGui")
+    slotGui.Name = "OmnitrixSlots"
+    slotGui.ResetOnSpawn = false
+    slotGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    slotGui.Parent = coreGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 300, 0, 280)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = slotGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 180, 255)
+    stroke.Thickness = 2
+    stroke.Parent = mainFrame
+
+    -- Título
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🔢 Aliens (1-5)"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.Parent = mainFrame
+
+    -- Botão fechar
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    closeBtn.TextSize = 18
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = mainFrame
+    closeBtn.MouseButton1Click:Connect(function()
+        slotGui.Enabled = false
+        slotsVisible = false
+    end)
+
+    -- Criar 5 caixas de texto com salvamento automático
+    for i = 1, 5 do
+        local yPos = 35 + (i - 1) * 45
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0, 40, 0, 30)
+        label.Position = UDim2.new(0, 10, 0, yPos)
+        label.BackgroundTransparency = 1
+        label.Text = "Slot " .. i .. ":"
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.TextSize = 14
+        label.Font = Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Right
+        label.Parent = mainFrame
+
+        local textBox = Instance.new("TextBox")
+        textBox.Size = UDim2.new(0, 200, 0, 30)
+        textBox.Position = UDim2.new(0, 55, 0, yPos)
+        textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textBox.TextSize = 14
+        textBox.Font = Enum.Font.Gotham
+        textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
+        textBox.Text = Config.AlienSlots[i] or "heatblast"
+        textBox.Parent = mainFrame
+
+        local boxCorner = Instance.new("UICorner")
+        boxCorner.CornerRadius = UDim.new(0, 6)
+        boxCorner.Parent = textBox
+
+        -- Função para salvar o valor
+        local function salvarSlot()
+            local valor = textBox.Text
+            if valor ~= "" then
+                Config.AlienSlots[i] = valor
+                SaveConfig()
+                textBox.PlaceholderText = valor
+                print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
+            else
+                -- Se vazio, restaura o último valor salvo
+                textBox.Text = Config.AlienSlots[i] or "heatblast"
+            end
+        end
+
+        -- Salva ao perder foco (quando clica fora ou pressiona Enter)
+        textBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                salvarSlot()
+            end
+        end)
+
+        -- Também salva ao pressionar Enter diretamente
+        textBox:GetPropertyChangedSignal("Text"):Connect(function()
+            -- Não salva a cada caractere para não sobrecarregar, mas podemos
+            -- usar um debounce ou salvar apenas se o texto mudar e o Enter for pressionado
+        end)
+
+        -- Para garantir que ao clicar em um botão ou tecla o valor seja salvo,
+        -- adicionamos um evento de perda de foco que sempre salva (quando o foco sai)
+        textBox.FocusLost:Connect(function()
+            -- Salva sempre que perder o foco, independente do Enter
+            salvarSlot()
+        end)
+    end
+
+    slotsVisible = true
+end
+
+-- Toggle da interface
+local function toggleSlots()
+    if slotGui and slotGui.Enabled == true then
+        slotGui.Enabled = false
+        slotsVisible = false
+    else
+        criarSlotGUI()
+    end
+end
+
+-- =============================================
+-- LEITOR DE TECLAS (1-5) - USA O VALOR SALVO
+-- =============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     local slotNumero = nil
-    if input.KeyCode == Enum.KeyCode.One then slotNumero = "1" end
-    if input.KeyCode == Enum.KeyCode.Two then slotNumero = "2" end
-    if input.KeyCode == Enum.KeyCode.Three then slotNumero = "3" end
-    if input.KeyCode == Enum.KeyCode.Four then slotNumero = "4" end
-    if input.KeyCode == Enum.KeyCode.Five then slotNumero = "5" end
+    if input.KeyCode == Enum.KeyCode.One then slotNumero = 1 end
+    if input.KeyCode == Enum.KeyCode.Two then slotNumero = 2 end
+    if input.KeyCode == Enum.KeyCode.Three then slotNumero = 3 end
+    if input.KeyCode == Enum.KeyCode.Four then slotNumero = 4 end
+    if input.KeyCode == Enum.KeyCode.Five then slotNumero = 5 end
 
     if slotNumero then
-        local alienCell = LocalPlayer:FindFirstChild("PlayerGui")
-            and LocalPlayer.PlayerGui:FindFirstChild("HUD")
-            and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
-            and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
-            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
-            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps:FindFirstChild("Partial_Master_Control")
-            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps.Partial_Master_Control:FindFirstChild("alien_Cell")
-        if alienCell then
-            local slot = alienCell:FindFirstChild(slotNumero)
-            if slot then
-                transformarAlien(slot.Value)
-            end
+        local alienNome = Config.AlienSlots[slotNumero] or ""
+        if alienNome ~= "" then
+            transformarAlien(alienNome)
+        else
+            print("[Omnitrix] Slot " .. slotNumero .. " está vazio.")
         end
     end
 end)
@@ -1030,12 +1017,43 @@ local function CriarMenu()
         Title = lang.BtnControleMestre,
         Desc = lang.DescControleMestre,
         Callback = function()
-            darMasterControl()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Omnitrix",
-                Text = "Master Control ativado! Use 1-5 para transformar.",
-                Duration = 3
-            })
+            toggleSlots()
+            -- Ativa os valores do Master Control no jogo
+            pcall(function()
+                local function addValor(caminho, nome)
+                    if caminho then
+                        local item = caminho:FindFirstChild(nome)
+                        if not item then
+                            item = Instance.new("BoolValue")
+                            item.Name = nome
+                            item.Value = true
+                            item.Parent = caminho
+                        else
+                            if item:IsA("BoolValue") then item.Value = true end
+                        end
+                    end
+                end
+                local attrs = LocalPlayer:FindFirstChild("atributos")
+                if attrs then
+                    local props = attrs:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", attrs)
+                    props.Name = "Ominitrix_Properties"
+                    addValor(props, "MasterControl")
+                    addValor(props, "Partial_MasterControl")
+                end
+                local inv = LocalPlayer:FindFirstChild("Inventory")
+                if inv then
+                    local f1 = inv:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", inv)
+                    f1.Name = "Ominitrix_Unlocker"
+                    local f2 = f1:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", f1)
+                    f2.Name = "Ominitrix_Unlocker"
+                    addValor(f2, "Give_Master_Control")
+                end
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Omnitrix",
+                    Text = "Master Control ativado! Interface aberta.",
+                    Duration = 3
+                })
+            end)
         end
     })
 
@@ -1106,7 +1124,7 @@ local function CriarMenu()
             Config.BossShip = false
             Config.BossKraken = false
             Config.BossTransDimensional = false
-            Config.AlienSlots = {}
+            Config.AlienSlots = { "heatblast", "fourarms", "diamondhead", "xrl8", "stinkfly" }
             SaveConfig()
             if Window.Notify then
                 Window:Notify({
@@ -1141,8 +1159,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado com sucesso!",
+    Text = "Carregado! Slots do Omnitrix salvos.",
     Duration = 3
 })
 
-print("Project Sor carregado. Configurações persistentes ativas.")
+print("Project Sor carregado. Configurações persistentes ativas. Use 1-5 para transformar.")
