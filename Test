@@ -2,18 +2,18 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
-if CoreGui:FindFirstChild("Btn_PartialMaster") then CoreGui.Btn_PartialMaster:Destroy() end
+if CoreGui:FindFirstChild("Btn_GiveMaster") then CoreGui.Btn_GiveMaster:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "Btn_PartialMaster"
+ScreenGui.Name = "Btn_GiveMaster"
 
 local Button = Instance.new("TextButton", ScreenGui)
 Button.Size = UDim2.new(0, 180, 0, 40)
-Button.Position = UDim2.new(0.5, -90, 0.3, 0)
+Button.Position = UDim2.new(0.5, -90, 0.4, 0)
 Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Button.TextColor3 = Color3.fromRGB(255, 170, 0)
+Button.TextColor3 = Color3.fromRGB(0, 170, 255)
 Button.Font = Enum.Font.GothamBold
-Button.Text = "2. Partial_MasterControl"
+Button.Text = "3. Give_Master_Control"
 Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
 
 local arrastando, inputInicio, posInicio
@@ -31,14 +31,17 @@ Button.InputChanged:Connect(function(input)
 end)
 
 Button.MouseButton1Click:Connect(function()
-    local atributos = LocalPlayer:FindFirstChild("atributos")
-    if atributos then
-        local folder = atributos:FindFirstChild("Ominitrix_Properties") or Instance.new("Folder", atributos)
-        folder.Name = "Ominitrix_Properties"
+    local inventory = LocalPlayer:FindFirstChild("Inventory")
+    if inventory then
+        local folder1 = inventory:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", inventory)
+        folder1.Name = "Ominitrix_Unlocker"
         
-        local val = folder:FindFirstChild("Partial_MasterControl") or Instance.new("BoolValue", folder)
-        val.Name = "Partial_MasterControl"
+        local folder2 = folder1:FindFirstChild("Ominitrix_Unlocker") or Instance.new("Folder", folder1)
+        folder2.Name = "Ominitrix_Unlocker"
+
+        local val = folder2:FindFirstChild("Give_Master_Control") or Instance.new("BoolValue", folder2)
+        val.Name = "Give_Master_Control"
         val.Value = true
-        print("[Teste 2]: Partial_MasterControl Ativado!")
+        print("[Teste 3]: Give_Master_Control Ativado no Inventário!")
     end
 end)
