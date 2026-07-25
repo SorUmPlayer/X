@@ -188,7 +188,7 @@ local Idiomas = {
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Controle Mestre (App)",
-        DescControleMestre = "Cria o app 'S' no celular com 5 slots",
+        DescControleMestre = "Cria o botão 'S' flutuante com 5 slots",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -206,6 +206,8 @@ local Idiomas = {
         NotifDesc = "Raid desativada e idioma resetado.",
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente",
+        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
+        SlotPlaceholder = "Digite o nome do alien..."
     },
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
@@ -253,7 +255,7 @@ local Idiomas = {
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Control Maestro (App)",
-        DescControleMestre = "Crea la app 'S' en el celular con 5 slots",
+        DescControleMestre = "Crea el botón 'S' flotante con 5 slots",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -271,6 +273,8 @@ local Idiomas = {
         NotifDesc = "Raid desactivada e idioma restablecido.",
         BtnManualSave = "💾 Guardar Configuraciones",
         DescManualSave = "Guarda todas las opciones manualmente",
+        SlotTitle = "🔢 Configurar Aliens (Teclas 1-5)",
+        SlotPlaceholder = "Escribe el nombre del alien..."
     },
     ["English"] = {
         TabMain = "Raid & Teleports",
@@ -318,7 +322,7 @@ local Idiomas = {
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Master Control (App)",
-        DescControleMestre = "Creates 'S' app on cellphone with 5 slots",
+        DescControleMestre = "Creates floating 'S' button with 5 slots",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -336,6 +340,8 @@ local Idiomas = {
         NotifDesc = "Raid disabled and language reset.",
         BtnManualSave = "💾 Save Settings",
         DescManualSave = "Saves all options manually",
+        SlotTitle = "🔢 Configure Aliens (Keys 1-5)",
+        SlotPlaceholder = "Type alien name..."
     }
 }
 
@@ -589,7 +595,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE - APP NO CELULAR (CORRIGIDO)
+-- CONTROLE MESTRE - BOTÃO FLUTUANTE E PAINEL CENTRAL
 -- =============================================
 local function transformarAlien(nomeAlien)
     if not nomeAlien or nomeAlien == "" then return end
@@ -607,86 +613,162 @@ local function transformarAlien(nomeAlien)
     end)
 end
 
--- Função que cria a interface de slots (frame flutuante)
-local function criarInterfaceSlots(parentFrame)
-    -- Remove interface antiga se existir
-    local oldInterface = parentFrame:FindFirstChild("SlotsInterface")
-    if oldInterface then oldInterface:Destroy() end
+-- Variáveis da interface
+local floatingButton = nil
+local panelGui = nil
+local panelVisible = false
 
-    local slotFrame = Instance.new("Frame")
-    slotFrame.Name = "SlotsInterface"
-    slotFrame.Size = UDim2.new(0, 280, 0, 320)
-    slotFrame.Position = UDim2.new(0.5, -140, 0.5, -160)
-    slotFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    slotFrame.BackgroundTransparency = 0.1
-    slotFrame.BorderSizePixel = 0
-    slotFrame.Parent = parentFrame
+-- Função para criar o botão flutuante e o painel
+local function criarInterfaceFlutuante()
+    -- Remove interfaces antigas se existirem
+    if floatingButton then floatingButton:Destroy() end
+    if panelGui then panelGui:Destroy() end
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = slotFrame
+    -- Cria ScreenGui para o botão flutuante
+    local btnGui = Instance.new("ScreenGui")
+    btnGui.Name = "FloatingButton_S"
+    btnGui.ResetOnSpawn = false
+    btnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    btnGui.Parent = coreGui
 
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(200, 0, 0)
-    stroke.Thickness = 2
-    stroke.Parent = slotFrame
+    -- Botão flutuante (arrastável) - fundo preto com "S" vermelho
+    local btn = Instance.new("TextButton")
+    btn.Name = "S_Button"
+    btn.Size = UDim2.new(0, 60, 0, 60)
+    btn.Position = UDim2.new(0.8, 0, 0.2, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.BackgroundTransparency = 0.1
+    btn.BorderSizePixel = 0
+    btn.Text = "S"
+    btn.TextColor3 = Color3.fromRGB(255, 0, 0)
+    btn.TextSize = 40
+    btn.Font = Enum.Font.GothamBold
+    btn.TextScaled = true
+    btn.Parent = btnGui
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 12)
+    btnCorner.Parent = btn
+
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Color = Color3.fromRGB(200, 0, 0)
+    btnStroke.Thickness = 2
+    btnStroke.Parent = btn
+
+    -- Lógica de arrastar
+    local dragging = false
+    local dragStart, startPos
+
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = btn.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    btn.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then
+                local delta = input.Position - dragStart
+                btn.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + delta.X,
+                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                )
+            end
+        end
+    end)
+
+    floatingButton = btnGui
+
+    -- Cria o painel central (inicialmente oculto)
+    local panel = Instance.new("ScreenGui")
+    panel.Name = "OmnitrixPanel"
+    panel.ResetOnSpawn = false
+    panel.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    panel.Parent = coreGui
+    panel.Enabled = false  -- começa oculto
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 320, 0, 320)
+    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -160)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = panel
+
+    local panelCorner = Instance.new("UICorner")
+    panelCorner.CornerRadius = UDim.new(0, 16)
+    panelCorner.Parent = mainFrame
+
+    local panelStroke = Instance.new("UIStroke")
+    panelStroke.Color = Color3.fromRGB(200, 0, 0)
+    panelStroke.Thickness = 2
+    panelStroke.Parent = mainFrame
 
     -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Size = UDim2.new(1, 0, 0, 40)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Aliens (1-5)"
+    title.Text = "🔢 Aliens (Teclas 1-5)"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 16
+    title.TextSize = 18
     title.Font = Enum.Font.GothamBold
-    title.Parent = slotFrame
+    title.Parent = mainFrame
 
-    -- Botão fechar
+    -- Botão fechar (X)
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Position = UDim2.new(1, -45, 0, 5)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Text = "✕"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-    closeBtn.TextSize = 18
+    closeBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+    closeBtn.TextSize = 22
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = slotFrame
+    closeBtn.Parent = mainFrame
     closeBtn.MouseButton1Click:Connect(function()
-        slotFrame.Visible = false
+        panel.Enabled = false
+        panelVisible = false
     end)
 
-    -- Criar 5 campos de texto
+    -- 5 campos de texto
     for i = 1, 5 do
-        local yPos = 35 + (i - 1) * 50
-        local labelSlot = Instance.new("TextLabel")
-        labelSlot.Size = UDim2.new(0, 45, 0, 30)
-        labelSlot.Position = UDim2.new(0, 10, 0, yPos)
-        labelSlot.BackgroundTransparency = 1
-        labelSlot.Text = "Slot " .. i .. ":"
-        labelSlot.TextColor3 = Color3.fromRGB(200, 200, 200)
-        labelSlot.TextSize = 13
-        labelSlot.Font = Enum.Font.Gotham
-        labelSlot.TextXAlignment = Enum.TextXAlignment.Right
-        labelSlot.Parent = slotFrame
+        local yPos = 50 + (i - 1) * 50
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0, 50, 0, 35)
+        label.Position = UDim2.new(0, 10, 0, yPos)
+        label.BackgroundTransparency = 1
+        label.Text = "Slot " .. i .. ":"
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.TextSize = 14
+        label.Font = Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Right
+        label.Parent = mainFrame
 
         local textBox = Instance.new("TextBox")
         textBox.Name = "Slot" .. i
-        textBox.Size = UDim2.new(0, 200, 0, 30)
-        textBox.Position = UDim2.new(0, 60, 0, yPos)
+        textBox.Size = UDim2.new(0, 220, 0, 35)
+        textBox.Position = UDim2.new(0, 65, 0, yPos)
         textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
         textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textBox.TextSize = 13
+        textBox.TextSize = 14
         textBox.Font = Enum.Font.Gotham
         textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
         textBox.Text = Config.AlienSlots[i] or "heatblast"
-        textBox.Parent = slotFrame
+        textBox.Parent = mainFrame
 
         local boxCorner = Instance.new("UICorner")
         boxCorner.CornerRadius = UDim.new(0, 6)
         boxCorner.Parent = textBox
 
-        -- Função de salvar
+        -- Salvar ao perder foco
         local function salvarSlot()
             local valor = textBox.Text
             if valor ~= "" then
@@ -700,78 +782,37 @@ local function criarInterfaceSlots(parentFrame)
         end
 
         textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then salvarSlot() end
+            if enterPressed then
+                salvarSlot()
+            end
         end)
+
         textBox.FocusLost:Connect(function()
             salvarSlot()
         end)
     end
 
-    slotFrame.Visible = true
-    return slotFrame
-end
+    panelGui = panel
 
--- Função principal: cria o app no celular
-local function criarAppNoCelular()
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then return end
-    local hud = playerGui:FindFirstChild("HUD")
-    if not hud then return end
-    local cellphone = hud:FindFirstChild("Cellphone")
-    if not cellphone then return end
-    local interface = cellphone:FindFirstChild("Interface")
-    if not interface then return end
-    local apps = interface:FindFirstChild("Apps")
-    if not apps then return end
-
-    -- Remove app antigo
-    local oldApp = apps:FindFirstChild("SorOmnitrix")
-    if oldApp then oldApp:Destroy() end
-
-    -- Cria o app (Frame)
-    local appFrame = Instance.new("Frame")
-    appFrame.Name = "SorOmnitrix"
-    appFrame.Size = UDim2.new(0, 60, 0, 60)
-    appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Fundo preto
-    appFrame.BorderSizePixel = 0
-    appFrame.Parent = apps
-
-    -- Bordas arredondadas
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = appFrame
-
-    -- Cria um TextButton dentro do Frame para capturar o clique (mais confiável)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text = "S"
-    btn.TextColor3 = Color3.fromRGB(255, 0, 0)
-    btn.TextSize = 40
-    btn.Font = Enum.Font.GothamBold
-    btn.TextScaled = true
-    btn.AutoButtonColor = false
-    btn.Parent = appFrame
-
-    -- Estado da interface (se está visível)
-    local interfaceVisible = false
-    local slotInterface = nil
-
-    -- Função para alternar a interface
-    local function toggleInterface()
-        if not slotInterface or slotInterface.Parent == nil then
-            -- Cria a interface dentro do appFrame
-            slotInterface = criarInterfaceSlots(appFrame)
-            interfaceVisible = true
-        else
-            interfaceVisible = not interfaceVisible
-            slotInterface.Visible = interfaceVisible
+    -- Clique no botão flutuante abre/fecha o painel
+    btn.MouseButton1Click:Connect(function()
+        if panelGui then
+            panelVisible = not panelVisible
+            panelGui.Enabled = panelVisible
+            if panelVisible then
+                -- Atualiza os valores nos campos
+                for i = 1, 5 do
+                    local tb = mainFrame:FindFirstChild("Slot" .. i)
+                    if tb then
+                        tb.Text = Config.AlienSlots[i] or ""
+                        tb.PlaceholderText = Config.AlienSlots[i] or "heatblast"
+                    end
+                end
+            end
         end
-    end
+    end)
 
-    btn.MouseButton1Click:Connect(toggleInterface)
-
-    print("[Omnitrix] App 'S' criado no celular!")
+    print("[Omnitrix] Interface flutuante criada!")
 end
 
 -- =============================================
@@ -1073,10 +1114,11 @@ local function CriarMenu()
                     addValor(f2, "Give_Master_Control")
                 end
             end)
-            criarAppNoCelular()
+            -- Cria interface flutuante
+            criarInterfaceFlutuante()
             StarterGui:SetCore("SendNotification", {
                 Title = "Omnitrix",
-                Text = "App 'S' criado no celular! Clique para abrir.",
+                Text = "Botão 'S' criado! Clique para abrir os slots.",
                 Duration = 3
             })
         end
@@ -1184,8 +1226,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! App 'S' disponível no celular.",
+    Text = "Carregado! Clique em 'Controle Mestre' para criar o botão 'S'.",
     Duration = 3
 })
 
-print("Project Sor carregado. Use o botão 'Controle Mestre' para criar o app no celular.")
+print("Project Sor carregado. Use o botão 'Controle Mestre' para criar o botão flutuante.")
