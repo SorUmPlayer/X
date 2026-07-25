@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - ÍCONE "S" COMO APP
+-- SCRIPT COMPLETO (Project Sor) - Teclas G H J K L
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -59,11 +59,11 @@ local Config = {
     BossKraken = false,
     BossTransDimensional = false,
     AlienSlots = {
-        "heatblast",  -- slot 1
-        "fourarms",   -- slot 2
-        "diamondhead",-- slot 3
-        "xrl8",       -- slot 4
-        "stinkfly"    -- slot 5
+        "heatblast",  -- slot 1 (G)
+        "fourarms",   -- slot 2 (H)
+        "diamondhead",-- slot 3 (J)
+        "xrl8",       -- slot 4 (K)
+        "stinkfly"    -- slot 5 (L)
     },
     MostrarBotoes = true
 }
@@ -655,6 +655,8 @@ local function criarBotoes()
     frame.BackgroundTransparency = 1
     frame.Parent = botoesGui
 
+    local teclas = {"G", "H", "J", "K", "L"}
+
     for i = 1, 5 do
         local btn = Instance.new("TextButton")
         btn.Name = "Btn" .. i
@@ -662,9 +664,9 @@ local function criarBotoes()
         btn.Position = UDim2.new(0, 10 + (i-1) * 65, 0, 5)
         btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         btn.BackgroundTransparency = 0.3
-        btn.Text = tostring(i)
+        btn.Text = teclas[i] .. "\n" .. i
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 20
+        btn.TextSize = 14
         btn.Font = Enum.Font.GothamBold
         btn.BorderSizePixel = 0
         btn.Parent = frame
@@ -707,7 +709,6 @@ local isOmnitrixOpen = false
 local appS = nil
 local appCriado = false
 
--- Cria o menu (mesmo de antes)
 local function criarMenu()
     if omnitrixMenu then
         omnitrixMenu.Enabled = true
@@ -722,8 +723,8 @@ local function criarMenu()
     menuGui.Parent = coreGui
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 400, 0, 360)
-    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -180)
+    mainFrame.Size = UDim2.new(0, 430, 0, 380)
+    mainFrame.Position = UDim2.new(0.5, -215, 0.5, -190)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     mainFrame.BackgroundTransparency = 0.05
     mainFrame.BorderSizePixel = 0
@@ -738,16 +739,19 @@ local function criarMenu()
     stroke.Thickness = 2
     stroke.Parent = mainFrame
 
+    -- Título com descrição das teclas
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 35)
+    title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔢 Configurar Aliens"
+    title.Text = "🔢 Configurar Aliens\nTeclas: G=1  H=2  J=3  K=4  L=5"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
+    title.TextSize = 15
     title.Font = Enum.Font.GothamBold
+    title.TextWrapped = true
     title.Parent = mainFrame
 
+    -- Botão fechar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -762,22 +766,24 @@ local function criarMenu()
         isOmnitrixOpen = false
     end)
 
+    local teclas = {"G", "H", "J", "K", "L"}
+
     for i = 1, 5 do
-        local yPos = 40 + (i - 1) * 50
+        local yPos = 55 + (i - 1) * 55
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 35, 0, 30)
+        label.Size = UDim2.new(0, 40, 0, 30)
         label.Position = UDim2.new(0, 10, 0, yPos)
         label.BackgroundTransparency = 1
-        label.Text = i .. "."
+        label.Text = teclas[i] .. "."
         label.TextColor3 = Color3.fromRGB(255, 200, 100)
         label.TextSize = 16
         label.Font = Enum.Font.GothamBold
         label.Parent = mainFrame
 
         local textBox = Instance.new("TextBox")
-        textBox.Size = UDim2.new(0, 250, 0, 30)
-        textBox.Position = UDim2.new(0, 50, 0, yPos)
+        textBox.Size = UDim2.new(0, 260, 0, 30)
+        textBox.Position = UDim2.new(0, 55, 0, yPos)
         textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         textBox.TextSize = 14
@@ -797,7 +803,7 @@ local function criarMenu()
                     Config.AlienSlots[i] = valor
                     SaveConfig()
                     textBox.PlaceholderText = valor
-                    print("[Omnitrix] Slot " .. i .. " salvo: " .. valor)
+                    print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. valor)
                 else
                     textBox.Text = Config.AlienSlots[i] or "heatblast"
                 end
@@ -872,7 +878,6 @@ local function criarAppS()
         return
     end
 
-    -- Procura a pasta Apps do celular
     local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
         and LocalPlayer.PlayerGui:FindFirstChild("HUD")
         and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
@@ -880,11 +885,10 @@ local function criarAppS()
         and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
 
     if appsFolder then
-        -- Cria o aplicativo dentro da pasta Apps
         local appFrame = Instance.new("Frame")
         appFrame.Name = "App_Omnitrix"
         appFrame.Size = UDim2.new(0, 60, 0, 60)
-        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0) -- posição na grade
+        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
         appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         appFrame.BackgroundTransparency = 0
         appFrame.BorderSizePixel = 0
@@ -928,7 +932,7 @@ local function criarAppS()
         appCriado = true
         print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
     else
-        -- Fallback: se não encontrar o celular, cria um ícone flutuante (mas ainda é um app)
+        -- Fallback
         local iconGui = Instance.new("ScreenGui")
         iconGui.Name = "OmnitrixApp"
         iconGui.ResetOnSpawn = false
@@ -988,6 +992,28 @@ criarAppS()
 
 -- Inicializa os botões 1-5
 criarBotoes()
+
+-- =============================================
+-- LEITOR DE TECLAS (G H J K L)
+-- =============================================
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    local slotNumero = nil
+    if input.KeyCode == Enum.KeyCode.G then slotNumero = 1 end
+    if input.KeyCode == Enum.KeyCode.H then slotNumero = 2 end
+    if input.KeyCode == Enum.KeyCode.J then slotNumero = 3 end
+    if input.KeyCode == Enum.KeyCode.K then slotNumero = 4 end
+    if input.KeyCode == Enum.KeyCode.L then slotNumero = 5 end
+
+    if slotNumero then
+        local alienNome = Config.AlienSlots[slotNumero] or ""
+        if alienNome ~= "" then
+            transformarAlien(alienNome)
+        else
+            print("[Omnitrix] Slot " .. slotNumero .. " vazio.")
+        end
+    end
+end)
 
 -- =============================================
 -- MENU – WINDUI (sem Extras)
@@ -1329,8 +1355,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! App 'S' no celular.",
+    Text = "Carregado! Teclas: G H J K L",
     Duration = 3
 })
 
-print("Project Sor carregado.")
+print("Project Sor carregado. Use G H J K L para transformar.")
