@@ -45,6 +45,7 @@ local function SaveConfigToFile(configTable)
     end
 end
 
+-- Configurações padrão
 local Config = {
     RaidEnabled = false,
     ShotSpeedIndex = 1,
@@ -57,6 +58,7 @@ local Config = {
     BossShip = false,
     BossKraken = false,
     BossTransDimensional = false,
+    AlienSlots = {}, -- { ["1"] = "heatblast", ["2"] = "diamondhead", ... }
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -125,7 +127,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (completo)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -174,7 +176,7 @@ local Idiomas = {
         BtnPredioGalvan = "Prédio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Controle Mestre",
-        DescControleMestre = "Ativa o Master Control e cria o app no Cellphone",
+        DescControleMestre = "Ativa o Master Control e cria os chats 1-5",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -239,7 +241,7 @@ local Idiomas = {
         BtnPredioGalvan = "Edificio",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Control Maestro",
-        DescControleMestre = "Activa el Master Control y crea la app en el Cellphone",
+        DescControleMestre = "Activa el Master Control y crea los chats 1-5",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -304,7 +306,7 @@ local Idiomas = {
         BtnPredioGalvan = "Building",
         SecGamePass = "🎮 GamePass",
         BtnControleMestre = "⚡ Master Control",
-        DescControleMestre = "Activates Master Control and creates the app on Cellphone",
+        DescControleMestre = "Activates Master Control and creates chats 1-5",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -575,7 +577,7 @@ if Config.AntiAFK then
 end
 
 -- =============================================
--- CONTROLE MESTRE (CORRIGIDO COM VERIFICAÇÕES)
+-- CONTROLE MESTRE (CORRIGIDO COM CHATS E SALVAMENTO)
 -- =============================================
 local function darMasterControl()
     local function adicionarValor(caminhoPai, nomeDoItem)
@@ -625,165 +627,118 @@ local function darMasterControl()
         adicionarValor(unlocker2, "Give_Master_Control")
     end
 
-    -- 4: Interface do Cellphone - CORRIGIDO PARA GARANTIR QUE O APP APAREÇA
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then
-        print("[Omnitrix] PlayerGui não encontrado. Aguardando...")
-        playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+    -- 4: Interface do Cellphone
+    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
+
+    if not appsFolder then
+        warn("[Omnitrix] Pasta Apps não encontrada.")
+        return
     end
 
-    local hud = playerGui and playerGui:FindFirstChild("HUD")
-    if not hud then
-        print("[Omnitrix] HUD não encontrado. Tentando criar...")
-        hud = Instance.new("ScreenGui")
-        hud.Name = "HUD"
-        hud.ResetOnSpawn = false
-        hud.Parent = playerGui
-    end
-
-    local cellphone = hud and hud:FindFirstChild("Cellphone")
-    if not cellphone then
-        print("[Omnitrix] Cellphone não encontrado. Tentando criar...")
-        cellphone = Instance.new("Frame")
-        cellphone.Name = "Cellphone"
-        cellphone.Size = UDim2.new(0, 400, 0, 600)
-        cellphone.Position = UDim2.new(0.5, -200, 0.5, -300)
-        cellphone.Visible = false
-        cellphone.Parent = hud
-    end
-
-    local interface = cellphone and cellphone:FindFirstChild("Interface")
-    if not interface then
-        print("[Omnitrix] Interface não encontrada. Criando...")
-        interface = Instance.new("Frame")
-        interface.Name = "Interface"
-        interface.Size = UDim2.new(1, 0, 1, 0)
-        interface.BackgroundTransparency = 1
-        interface.Parent = cellphone
-    end
-
-    local apps = interface and interface:FindFirstChild("Apps")
-    if not apps then
-        print("[Omnitrix] Apps não encontrado. Criando...")
-        apps = Instance.new("Folder")
-        apps.Name = "Apps"
-        apps.Parent = interface
-    end
-
-    -- Cria o app Partial_Master_Control
-    local appPartialMaster = apps:FindFirstChild("Partial_Master_Control")
+    -- Criar o app Partial_Master_Control se não existir
+    local appPartialMaster = appsFolder:FindFirstChild("Partial_Master_Control")
     if not appPartialMaster then
         appPartialMaster = Instance.new("Frame")
         appPartialMaster.Name = "Partial_Master_Control"
-        appPartialMaster.Size = UDim2.new(0, 200, 0, 300)
-        appPartialMaster.Position = UDim2.new(0.5, -100, 0.5, -150)
-        appPartialMaster.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-        appPartialMaster.BorderSizePixel = 0
+        appPartialMaster.Size = UDim2.new(0, 220, 0, 250)
+        appPartialMaster.Position = UDim2.new(0.5, -110, 0.5, -125)
+        appPartialMaster.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        appPartialMaster.BackgroundTransparency = 0.2
         appPartialMaster.Visible = true
-        appPartialMaster.Parent = apps
-        print("[Omnitrix] App Partial_Master_Control criado com sucesso!")
+        appPartialMaster.Parent = appsFolder
+    else
+        appPartialMaster.Visible = true
     end
 
-    -- Adiciona UICorner
+    -- Adicionar UICorner
     if not appPartialMaster:FindFirstChild("UICorner") then
         local uiCorner = Instance.new("UICorner")
         uiCorner.Name = "UICorner"
-        uiCorner.CornerRadius = UDim.new(0, 12)
+        uiCorner.CornerRadius = UDim.new(0, 8)
         uiCorner.Parent = appPartialMaster
     end
 
-    -- Cria a pasta alien_Cell dentro do app
+    -- Criar alien_Cell e os slots
     local alienCell = appPartialMaster:FindFirstChild("alien_Cell")
     if not alienCell then
         alienCell = Instance.new("Folder")
         alienCell.Name = "alien_Cell"
         alienCell.Parent = appPartialMaster
-        print("[Omnitrix] alien_Cell criado dentro do app.")
     end
 
-    -- Cria os 5 slots com valor padrão "heatblast"
+    -- Carregar nomes salvos ou usar padrão
+    local savedSlots = Config.AlienSlots or {}
     for i = 1, 5 do
         local slotName = tostring(i)
         local slot = alienCell:FindFirstChild(slotName)
         if not slot then
             slot = Instance.new("StringValue")
             slot.Name = slotName
-            slot.Value = "heatblast"
             slot.Parent = alienCell
         end
+        local defaultName = savedSlots[slotName] or "heatblast"
+        slot.Value = defaultName
     end
 
-    -- Cria um título e campos de texto para os slots (para aparecer visualmente)
-    local title = appPartialMaster:FindFirstChild("Title")
-    if not title then
-        title = Instance.new("TextLabel")
-        title.Name = "Title"
-        title.Size = UDim2.new(1, 0, 0, 30)
-        title.Position = UDim2.new(0, 0, 0, 0)
-        title.BackgroundTransparency = 1
-        title.Text = "⚡ MASTER CONTROL"
-        title.TextColor3 = Color3.fromRGB(255, 200, 50)
-        title.TextSize = 16
-        title.Font = Enum.Font.GothamBold
-        title.Parent = appPartialMaster
-    end
-
-    -- Cria TextBox para cada slot (1 a 5)
-    local yOffset = 40
-    for i = 1, 5 do
-        local boxName = "Slot" .. i
-        local box = appPartialMaster:FindFirstChild(boxName)
-        if not box then
-            box = Instance.new("TextBox")
-            box.Name = boxName
-            box.Size = UDim2.new(0.8, 0, 0, 30)
-            box.Position = UDim2.new(0.1, 0, 0, yOffset + (i-1) * 35)
-            box.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-            box.TextColor3 = Color3.fromRGB(255, 255, 255)
-            box.Text = "heatblast"
-            box.PlaceholderText = "Alien " .. i
-            box.Font = Enum.Font.Gotham
-            box.TextSize = 14
-            box.ClearTextOnFocus = false
-            box.Parent = appPartialMaster
+    -- Remover chats antigos para recriar
+    for _, child in ipairs(appPartialMaster:GetChildren()) do
+        if child:IsA("TextBox") and child.Name:match("^Chat%d$") then
+            child:Destroy()
         end
+        if child:IsA("TextLabel") and child.Name:match("^Label%d$") then
+            child:Destroy()
+        end
+    end
 
-        -- Conecta o FocusLost para salvar no slot correspondente
-        if box and not box._conectado then
-            box._conectado = true
-            box.FocusLost:Connect(function()
-                local texto = box.Text
-                if texto and texto ~= "" then
-                    local slot = alienCell:FindFirstChild(tostring(i))
-                    if slot then
-                        slot.Value = texto
-                        print("[Omnitrix] Slot " .. i .. " atualizado para: " .. texto)
-                    end
+    -- Criar 5 chats (TextBox) com labels
+    local yOffset = 20
+    for i = 1, 5 do
+        -- Label do slot
+        local labelGui = Instance.new("TextLabel")
+        labelGui.Name = "Label" .. i
+        labelGui.Size = UDim2.new(0, 30, 0, 20)
+        labelGui.Position = UDim2.new(0, 10, 0, yOffset + (i-1)*40)
+        labelGui.Text = tostring(i)
+        labelGui.TextColor3 = Color3.fromRGB(255, 255, 255)
+        labelGui.BackgroundTransparency = 1
+        labelGui.Font = Enum.Font.GothamBold
+        labelGui.TextSize = 14
+        labelGui.Parent = appPartialMaster
+
+        -- TextBox para digitar o nome do alien
+        local chatBox = Instance.new("TextBox")
+        chatBox.Name = "Chat" .. i
+        chatBox.Size = UDim2.new(0, 140, 0, 25)
+        chatBox.Position = UDim2.new(0, 45, 0, yOffset + (i-1)*40 - 3)
+        chatBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        chatBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        chatBox.Font = Enum.Font.Gotham
+        chatBox.TextSize = 14
+        chatBox.PlaceholderText = "Alien " .. i
+        chatBox.Text = alienCell:FindFirstChild(tostring(i)).Value -- preencher com valor salvo
+        chatBox.Parent = appPartialMaster
+
+        -- Conectar evento para salvar ao perder foco
+        chatBox.FocusLost:Connect(function()
+            local texto = chatBox.Text
+            if texto ~= "" then
+                local slot = alienCell:FindFirstChild(tostring(i))
+                if slot then
+                    slot.Value = texto
+                    if not Config.AlienSlots then Config.AlienSlots = {} end
+                    Config.AlienSlots[tostring(i)] = texto
+                    SaveConfig()
+                    print("[Omnitrix] Slot " .. i .. " atualizado para: " .. texto)
                 end
-            end)
-        end
+            end
+        end)
     end
 
-    -- Sincroniza valores iniciais dos slots com as TextBox
-    for i = 1, 5 do
-        local slot = alienCell:FindFirstChild(tostring(i))
-        local box = appPartialMaster:FindFirstChild("Slot" .. i)
-        if slot and box then
-            box.Text = slot.Value
-        end
-    end
-
-    -- Torna o Cellphone visível (opcional)
-    if cellphone then
-        cellphone.Visible = true
-    end
-
-    print("[Omnitrix] Master Control ativado e app criado com sucesso!")
-    StarterGui:SetCore("SendNotification", {
-        Title = "Omnitrix",
-        Text = "App criado no Cellphone! Use 1-5 para transformar.",
-        Duration = 4
-    })
+    print("[Omnitrix] Master Control ativado e chats criados.")
 end
 
 -- =============================================
@@ -813,19 +768,17 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Five then slotNumero = "5" end
 
     if slotNumero then
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        local app = playerGui and playerGui:FindFirstChild("HUD")
-            and playerGui.HUD:FindFirstChild("Cellphone")
-            and playerGui.HUD.Cellphone:FindFirstChild("Interface")
-            and playerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
-            and playerGui.HUD.Cellphone.Interface.Apps:FindFirstChild("Partial_Master_Control")
-        if app then
-            local alienCell = app:FindFirstChild("alien_Cell")
-            if alienCell then
-                local slot = alienCell:FindFirstChild(slotNumero)
-                if slot then
-                    transformarAlien(slot.Value)
-                end
+        local alienCell = LocalPlayer:FindFirstChild("PlayerGui")
+            and LocalPlayer.PlayerGui:FindFirstChild("HUD")
+            and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
+            and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps:FindFirstChild("Partial_Master_Control")
+            and LocalPlayer.PlayerGui.HUD.Cellphone.Interface.Apps.Partial_Master_Control:FindFirstChild("alien_Cell")
+        if alienCell then
+            local slot = alienCell:FindFirstChild(slotNumero)
+            if slot then
+                transformarAlien(slot.Value)
             end
         end
     end
@@ -1078,6 +1031,11 @@ local function CriarMenu()
         Desc = lang.DescControleMestre,
         Callback = function()
             darMasterControl()
+            StarterGui:SetCore("SendNotification", {
+                Title = "Omnitrix",
+                Text = "Master Control ativado! Use 1-5 para transformar.",
+                Duration = 3
+            })
         end
     })
 
@@ -1148,6 +1106,7 @@ local function CriarMenu()
             Config.BossShip = false
             Config.BossKraken = false
             Config.BossTransDimensional = false
+            Config.AlienSlots = {}
             SaveConfig()
             if Window.Notify then
                 Window:Notify({
