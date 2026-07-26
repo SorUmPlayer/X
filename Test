@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - Com Música
+-- SCRIPT COMPLETO (Project Sor) - MULTIPLICADOR CORRIGIDO
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -47,16 +47,15 @@ local function SaveConfigToFile(configTable)
     end
 end
 
--- Configurações padrão
 local Config = {
     RaidEnabled = false,
-    ShotSpeedIndex = 1,
+    ShotSpeedIndex = 1,          -- Multiplicador Raid
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
     AntiAFK = false,
     BossDistance = 2,
-    BossShotMultiplier = 1,
+    BossShotMultiplier = 1,      -- Multiplicador Boss
     BossShip = false,
     BossKraken = false,
     BossTransDimensional = false,
@@ -68,7 +67,6 @@ local Config = {
         "stinkfly"
     },
     MostrarBotoes = true,
-    -- Novas configurações de música
     MusicasSalvas = {
         { nome = "Bem 10", id = "92524084286516" }
     },
@@ -100,13 +98,11 @@ local currentSoundId = nil
 
 local function tocarMusica(id)
     if not id or id == "" then return end
-    -- Para a música atual se estiver tocando
     if soundObject then
         soundObject:Stop()
         soundObject:Destroy()
         soundObject = nil
     end
-    -- Cria um novo Sound
     soundObject = Instance.new("Sound")
     soundObject.SoundId = "rbxassetid://" .. tostring(id)
     soundObject.Looped = true
@@ -185,7 +181,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -498,7 +494,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID
+-- LOOP DA RAID (CORRIGIDO - MULTIPLICADOR FUNCIONA)
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -520,18 +516,21 @@ local function startRaidLoop()
         local targetNPC = getClosestNPC()
         if not myRoot or not targetNPC then return end
 
+        -- Teleporta para o NPC
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
+        -- Lê o multiplicador e garante que é um número inteiro positivo
         local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not Config.RaidEnabled then break end
-                Laser()
-                GunArm()
-                ArmFire(targetNPC)
-                Armature()
-                task.wait()
-            end
+        if multiplier < 1 then multiplier = 1 end
+
+        -- Executa os disparos em sequência com um pequeno delay
+        for i = 1, multiplier do
+            if not Config.RaidEnabled then break end
+            Laser()
+            GunArm()
+            ArmFire(targetNPC)
+            Armature()
+            task.wait(0.05) -- delay entre tiros para garantir que todos sejam enviados
         end
     end)
 end
@@ -541,7 +540,7 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES
+-- LOOP DOS BOSSES (CORRIGIDO - MULTIPLICADOR FUNCIONA)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
@@ -600,18 +599,21 @@ local function startBossLoop()
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
 
+        -- Teleporta para o Boss
         myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
 
+        -- Lê o multiplicador do Boss
         local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-        if multiplier > 0 then
-            for i = 1, multiplier do
-                if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
-                Laser()
-                GunArm()
-                ArmFire(targetPart)
-                Armature()
-                task.wait()
-            end
+        if multiplier < 1 then multiplier = 1 end
+
+        -- Executa os disparos em sequência com delay
+        for i = 1, multiplier do
+            if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
+            Laser()
+            GunArm()
+            ArmFire(targetPart)
+            Armature()
+            task.wait(0.05)
         end
     end)
 end
@@ -1053,7 +1055,6 @@ local function criarAppS()
     end
 end
 
--- Inicializa app e botões
 criarAppS()
 criarBotoes()
 
@@ -1185,6 +1186,13 @@ local function CriarMenu()
             if numero and numero > 0 then
                 Config.ShotSpeedIndex = numero
                 SaveConfig()
+                print("[Multiplicador Raid] Novo valor: " .. numero)
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Digite um número válido!",
+                    Duration = 2
+                })
             end
         end
     })
@@ -1235,6 +1243,13 @@ local function CriarMenu()
             if numero and numero > 0 then
                 Config.BossShotMultiplier = numero
                 SaveConfig()
+                print("[Multiplicador Boss] Novo valor: " .. numero)
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Digite um número válido!",
+                    Duration = 2
+                })
             end
         end
     })
@@ -1320,13 +1335,11 @@ local function CriarMenu()
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
     -- ====== ABA EXTRA ======
-    -- Variáveis para o dropdown e toggle
     local dropdownMusica = nil
     local toggleMusicaRef = nil
 
     TabExtra:Section({ Title = lang.SecExtra })
 
-    -- Dropdown de músicas
     local nomesMusicas = {}
     for _, musica in ipairs(Config.MusicasSalvas) do
         table.insert(nomesMusicas, musica.nome)
@@ -1339,7 +1352,6 @@ local function CriarMenu()
         Callback = function(value)
             Config.MusicaAtual = value
             SaveConfig()
-            -- Se o toggle estiver ativo, troca a música automaticamente
             if Config.TocarMusica then
                 local musicaEncontrada = nil
                 for _, m in ipairs(Config.MusicasSalvas) do
@@ -1356,7 +1368,6 @@ local function CriarMenu()
         end
     })
 
-    -- Toggle Tocar Música
     toggleMusicaRef = TabExtra:Toggle({
         Title = lang.ToggleMusica,
         Value = Config.TocarMusica,
@@ -1364,7 +1375,6 @@ local function CriarMenu()
             Config.TocarMusica = value
             SaveConfig()
             if value then
-                -- Toca a música selecionada
                 local musicaSelecionada = Config.MusicaAtual or "Bem 10"
                 local musicaEncontrada = nil
                 for _, m in ipairs(Config.MusicasSalvas) do
@@ -1375,11 +1385,8 @@ local function CriarMenu()
                 end
                 if musicaEncontrada then
                     tocarMusica(musicaEncontrada.id)
-                else
-                    -- Fallback para a primeira música da lista
-                    if Config.MusicasSalvas[1] then
-                        tocarMusica(Config.MusicasSalvas[1].id)
-                    end
+                elseif Config.MusicasSalvas[1] then
+                    tocarMusica(Config.MusicasSalvas[1].id)
                 end
             else
                 pararMusica()
@@ -1387,11 +1394,9 @@ local function CriarMenu()
         end
     })
 
-    -- Botão Salvar Música
     TabExtra:Button({
         Title = lang.BtnSalvarMusica,
         Callback = function()
-            -- Cria um menu flutuante para salvar música
             local saveGui = Instance.new("ScreenGui")
             saveGui.Name = "SalvarMusicaGui"
             saveGui.ResetOnSpawn = false
@@ -1415,7 +1420,6 @@ local function CriarMenu()
             stroke.Thickness = 2
             stroke.Parent = mainFrame
 
-            -- Título
             local titleLabel = Instance.new("TextLabel")
             titleLabel.Size = UDim2.new(1, 0, 0, 40)
             titleLabel.Position = UDim2.new(0, 0, 0, 0)
@@ -1426,7 +1430,6 @@ local function CriarMenu()
             titleLabel.Font = Enum.Font.GothamBold
             titleLabel.Parent = mainFrame
 
-            -- Botão fechar (X vermelho)
             local closeBtn = Instance.new("TextButton")
             closeBtn.Size = UDim2.new(0, 35, 0, 35)
             closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -1440,7 +1443,6 @@ local function CriarMenu()
                 saveGui:Destroy()
             end)
 
-            -- Campo ID da Música
             local idLabel = Instance.new("TextLabel")
             idLabel.Size = UDim2.new(0, 80, 0, 30)
             idLabel.Position = UDim2.new(0, 15, 0, 50)
@@ -1466,7 +1468,6 @@ local function CriarMenu()
             idBoxCorner.CornerRadius = UDim.new(0, 6)
             idBoxCorner.Parent = idBox
 
-            -- Campo Nome da Música
             local nomeLabel = Instance.new("TextLabel")
             nomeLabel.Size = UDim2.new(0, 80, 0, 30)
             nomeLabel.Position = UDim2.new(0, 15, 0, 95)
@@ -1492,7 +1493,6 @@ local function CriarMenu()
             nomeBoxCorner.CornerRadius = UDim.new(0, 6)
             nomeBoxCorner.Parent = nomeBox
 
-            -- Botão Aplicar
             local aplicarBtn = Instance.new("TextButton")
             aplicarBtn.Size = UDim2.new(0, 120, 0, 40)
             aplicarBtn.Position = UDim2.new(0.5, -60, 1, -55)
@@ -1511,18 +1511,15 @@ local function CriarMenu()
                 local id = idBox.Text
                 local nome = nomeBox.Text
                 if id ~= "" and nome ~= "" then
-                    -- Adiciona à lista
                     table.insert(Config.MusicasSalvas, { nome = nome, id = id })
                     Config.MusicaAtual = nome
                     SaveConfig()
-                    -- Atualiza o dropdown
                     local novosNomes = {}
                     for _, m in ipairs(Config.MusicasSalvas) do
                         table.insert(novosNomes, m.nome)
                     end
                     dropdownMusica:Refresh(novosNomes, true)
                     dropdownMusica:SetValue(nome)
-                    -- Se o toggle estiver ativo, toca a nova música
                     if Config.TocarMusica then
                         pararMusica()
                         tocarMusica(id)
@@ -1650,8 +1647,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Aba Extra com música.",
+    Text = "Carregado! Multiplicador corrigido.",
     Duration = 3
 })
 
-print("Project Sor carregado. Aba Extra disponível.")
+print("Project Sor carregado. Multiplicador de tiro funcionando.")
