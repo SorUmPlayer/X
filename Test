@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - RAID INFINITY 1 CORRIGIDA (FINAL)
+-- SCRIPT COMPLETO (Project Sor) - RAID INFINITY 1 CORRIGIDA
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (resumido para economizar espaço)
+-- DICIONÁRIO DE IDIOMAS
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -764,14 +764,23 @@ if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config
 end
 
 -- =============================================
--- LOOP RAID INFINITY 1 (VERSÃO FINAL CORRIGIDA)
+-- LOOP RAID INFINITY 1 (COM ESTADOS E COLETA AUTOMÁTICA)
 -- =============================================
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
+
+-- Estados da Raid Infinity 1
+local RAID_STATE = {
+    SPAWN = 1,      -- Teleportar para spawnar o Salamander
+    ATTACK = 2,     -- Atacar o Salamander
+    TELEPORT = 3,   -- Teleportar para o Map_Part
+    COLLECT = 4,    -- Coletar o ProximityPrompt
+    DONE = 5        -- Finalizado (aguarda reinício)
+}
+
+local state = RAID_STATE.SPAWN
 local spawnPos = CFrame.new(430, -137, 95)
-local etapaAtual = "spawn" -- "spawn", "combate", "transicao", "coleta", "finalizado"
-local collectAttempts = 0
-local stayConnected = nil -- conexão para manter grudado
+local bodyPosition = nil -- Para manter grudado no Map_Part
 
 -- Função para desativar colisão dos spikes
 local function noclipearSpikes()
@@ -792,85 +801,82 @@ local function noclipearSpikes()
     end
 end
 
--- Função para teleportar com velocidade e depois grudar
-local function teleportarEGrudar(cframe, velocidade, alvoPart)
+-- Função para teleportar com velocidade
+local function teleportarComVelocidade(cframe, velocidade)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
+    if not root then return false
+
     -- Remove BodyVelocity anterior
     for _, v in ipairs(root:GetChildren()) do
         if v:IsA("BodyVelocity") then
             v:Destroy()
         end
     end
-    
-    -- Cria BodyVelocity para o teleporte
+
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
     bv.Velocity = Vector3.zero
     bv.Parent = root
-    
+
     local direction = (cframe.Position - root.Position).Unit
     bv.Velocity = direction * velocidade
-    
-    -- Aguarda chegar perto
+
     local timeout = 0
-    while (root.Position - cframe.Position).Magnitude > 5 and timeout < 3 do
+    while (root.Position - cframe.Position).Magnitude > 5 and timeout < 2 do
         task.wait(0.05)
         timeout = timeout + 0.05
     end
-    bv:Destroy()
-    
-    -- Ajusta posição final
     root.CFrame = cframe
-    
-    -- Inicia o loop para manter grudado
-    if stayConnected then
-        stayConnected:Disconnect()
-        stayConnected = nil
-    end
-    stayConnected = RunService.Heartbeat:Connect(function()
-        if not Config.RaidInfinity1Enabled then
-            if stayConnected then
-                stayConnected:Disconnect()
-                stayConnected = nil
-            end
-            return
-        end
-        if root and alvoPart and alvoPart:IsA("BasePart") then
-            root.CFrame = alvoPart.CFrame * CFrame.new(0, 2, 0)
-        end
-    end)
-    
-    print("[RaidInfinity1] Grudado no Map_Part.")
+    bv:Destroy()
+    return true
 end
 
--- Função para coletar ProximityPrompt (tenta várias vezes)
-local function coletarPrompt(part)
-    if not part then return false end
-    local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+-- Função para manter grudado no Map_Part usando BodyPosition
+local function grudarNoMapa(mapPart)
+    if not mapPart or not mapPart:IsA("BasePart") then return end
+
+    if bodyPosition then
+        bodyPosition:Destroy()
+        bodyPosition = nil
+    end
+
+    bodyPosition = Instance.new("BodyPosition")
+    bodyPosition.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    bodyPosition.P = 20000
+    bodyPosition.D = 500
+    bodyPosition.Position = mapPart.Position + Vector3.new(0, 2, 0)
+    bodyPosition.Parent = LocalPlayer.Character.HumanoidRootPart
+
+    print("[RaidInfinity1] Grudado no Map_Part (BodyPosition).")
+end
+
+-- Função para coletar prompt instantaneamente (baseado no código fornecido)
+local function coletarPromptAutomatico(prompt)
+    if not prompt then return false end
+    pcall(function()
+        prompt.HoldDuration = 0
+        prompt:InputHoldBegin()
+        task.wait(0.05)
+        prompt:InputHoldEnd()
+        print("[RaidInfinity1] Prompt coletado instantaneamente!")
+        return true
+    end)
+    return false
+end
+
+-- Função que tenta coletar qualquer prompt no Map_Part
+local function coletarPromptDoMapa(mapPart)
+    if not mapPart then return false end
+
+    local prompt = mapPart:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
-        pcall(function()
-            prompt:InputHoldBegin(LocalPlayer)
-            task.wait(1.5) -- tempo suficiente para ativar
-            prompt:InputHoldEnd(LocalPlayer)
-            print("[RaidInfinity1] Prompt coletado com sucesso!")
-            return true
-        end)
-    else
-        -- Procura em filhos
-        for _, child in ipairs(part:GetChildren()) do
-            if child:IsA("ProximityPrompt") then
-                pcall(function()
-                    child:InputHoldBegin(LocalPlayer)
-                    task.wait(1.5)
-                    child:InputHoldEnd(LocalPlayer)
-                    print("[RaidInfinity1] Prompt coletado com sucesso!")
-                    return true
-                end)
-                break
-            end
+        return coletarPromptAutomatico(prompt)
+    end
+
+    for _, child in ipairs(mapPart:GetChildren()) do
+        if child:IsA("ProximityPrompt") then
+            return coletarPromptAutomatico(child)
         end
     end
     return false
@@ -879,6 +885,8 @@ end
 local function startRaidInfinity1Loop()
     if raidInfinity1Connection then return end
     raidInfinity1Running = true
+    state = RAID_STATE.SPAWN
+
     raidInfinity1Connection = RunService.Heartbeat:Connect(function()
         if not Config.RaidInfinity1Enabled then
             raidInfinity1Running = false
@@ -886,11 +894,10 @@ local function startRaidInfinity1Loop()
                 raidInfinity1Connection:Disconnect()
                 raidInfinity1Connection = nil
             end
-            if stayConnected then
-                stayConnected:Disconnect()
-                stayConnected = nil
+            if bodyPosition then
+                bodyPosition:Destroy()
+                bodyPosition = nil
             end
-            etapaAtual = "spawn"
             return
         end
 
@@ -898,7 +905,7 @@ local function startRaidInfinity1Loop()
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        -- 1. Verificar estado do Salamander
+        -- Encontrar Salamander
         local salamander = Workspace:FindFirstChild("Enemys")
         if salamander then
             salamander = salamander:FindFirstChild("Double Fire Salamander")
@@ -907,118 +914,96 @@ local function startRaidInfinity1Loop()
             end
         end
 
-        local salamanderVivo = false
+        local salamanderAlive = false
         local targetPart = nil
+
         if salamander and salamander:IsA("Model") then
             local hum = salamander:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                salamanderVivo = true
+                salamanderAlive = true
                 targetPart = salamander:FindFirstChild("HumanoidRootPart") or salamander:FindFirstChild("Torso")
             end
         end
 
-        -- Se o boss está vivo e estamos na fase de combate ou spawn, atira
-        if salamanderVivo and targetPart and (etapaAtual == "spawn" or etapaAtual == "combate") then
-            etapaAtual = "combate"
-            root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
-            local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-            if multiplier < 1 then multiplier = 1 end
-            for i = 1, multiplier do
-                if not Config.RaidInfinity1Enabled then break end
-                Laser()
-                GunArm()
-                ArmFire(targetPart)
-                Armature()
-                task.wait(0.05)
+        -- Encontrar Map_Part
+        local mapPart = Workspace:FindFirstChild("World")
+        if mapPart then
+            mapPart = mapPart:FindFirstChild("Map")
+            if mapPart then
+                mapPart = mapPart:FindFirstChild("Milkya_Temple")
+                if mapPart then
+                    mapPart = mapPart:FindFirstChild("Map_Part")
+                end
             end
-            return
         end
 
-        -- Se o boss morreu ou sumiu, e ainda não fizemos a transição
-        if (not salamanderVivo or not targetPart) and etapaAtual ~= "finalizado" and etapaAtual ~= "coleta" then
-            -- Localiza Milkya_Temple
-            local milkya = Workspace:FindFirstChild("World")
-            if milkya then
-                milkya = milkya:FindFirstChild("Map")
-                if milkya then
-                    milkya = milkya:FindFirstChild("Milkya_Temple")
-                    if milkya then
-                        milkya = milkya:FindFirstChild("Map_Part")
-                    end
-                end
-            end
+        -- MÁQUINA DE ESTADOS
+        if state == RAID_STATE.SPAWN then
+            -- Teleportar para spawn
+            ExecutarTeleporte(spawnPos)
+            state = RAID_STATE.ATTACK
+            print("[RaidInfinity1] Estado: SPAWN -> ATTACK")
 
-            if milkya and milkya:IsA("BasePart") then
-                if etapaAtual == "spawn" or etapaAtual == "combate" then
-                    etapaAtual = "transicao"
-                    print("[RaidInfinity1] Iniciando transição para Milkya_Temple.")
-                    teleportarEGrudar(milkya.CFrame, 350, milkya)
-                    etapaAtual = "coleta"
-                    collectAttempts = 0
-                end
+        elseif state == RAID_STATE.ATTACK then
+            if salamanderAlive and targetPart then
+                -- Grudar e atirar no Salamander
+                root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
+                local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
+                if multiplier < 1 then multiplier = 1 end
 
-                -- Fase de coleta: tenta coletar repetidamente enquanto gruda
-                if etapaAtual == "coleta" then
-                    -- Garantir que está grudado
-                    if stayConnected then
-                        stayConnected:Disconnect()
-                        stayConnected = nil
-                    end
-                    stayConnected = RunService.Heartbeat:Connect(function()
-                        if not Config.RaidInfinity1Enabled then
-                            if stayConnected then
-                                stayConnected:Disconnect()
-                                stayConnected = nil
-                            end
-                            return
-                        end
-                        if root and milkya and milkya:IsA("BasePart") then
-                            root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
-                        end
-                    end)
-
-                    -- Tenta coletar
-                    local sucesso = coletarPrompt(milkya)
-                    collectAttempts = collectAttempts + 1
-                    if sucesso then
-                        etapaAtual = "finalizado"
-                        print("[RaidInfinity1] Raid Infinity 1 concluída!")
-                        if stayConnected then
-                            stayConnected:Disconnect()
-                            stayConnected = nil
-                        end
-                        -- Notifica o usuário
-                        StarterGui:SetCore("SendNotification", {
-                            Title = "Raid Infinity 1",
-                            Text = "Raid concluída com sucesso!",
-                            Duration = 3
-                        })
-                    elseif collectAttempts > 10 then
-                        print("[RaidInfinity1] Tentativas de coleta excedidas. Reiniciando ciclo.")
-                        etapaAtual = "spawn"
-                        collectAttempts = 0
-                        if stayConnected then
-                            stayConnected:Disconnect()
-                            stayConnected = nil
-                        end
-                    end
-                    task.wait(0.5)
+                for i = 1, multiplier do
+                    if not Config.RaidInfinity1Enabled then break end
+                    Laser()
+                    GunArm()
+                    ArmFire(targetPart)
+                    Armature()
+                    task.wait(0.05)
                 end
             else
-                print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
-                etapaAtual = "spawn"
+                -- Salamander morto ou não encontrado -> mudar para TELEPORT
+                state = RAID_STATE.TELEPORT
+                print("[RaidInfinity1] Salamander morreu. Estado: ATTACK -> TELEPORT")
             end
-        end
 
-        -- Se já finalizou, não faz nada (aguarda desligar)
-        if etapaAtual == "finalizado" then
-            return
-        end
+        elseif state == RAID_STATE.TELEPORT then
+            if mapPart then
+                -- Teleportar com velocidade para Map_Part
+                teleportarComVelocidade(mapPart.CFrame, 350)
+                -- Grudar no mapa
+                grudarNoMapa(mapPart)
+                state = RAID_STATE.COLLECT
+                print("[RaidInfinity1] Estado: TELEPORT -> COLLECT")
+            else
+                print("[RaidInfinity1] Map_Part não encontrado!")
+                state = RAID_STATE.SPAWN -- recomeça
+            end
 
-        -- Se não há boss e não está em transição, volta para spawn (reinicia)
-        if not salamanderVivo and etapaAtual == "spawn" then
-            ExecutarTeleporte(spawnPos)
-            task.wait(0.5)
+        elseif state == RAID_STATE.COLLECT then
+            if mapPart then
+                -- Tentar coletar o prompt
+                local coletado = coletarPromptDoMapa(mapPart)
+                if coletado then
+                    state = RAID_STATE.DONE
+                    print("[RaidInfinity1] Estado: COLLECT -> DONE")
+                else
+                    print("[RaidInfinity1] Prompt não encontrado ou falha ao coletar.")
+                    -- Se o prompt não existir, pode tentar novamente ou recomeçar
+                    state = RAID_STATE.SPAWN
+                end
+            else
+                state = RAID_STATE.SPAWN
+            end
+
+        elseif state == RAID_STATE.DONE then
+            -- Aguarda um pouco e recomeça
+            print("[RaidInfinity1] Raid concluída. Reiniciando em 2 segundos...")
+            task.wait(2)
+            if bodyPosition then
+                bodyPosition:Destroy()
+                bodyPosition = nil
+            end
+            state = RAID_STATE.SPAWN
+            print("[RaidInfinity1] Estado: DONE -> SPAWN")
         end
     end)
 end
@@ -1487,7 +1472,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (completo)
+-- MENU – WINDUI (atualizado)
 -- =============================================
 local oldWindow = nil
 
@@ -1645,11 +1630,10 @@ local function CriarMenu()
                     raidInfinity1Connection:Disconnect()
                     raidInfinity1Connection = nil
                 end
-                if stayConnected then
-                    stayConnected:Disconnect()
-                    stayConnected = nil
+                if bodyPosition then
+                    bodyPosition:Destroy()
+                    bodyPosition = nil
                 end
-                etapaAtual = "spawn"
             end
         end
     })
@@ -2442,8 +2426,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Raid Infinity 1 finalizada.",
+    Text = "Carregado! Raid Infinity 1 com estados e coleta automática.",
     Duration = 3
 })
 
-print("Project Sor carregado. Raid Infinity 1 corrigida (coleta e grude).")
+print("Project Sor carregado. Raid Infinity 1 com estados e coleta automática.")
