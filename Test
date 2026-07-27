@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - COM SHOP E SEGUNDO MUNDO
+-- SCRIPT COMPLETO (Project Sor) - COM CORREÇÃO HOKESTAR E DELETAR MÚSICA
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -182,7 +182,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado)
+-- DICIONÁRIO DE IDIOMAS (com novas entradas)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -261,6 +261,9 @@ local Idiomas = {
         LabelID = "ID da Música",
         LabelNome = "Nome da Música",
         BtnAplicar = "Aplicar",
+        BtnDeletarMusica = "Deletar Música",
+        TituloDeletar = "Deletar Música",
+        BtnDeletar = "Deletar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -354,6 +357,9 @@ local Idiomas = {
         LabelID = "ID de la Música",
         LabelNome = "Nombre de la Música",
         BtnAplicar = "Aplicar",
+        BtnDeletarMusica = "Borrar Música",
+        TituloDeletar = "Borrar Música",
+        BtnDeletar = "Borrar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -447,6 +453,9 @@ local Idiomas = {
         LabelID = "Music ID",
         LabelNome = "Music Name",
         BtnAplicar = "Apply",
+        BtnDeletarMusica = "Delete Music",
+        TituloDeletar = "Delete Music",
+        BtnDeletar = "Delete",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -547,14 +556,60 @@ local function ExecutarTeleporte(cframe)
     estaTeleportando = false
 end
 
--- Função para teleportar para um NPC específico (Hokestar)
-local function TeleportarParaNPC(caminho)
-    local npc = caminho
-    if npc and npc:IsA("BasePart") then
-        local pos = npc.Position
-        ExecutarTeleporte(CFrame.new(pos))
+-- =============================================
+-- FUNÇÃO CORRIGIDA PARA TELEPORTAR PARA HOKESTAR
+-- =============================================
+local function TeleportarParaHokestar()
+    local npcs = Workspace:FindFirstChild("NPCS")
+    if npcs then
+        local hokestarFolder = npcs:FindFirstChild("Hokestar")
+        if hokestarFolder then
+            local character = hokestarFolder:FindFirstChild("Character")
+            if character then
+                -- Tenta HumanoidRootPart, Hokestar, Torso, ou qualquer BasePart
+                local part = character:FindFirstChild("HumanoidRootPart") or 
+                             character:FindFirstChild("Hokestar") or 
+                             character:FindFirstChild("Torso") or 
+                             character:FindFirstChild("UpperTorso")
+                if not part then
+                    -- Procura qualquer BasePart
+                    for _, child in ipairs(character:GetChildren()) do
+                        if child:IsA("BasePart") then
+                            part = child
+                            break
+                        end
+                    end
+                end
+                if part then
+                    ExecutarTeleporte(part.CFrame)
+                    return
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Erro",
+                        Text = "Nenhuma parte encontrada no Hokestar.",
+                        Duration = 2
+                    })
+                end
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Character do Hokestar não encontrado.",
+                    Duration = 2
+                })
+            end
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Pasta Hokestar não encontrada.",
+                Duration = 2
+            })
+        end
     else
-        print("[Teleporte] NPC não encontrado ou inválido.")
+        StarterGui:SetCore("SendNotification", {
+            Title = "Erro",
+            Text = "Pasta NPCS não encontrada.",
+            Duration = 2
+        })
     end
 end
 
@@ -576,7 +631,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID (CORRIGIDO)
+-- LOOP DA RAID
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -619,7 +674,7 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES (CORRIGIDO)
+-- LOOP DOS BOSSES
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
@@ -1157,7 +1212,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (com Shop e Segundo Mundo)
+-- MENU – WINDUI (com correção Hokestar e Deletar Música)
 -- =============================================
 local oldWindow = nil
 
@@ -1234,7 +1289,7 @@ local function CriarMenu()
     local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
-    -- ====== ABA MAIN (Raid) ======
+    -- ====== ABA MAIN ======
     TabMain:Section({ Title = lang.SecRaid })
     TabMain:Toggle({
         Title = lang.ToggleRaid,
@@ -1381,7 +1436,7 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA TELEPORTE (com Segundo Mundo) ======
+    -- ====== ABA TELEPORTE ======
     TabTeleport:Section({ Title = lang.SecTerra })
     TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
     TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
@@ -1411,36 +1466,17 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
-    -- NOVA SEÇÃO: SEGUNDO MUNDO
+    -- SEGUNDO MUNDO (CORRIGIDO)
     TabTeleport:Section({ Title = lang.SecSegundoMundo })
     TabTeleport:Button({
         Title = lang.BtnHokestar,
         Desc = lang.DescHokestar,
         Callback = function()
-            local hokestar = Workspace:FindFirstChild("NPCS")
-            if hokestar then
-                hokestar = hokestar:FindFirstChild("Hokestar")
-                if hokestar then
-                    hokestar = hokestar:FindFirstChild("Character")
-                    if hokestar then
-                        local part = hokestar:FindFirstChild("Hokestar") or hokestar:FindFirstChild("HumanoidRootPart")
-                        if part then
-                            ExecutarTeleporte(part.CFrame)
-                            return
-                        end
-                    end
-                end
-            end
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "NPC Hokestar não encontrado!",
-                Duration = 2
-            })
+            TeleportarParaHokestar()
         end
     })
 
     -- ====== ABA SHOP ======
-    -- Concessionária
     TabShop:Section({ Title = lang.SecConcessionaria })
     TabShop:Button({
         Title = lang.BtnKevin,
@@ -1448,7 +1484,6 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(-241, 15, 466)) end
     })
 
-    -- Dojo
     TabShop:Section({ Title = lang.SecDojo })
     TabShop:Button({
         Title = lang.BtnLojaEspada,
@@ -1456,7 +1491,6 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(-41, 82, 2029)) end
     })
 
-    -- HoverBoards/Naves
     TabShop:Section({ Title = lang.SecHoverBoards })
     TabShop:Button({
         Title = lang.BtnVendedorHover,
@@ -1474,7 +1508,6 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(-6574, 10, -8939)) end
     })
 
-    -- Estilo de luta
     TabShop:Section({ Title = lang.SecEstiloLuta })
     TabShop:Button({
         Title = lang.BtnFistrick,
@@ -1482,7 +1515,6 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(5419, -466, -572)) end
     })
 
-    -- Loja de Celular
     TabShop:Section({ Title = lang.SecLojaCelular })
     TabShop:Button({
         Title = lang.BtnPakmar,
@@ -1490,7 +1522,7 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(5318, -466, -228)) end
     })
 
-    -- ====== ABA EXTRA ======
+    -- ====== ABA EXTRA (com Deletar Música) ======
     local dropdownMusica = nil
     local toggleMusicaRef = nil
 
@@ -1550,6 +1582,7 @@ local function CriarMenu()
         end
     })
 
+    -- Botão Salvar Música
     TabExtra:Button({
         Title = lang.BtnSalvarMusica,
         Callback = function()
@@ -1697,6 +1730,153 @@ local function CriarMenu()
         end
     })
 
+    -- NOVO BOTÃO: DELETAR MÚSICA
+    TabExtra:Button({
+        Title = lang.BtnDeletarMusica,
+        Callback = function()
+            -- Menu para deletar música
+            local deleteGui = Instance.new("ScreenGui")
+            deleteGui.Name = "DeletarMusicaGui"
+            deleteGui.ResetOnSpawn = false
+            deleteGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            deleteGui.Parent = coreGui
+
+            local mainFrame = Instance.new("Frame")
+            mainFrame.Size = UDim2.new(0, 350, 0, 200)
+            mainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+            mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+            mainFrame.BackgroundTransparency = 0.1
+            mainFrame.BorderSizePixel = 0
+            mainFrame.Parent = deleteGui
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 16)
+            corner.Parent = mainFrame
+
+            -- Borda com cores alternando (vermelho e azul)
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.fromRGB(255, 0, 0)
+            stroke.Thickness = 3
+            stroke.Parent = mainFrame
+
+            -- Alternância de cores
+            local alternar = true
+            task.spawn(function()
+                while deleteGui and deleteGui.Parent do
+                    task.wait(0.8)
+                    alternar = not alternar
+                    stroke.Color = alternar and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 100, 255)
+                end
+            end)
+
+            local titleLabel = Instance.new("TextLabel")
+            titleLabel.Size = UDim2.new(1, 0, 0, 40)
+            titleLabel.Position = UDim2.new(0, 0, 0, 0)
+            titleLabel.BackgroundTransparency = 1
+            titleLabel.Text = lang.TituloDeletar
+            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLabel.TextSize = 18
+            titleLabel.Font = Enum.Font.GothamBold
+            titleLabel.Parent = mainFrame
+
+            -- Botão fechar
+            local closeBtn = Instance.new("TextButton")
+            closeBtn.Size = UDim2.new(0, 35, 0, 35)
+            closeBtn.Position = UDim2.new(1, -45, 0, 5)
+            closeBtn.BackgroundTransparency = 1
+            closeBtn.Text = "✕"
+            closeBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
+            closeBtn.TextSize = 22
+            closeBtn.Font = Enum.Font.GothamBold
+            closeBtn.Parent = mainFrame
+            closeBtn.MouseButton1Click:Connect(function()
+                deleteGui:Destroy()
+            end)
+
+            -- Dropdown com as músicas
+            local nomes = {}
+            for _, m in ipairs(Config.MusicasSalvas) do
+                table.insert(nomes, m.nome)
+            end
+
+            local dropdownDelete = WindUI:CreateDropdown({
+                Title = "Selecionar Música",
+                Values = nomes,
+                Value = nomes[1] or "",
+                Parent = mainFrame,
+                Position = UDim2.new(0.1, 0, 0.3, 0),
+                Size = UDim2.new(0.8, 0, 0, 30)
+            })
+
+            -- Botão Deletar
+            local deleteBtn = Instance.new("TextButton")
+            deleteBtn.Size = UDim2.new(0, 120, 0, 40)
+            deleteBtn.Position = UDim2.new(0.5, -60, 0.8, 0)
+            deleteBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+            deleteBtn.Text = lang.BtnDeletar
+            deleteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            deleteBtn.TextSize = 16
+            deleteBtn.Font = Enum.Font.GothamBold
+            deleteBtn.Parent = mainFrame
+
+            local deleteCorner = Instance.new("UICorner")
+            deleteCorner.CornerRadius = UDim.new(0, 8)
+            deleteCorner.Parent = deleteBtn
+
+            deleteBtn.MouseButton1Click:Connect(function()
+                local selecionada = dropdownDelete.Value
+                if selecionada and selecionada ~= "" then
+                    local index = nil
+                    for i, m in ipairs(Config.MusicasSalvas) do
+                        if m.nome == selecionada then
+                            index = i
+                            break
+                        end
+                    end
+                    if index then
+                        table.remove(Config.MusicasSalvas, index)
+                        if Config.MusicaAtual == selecionada then
+                            if #Config.MusicasSalvas > 0 then
+                                Config.MusicaAtual = Config.MusicasSalvas[1].nome
+                            else
+                                Config.MusicaAtual = ""
+                            end
+                        end
+                        SaveConfig()
+                        -- Atualiza dropdown principal
+                        local novosNomes = {}
+                        for _, m in ipairs(Config.MusicasSalvas) do
+                            table.insert(novosNomes, m.nome)
+                        end
+                        dropdownMusica:Refresh(novosNomes, true)
+                        if #Config.MusicasSalvas > 0 then
+                            dropdownMusica:SetValue(Config.MusicaAtual)
+                        end
+                        -- Se a música estava tocando e foi deletada, para
+                        if Config.TocarMusica and selecionada == Config.MusicaAtual then
+                            pararMusica()
+                            if #Config.MusicasSalvas > 0 then
+                                tocarMusica(Config.MusicasSalvas[1].id)
+                            end
+                        end
+                        deleteGui:Destroy()
+                        StarterGui:SetCore("SendNotification", {
+                            Title = "Música",
+                            Text = "Música deletada: " .. selecionada,
+                            Duration = 2
+                        })
+                    end
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Erro",
+                        Text = "Selecione uma música para deletar.",
+                        Duration = 2
+                    })
+                end
+            end)
+        end
+    })
+
     -- ====== ABA CONFIG ======
     TabConfig:Section({ Title = lang.SecConfig })
     TabConfig:Dropdown({
@@ -1803,8 +1983,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Shop e Segundo Mundo adicionados.",
+    Text = "Carregado! Hokestar corrigido e Deletar Música.",
     Duration = 3
 })
 
-print("Project Sor carregado. Aba Shop e Segundo Mundo disponíveis.")
+print("Project Sor carregado. Correções aplicadas.")
