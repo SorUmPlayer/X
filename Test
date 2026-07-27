@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (mantido igual)
+-- DICIONÁRIO DE IDIOMAS (atualizado)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -306,7 +306,238 @@ local Idiomas = {
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente"
     },
-    -- Espanhol e Inglês mantidos (omitidos para brevidade, mas estão no script original)
+    ["Espanhol"] = {
+        TabMain = "Raid y Teleportes",
+        TabBoss = "Jefe",
+        TabTeleport = "Teletransporte",
+        TabShop = "Tienda",
+        TabExtra = "Extra",
+        TabConfig = "Configuraciones",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activa el ataque y el teletransporte en bucle",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de disparos por ciclo (Ej: 9)",
+        PlaceMulti = "Escribe un número...",
+        Distancia = "Distancia",
+        DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
+        SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Segundo Mundo",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teletransporta al NPC Hokestar",
+        SecBossConfig = "Config Jefe",
+        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
+        DescBossMulti = "Multiplicador de disparos para Jefe",
+        SecBoss = "Jefe",
+        ToggleShip = "Barco",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Monstruo Transdimensional",
+        ToggleRajo = "Rajo",
+        ToggleAhPuch = "Ah Puch Totem",
+        ToggleAddwaitya = "Addwaitya",
+        SecTerra = "🌍 Tierra",
+        SecLua = "🌙 Luna",
+        SecFogoFrio = "🔥❄️ Fuego & Frío",
+        SecEstacaoAcademia = "🏫 Estación especial academia",
+        SecMarte = "🔴 Marte",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Edificio de Billy",
+        BtnMansao = "Mansión",
+        BtnFloresta = "Bosque",
+        BtnColiseu = "Coliseo",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro de la Luna",
+        BtnCentroFogoFrio = "Centro",
+        BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cubo",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX ADN",
+        BtnPredioGalvan = "Edificio",
+        BtnCidadeBaixo = "Ciudad de Abajo",
+        DescCidadeBaixo = "Teletransporta a la Ciudad de Abajo",
+        SecConcessionaria = "🚗 Concesionario",
+        BtnKevin = "Kevin",
+        DescKevin = "Teletransporta a Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Tienda de Espadas/Reiniciar Equipo",
+        DescLojaEspada = "Teletransporta a la Tienda de Espadas",
+        SecHoverBoards = "🛹 HoverBoards/Naves",
+        BtnVendedorHover = "Vendedor HoverBoards Ilegal",
+        DescVendedorHover = "Teletransporta al vendedor ilegal",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teletransporta a Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teletransporta a BASTZIN22",
+        SecEstiloLuta = "🥊 Estilo de lucha",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teletransporta a Fistrick",
+        SecLojaCelular = "📱 Tienda de Celulares",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teletransporta a Pakmar",
+        SecSementes = "🌱 Semillas 23",
+        BtnRostoArdente = "Rosto Ardente",
+        DescRostoArdente = "Teletransporta a Rosto Ardente",
+        SecEspadaMontaria = "⚔️ Espada/Montura",
+        BtnMergulhador = "Mergulhador",
+        DescMergulhador = "Teletransporta a Mergulhador",
+        SecRaidInfinity1 = "🔥 Raid Infinity 1",
+        ToggleRaidInfinity1 = "Auto Raid Infinity 1",
+        DescRaidInfinity1 = "Farm automático de la Raid Infinity 1",
+        SecExtra = "🎵 Música",
+        DropMusica = "Seleccionar Música",
+        ToggleMusica = "Tocar Música",
+        BtnSalvarMusica = "Guardar Música",
+        BtnDeletarMusica = "Eliminar Música",
+        TituloSalvarMusica = "Guardar Música",
+        LabelID = "ID de la Música",
+        LabelNome = "Nombre de la Música",
+        BtnAplicar = "Aplicar",
+        TituloDeletarMusica = "Eliminar Música",
+        DropDeletar = "Seleccionar música para eliminar",
+        BtnDeletar = "🗑️ Eliminar",
+        NotifMusicaSalva = "Música guardada: ",
+        NotifMusicaDeletada = "Música eliminada: ",
+        ErroPreencherCampos = "¡Completa todos los campos!",
+        ErroSelecionarMusica = "Selecciona una música válida para eliminar.",
+        ErroHokestarNaoEncontrado = "¡NPC Hokestar no encontrado!",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Cambia el idioma del Script",
+        BtnReset = "Reset Config",
+        DescReset = "Restablece los toggles e idioma",
+        ToggleIntro = "Eliminar Intro",
+        DescIntro = "Desactiva la introducción al iniciar el script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envía clic cada 60s para no ser desconectado",
+        SecServer = "Servidor",
+        DescRejoin = "Volver al mismo servidor",
+        DescHop = "Teletransporta al servidor antiguo",
+        DescSmall = "Teletransporte a servidor reciente",
+        NotifTitle = "Configuración Reiniciada",
+        NotifDesc = "Raid desactivada e idioma restablecido.",
+        BtnManualSave = "💾 Guardar Configuraciones",
+        DescManualSave = "Guarda todas las opciones manualmente"
+    },
+    ["English"] = {
+        TabMain = "Raid & Teleports",
+        TabBoss = "Boss",
+        TabTeleport = "Teleport",
+        TabShop = "Shop",
+        TabExtra = "Extra",
+        TabConfig = "Settings",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activates loop attack and teleport",
+        ChatMulti = "Shot Multiplier",
+        DescMulti = "Number of shots per cycle (Ex: 9)",
+        PlaceMulti = "Type a number...",
+        Distancia = "Distance",
+        DescDist = "Distance above NPCs (Studs) - 0 to 20",
+        SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Second World",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teleport to NPC Hokestar",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distance above Boss (0 to 20)",
+        DescBossMulti = "Shot multiplier for Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
+        ToggleRajo = "Rajo",
+        ToggleAhPuch = "Ah Puch Totem",
+        ToggleAddwaitya = "Addwaitya",
+        SecTerra = "🌍 Earth",
+        SecLua = "🌙 Moon",
+        SecFogoFrio = "🔥❄️ Fire & Ice",
+        SecEstacaoAcademia = "🏫 Special Academy Station",
+        SecMarte = "🔴 Mars",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Billy's Building",
+        BtnMansao = "Mansion",
+        BtnFloresta = "Forest",
+        BtnColiseu = "Coliseum",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Moon Center",
+        BtnCentroFogoFrio = "Center",
+        BtnAcademia = "Academy",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cube",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX DNA",
+        BtnPredioGalvan = "Building",
+        BtnCidadeBaixo = "Lower City",
+        DescCidadeBaixo = "Teleport to Lower City",
+        SecConcessionaria = "🚗 Dealership",
+        BtnKevin = "Kevin",
+        DescKevin = "Teleport to Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Sword Shop/Reset Team",
+        DescLojaEspada = "Teleport to Sword Shop",
+        SecHoverBoards = "🛹 HoverBoards/Ships",
+        BtnVendedorHover = "Illegal HoverBoard Seller",
+        DescVendedorHover = "Teleport to illegal seller",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teleport to Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teleport to BASTZIN22",
+        SecEstiloLuta = "🥊 Fighting Style",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teleport to Fistrick",
+        SecLojaCelular = "📱 Cell Phone Shop",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teleport to Pakmar",
+        SecSementes = "🌱 Seeds 23",
+        BtnRostoArdente = "Rosto Ardente",
+        DescRostoArdente = "Teleport to Rosto Ardente",
+        SecEspadaMontaria = "⚔️ Sword/Mount",
+        BtnMergulhador = "Mergulhador",
+        DescMergulhador = "Teleport to Mergulhador",
+        SecRaidInfinity1 = "🔥 Raid Infinity 1",
+        ToggleRaidInfinity1 = "Auto Raid Infinity 1",
+        DescRaidInfinity1 = "Automated farming for Raid Infinity 1",
+        SecExtra = "🎵 Music",
+        DropMusica = "Select Music",
+        ToggleMusica = "Play Music",
+        BtnSalvarMusica = "Save Music",
+        BtnDeletarMusica = "Delete Music",
+        TituloSalvarMusica = "Save Music",
+        LabelID = "Music ID",
+        LabelNome = "Music Name",
+        BtnAplicar = "Apply",
+        TituloDeletarMusica = "Delete Music",
+        DropDeletar = "Select music to delete",
+        BtnDeletar = "🗑️ Delete",
+        NotifMusicaSalva = "Music saved: ",
+        NotifMusicaDeletada = "Music deleted: ",
+        ErroPreencherCampos = "Please fill all fields!",
+        ErroSelecionarMusica = "Select a valid music to delete.",
+        ErroHokestarNaoEncontrado = "NPC Hokestar not found!",
+        SecConfig = "Config",
+        DropIdioma = "Languages",
+        DescIdioma = "Change the script language",
+        BtnReset = "Reset Config",
+        DescReset = "Reset toggles and language",
+        ToggleIntro = "Remove Intro",
+        DescIntro = "Disables the intro splash",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Sends a click every 60s to avoid disconnect",
+        SecServer = "Server",
+        DescRejoin = "Rejoin the same server",
+        DescHop = "Teleport to an old server",
+        DescSmall = "Teleport to a recently created server",
+        NotifTitle = "Config Reset",
+        NotifDesc = "Raid disabled and language reset.",
+        BtnManualSave = "💾 Save Settings",
+        DescManualSave = "Saves all options manually"
+    }
 }
 
 -- =============================================
@@ -450,7 +681,7 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES
+-- LOOP DOS BOSSES (antigos + novos)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
@@ -538,8 +769,7 @@ end
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
 local spawnPos = CFrame.new(430, -137, 95)
-local milkyaPos = nil -- será definido depois
-local bossMorto = false -- flag para controle
+local milkyaPart = nil -- será atualizado a cada iteração
 
 -- Função para desativar colisão dos spikes
 local function noclipearSpikes()
@@ -564,7 +794,14 @@ end
 local function teleportarComVelocidade(cframe, velocidade)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return
+    if not root then return end
+    
+    -- Remove qualquer BodyVelocity existente
+    for _, v in ipairs(root:GetChildren()) do
+        if v:IsA("BodyVelocity") then
+            v:Destroy()
+        end
+    end
     
     -- Cria BodyVelocity para mover rapidamente
     local bv = Instance.new("BodyVelocity")
@@ -576,21 +813,24 @@ local function teleportarComVelocidade(cframe, velocidade)
     local direction = (cframe.Position - root.Position).Unit
     bv.Velocity = direction * velocidade
     
-    -- Aguarda até chegar perto
-    task.wait(0.5)
+    -- Aguarda até chegar perto (máximo 2 segundos)
+    local timeout = 0
+    while (root.Position - cframe.Position).Magnitude > 5 and timeout < 2 do
+        task.wait(0.05)
+        timeout = timeout + 0.05
+    end
     -- Ajusta posição final
     root.CFrame = cframe
     bv:Destroy()
+    print("[RaidInfinity1] Teleportado para Milkya_Temple.")
 end
 
 local function startRaidInfinity1Loop()
     if raidInfinity1Connection then return end
     raidInfinity1Running = true
-    bossMorto = false
     raidInfinity1Connection = RunService.Heartbeat:Connect(function()
         if not Config.RaidInfinity1Enabled then
             raidInfinity1Running = false
-            bossMorto = false
             if raidInfinity1Connection then
                 raidInfinity1Connection:Disconnect()
                 raidInfinity1Connection = nil
@@ -611,21 +851,23 @@ local function startRaidInfinity1Loop()
             end
         end
 
-        local salamanderVivo = false
+        local salamanderAlive = false
         local targetPart = nil
+
         if salamander and salamander:IsA("Model") then
             local hum = salamander:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                salamanderVivo = true
+                salamanderAlive = true
                 targetPart = salamander:FindFirstChild("HumanoidRootPart") or salamander:FindFirstChild("Torso")
             end
         end
 
-        -- Se o boss estiver vivo, atira nele e teleporta para perto
-        if salamanderVivo and targetPart then
-            bossMorto = false
+        if salamanderAlive and targetPart then
+            -- 2. Boss vivo: teleporta para perto e atira
             root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
             local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
+            if multiplier < 1 then multiplier = 1 end
+
             for i = 1, multiplier do
                 if not Config.RaidInfinity1Enabled then break end
                 Laser()
@@ -634,16 +876,12 @@ local function startRaidInfinity1Loop()
                 Armature()
                 task.wait(0.05)
             end
+            -- Sai do loop para não executar o resto enquanto o boss está vivo
             return
         end
 
-        -- Se chegou aqui, ou o boss não existe ou está morto (HP <= 0)
-        if not bossMorto then
-            bossMorto = true
-            print("[RaidInfinity1] Boss morto ou desapareceu. Teleportando para Milkya_Temple...")
-        end
-
-        -- 2. Teleportar para Milkya_Temple.Map_Part
+        -- 3. Boss morto ou não encontrado: executar teleporte e coleta
+        -- Localiza Milkya_Temple
         local milkya = Workspace:FindFirstChild("World")
         if milkya then
             milkya = milkya:FindFirstChild("Map")
@@ -662,7 +900,7 @@ local function startRaidInfinity1Loop()
             -- Fica grudado (loop de posição)
             root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
             
-            -- 3. Coletar ProximityPrompt
+            -- 4. Coletar ProximityPrompt
             local prompt = milkya:FindFirstChildOfClass("ProximityPrompt")
             if prompt then
                 pcall(function()
@@ -686,8 +924,11 @@ local function startRaidInfinity1Loop()
                 end
             end
         else
-            print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado!")
+            print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
         end
+
+        -- Aguarda um pouco antes de reiniciar o ciclo para não sobrecarregar
+        task.wait(2)
     end)
 end
 
@@ -1155,7 +1396,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (com todas as atualizações)
+-- MENU – WINDUI (atualizado)
 -- =============================================
 local oldWindow = nil
 
@@ -1296,7 +1537,7 @@ local function CriarMenu()
     TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
     TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
 
-    -- RAID INFINITY 1
+    -- SEÇÃO RAID INFINITY 1
     TabMain:Section({ Title = lang.SecRaidInfinity1 })
     TabMain:Toggle({
         Title = lang.ToggleRaidInfinity1,
