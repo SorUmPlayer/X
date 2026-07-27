@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - RAID INFINITY 1 CORRIGIDA + AUTO COLETA
+-- SCRIPT COMPLETO (Project Sor) - COM ABA CLASSES
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado)
+-- DICIONÁRIO DE IDIOMAS (com Classes)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -195,6 +195,7 @@ local Idiomas = {
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
         TabShop = "Shop",
+        TabClasses = "Classes",
         TabExtra = "Extra",
         TabConfig = "Configurações",
         SecRaid = "Raid",
@@ -268,6 +269,15 @@ local Idiomas = {
         SecEspadaMontaria = "⚔️ Espada/Montaria",
         BtnMergulhador = "Mergulhador",
         DescMergulhador = "Teleporta para o Mergulhador",
+        SecClasses = "⚡ Classes",
+        BtnPrototipo = "Protótipo",
+        DescPrototipo = "Teleporta para o Protótipo",
+        BtnPrototipo10k = "Protótipo 10k/Recalibrado",
+        DescPrototipo10k = "Teleporta para Protótipo 10k/Recalibrado",
+        BtnOsmosiano = "Osmosiano",
+        DescOsmosiano = "Teleporta para o Osmosiano",
+        BtnOsmosianoMaster = "Osmosiano Masterizado",
+        DescOsmosianoMaster = "Teleporta para Osmosiano Masterizado",
         SecRaidInfinity1 = "🔥 Raid Infinity 1",
         ToggleRaidInfinity1 = "Auto Raid Infinity 1",
         DescRaidInfinity1 = "Farm automático da Raid Infinity 1",
@@ -311,6 +321,7 @@ local Idiomas = {
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
         TabShop = "Tienda",
+        TabClasses = "Clases",
         TabExtra = "Extra",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
@@ -384,6 +395,15 @@ local Idiomas = {
         SecEspadaMontaria = "⚔️ Espada/Montura",
         BtnMergulhador = "Mergulhador",
         DescMergulhador = "Teletransporta a Mergulhador",
+        SecClasses = "⚡ Clases",
+        BtnPrototipo = "Prototipo",
+        DescPrototipo = "Teletransporta al Prototipo",
+        BtnPrototipo10k = "Prototipo 10k/Recalibrado",
+        DescPrototipo10k = "Teletransporta a Prototipo 10k/Recalibrado",
+        BtnOsmosiano = "Osmosiano",
+        DescOsmosiano = "Teletransporta al Osmosiano",
+        BtnOsmosianoMaster = "Osmosiano Masterizado",
+        DescOsmosianoMaster = "Teletransporta a Osmosiano Masterizado",
         SecRaidInfinity1 = "🔥 Raid Infinity 1",
         ToggleRaidInfinity1 = "Auto Raid Infinity 1",
         DescRaidInfinity1 = "Farm automático de la Raid Infinity 1",
@@ -427,6 +447,7 @@ local Idiomas = {
         TabBoss = "Boss",
         TabTeleport = "Teleport",
         TabShop = "Shop",
+        TabClasses = "Classes",
         TabExtra = "Extra",
         TabConfig = "Settings",
         SecRaid = "Raid",
@@ -500,6 +521,15 @@ local Idiomas = {
         SecEspadaMontaria = "⚔️ Sword/Mount",
         BtnMergulhador = "Mergulhador",
         DescMergulhador = "Teleport to Mergulhador",
+        SecClasses = "⚡ Classes",
+        BtnPrototipo = "Prototype",
+        DescPrototipo = "Teleport to Prototype",
+        BtnPrototipo10k = "Prototype 10k/Recalibrated",
+        DescPrototipo10k = "Teleport to Prototype 10k/Recalibrated",
+        BtnOsmosiano = "Osmosian",
+        DescOsmosiano = "Teleport to Osmosian",
+        BtnOsmosianoMaster = "Mastered Osmosian",
+        DescOsmosianoMaster = "Teleport to Mastered Osmosian",
         SecRaidInfinity1 = "🔥 Raid Infinity 1",
         ToggleRaidInfinity1 = "Auto Raid Infinity 1",
         DescRaidInfinity1 = "Automated farming for Raid Infinity 1",
@@ -681,7 +711,7 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES (antigos + novos)
+-- LOOP DOS BOSSES
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
@@ -764,17 +794,14 @@ if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config
 end
 
 -- =============================================
--- LOOP RAID INFINITY 1 (CORRIGIDO COM AUTO COLETA)
+-- LOOP RAID INFINITY 1 (CORRIGIDO)
 -- =============================================
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
 local spawnPos = CFrame.new(430, -137, 95)
-
--- Variáveis de estado da Raid Infinity 1
-local raidInfinity1State = "IDLE" -- IDLE, WAITING_SPAWN, FIGHTING, TELEPORTING, COLLECTING, DONE
+local raidInfinity1State = "IDLE"
 local milkyaPartRef = nil
 
--- Função para desativar colisão dos spikes
 local function noclipearSpikes()
     local spikes = Workspace:FindFirstChild("World")
     if spikes then
@@ -793,40 +820,33 @@ local function noclipearSpikes()
     end
 end
 
--- Função para teleportar com velocidade (usando BodyVelocity) e ficar grudado
 local function teleportarEGrudar(cframeDestino, velocidade, manterGrudado)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
     
-    -- Remove qualquer BodyVelocity existente
     for _, v in ipairs(root:GetChildren()) do
         if v:IsA("BodyVelocity") then
             v:Destroy()
         end
     end
     
-    -- Cria BodyVelocity para mover rapidamente
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
     bv.Velocity = Vector3.zero
     bv.Parent = root
     
-    -- Calcula direção
     local direction = (cframeDestino.Position - root.Position).Unit
     bv.Velocity = direction * velocidade
     
-    -- Aguarda até chegar perto (máximo 2 segundos)
     local timeout = 0
     while (root.Position - cframeDestino.Position).Magnitude > 5 and timeout < 2 do
         task.wait(0.05)
         timeout = timeout + 0.05
     end
-    -- Ajusta posição final
     root.CFrame = cframeDestino
     bv:Destroy()
     
-    -- Se manterGrudado for true, mantém a posição atualizada a cada frame
     if manterGrudado then
         local grudarCon = RunService.Heartbeat:Connect(function()
             if not Config.RaidInfinity1Enabled then
@@ -844,14 +864,11 @@ local function teleportarEGrudar(cframeDestino, velocidade, manterGrudado)
     return nil
 end
 
--- Sistema de coleta automática (baseado no código do usuário)
 local autoCollectConnection = nil
 local function iniciarAutoColeta()
     if autoCollectConnection then return end
-    
     autoCollectConnection = ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
         if not Config.RaidInfinity1Enabled then return end
-        -- Verifica se o prompt está dentro do Milkya_Temple
         local parent = prompt.Parent
         local isMilkya = false
         while parent do
@@ -861,9 +878,7 @@ local function iniciarAutoColeta()
             end
             parent = parent.Parent
         end
-        
         if isMilkya then
-            -- Configura para coleta instantânea
             prompt.HoldDuration = 0
             pcall(function()
                 prompt:InputHoldBegin(LocalPlayer)
@@ -888,8 +903,6 @@ local function startRaidInfinity1Loop()
     if raidInfinity1Connection then return end
     raidInfinity1Running = true
     raidInfinity1State = "IDLE"
-    
-    -- Inicia auto coleta
     iniciarAutoColeta()
     
     raidInfinity1Connection = RunService.Heartbeat:Connect(function()
@@ -908,16 +921,13 @@ local function startRaidInfinity1Loop()
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        -- FASE 1: IDLE -> Teleporta para spawnar o Salamander
         if raidInfinity1State == "IDLE" then
             ExecutarTeleporte(spawnPos)
             task.wait(0.5)
             raidInfinity1State = "WAITING_SPAWN"
-            print("[RaidInfinity1] Teleportado para spawn. Aguardando Salamander...")
             return
         end
 
-        -- FASE 2: Verifica se o Salamander está vivo
         local salamander = Workspace:FindFirstChild("Enemys")
         if salamander then
             salamander = salamander:FindFirstChild("Double Fire Salamander")
@@ -938,7 +948,6 @@ local function startRaidInfinity1Loop()
         end
 
         if salamanderAlive and targetPart then
-            -- FASE 2.1: FIGHTING - Grudar no Salamander e atirar
             raidInfinity1State = "FIGHTING"
             root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
             local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
@@ -955,12 +964,10 @@ local function startRaidInfinity1Loop()
             return
         end
 
-        -- FASE 3: Salamander morto ou não encontrado -> Iniciar teleporte para Milkya_Temple
         if raidInfinity1State == "FIGHTING" or raidInfinity1State == "WAITING_SPAWN" then
             raidInfinity1State = "TELEPORTING"
-            print("[RaidInfinity1] Salamander morto. Iniciando teleporte para Milkya_Temple...")
+            print("[RaidInfinity1] Salamander morto. Iniciando teleporte...")
             
-            -- Localiza Milkya_Temple
             local milkya = Workspace:FindFirstChild("World")
             if milkya then
                 milkya = milkya:FindFirstChild("Map")
@@ -974,14 +981,11 @@ local function startRaidInfinity1Loop()
 
             if milkya and milkya:IsA("BasePart") then
                 milkyaPartRef = milkya
-                -- Teleporta com velocidade 350 e mantém grudado
-                local grudarCon = teleportarEGrudar(milkya.CFrame, 350, true)
+                teleportarEGrudar(milkya.CFrame, 350, true)
                 task.wait(0.5)
-                -- Fica grudado permanentemente (o Heartbeat do grudarCon mantém)
                 raidInfinity1State = "COLLECTING"
-                print("[RaidInfinity1] Grudado no Map_Part. Aguardando coleta automática...")
+                print("[RaidInfinity1] Grudado no Map_Part.")
                 
-                -- Tenta coletar imediatamente (caso o prompt já esteja visível)
                 local prompt = milkya:FindFirstChildOfClass("ProximityPrompt")
                 if prompt then
                     pcall(function()
@@ -992,7 +996,6 @@ local function startRaidInfinity1Loop()
                         print("[RaidInfinity1] Prompt coletado imediatamente!")
                     end)
                 else
-                    -- Procura prompts nos filhos
                     for _, child in ipairs(milkya:GetChildren()) do
                         if child:IsA("ProximityPrompt") then
                             pcall(function()
@@ -1008,16 +1011,13 @@ local function startRaidInfinity1Loop()
                 end
             else
                 print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
-                raidInfinity1State = "IDLE" -- Reinicia o ciclo
+                raidInfinity1State = "IDLE"
                 task.wait(2)
             end
             return
         end
 
-        -- FASE 4: COLLECTING - Já está grudado e a coleta automática cuida do prompt.
-        -- Nada a fazer, apenas manter grudado (já mantido pelo teleportarEGrudar)
         if raidInfinity1State == "COLLECTING" then
-            -- Verifica se ainda está grudado, se não, reaplica
             if milkyaPartRef and root then
                 if (root.Position - milkyaPartRef.Position).Magnitude > 5 then
                     root.CFrame = milkyaPartRef.CFrame * CFrame.new(0, 2, 0)
@@ -1025,7 +1025,6 @@ local function startRaidInfinity1Loop()
             end
         end
 
-        -- Se por algum motivo sair do estado, volta para IDLE
         if raidInfinity1State ~= "IDLE" and raidInfinity1State ~= "FIGHTING" and raidInfinity1State ~= "WAITING_SPAWN" and raidInfinity1State ~= "TELEPORTING" and raidInfinity1State ~= "COLLECTING" then
             raidInfinity1State = "IDLE"
         end
@@ -1496,7 +1495,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (atualizado)
+-- MENU – WINDUI (com aba Classes)
 -- =============================================
 local oldWindow = nil
 
@@ -1570,6 +1569,7 @@ local function CriarMenu()
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
     local TabShop = Window:Tab({ Title = lang.TabShop, Icon = "rbxassetid://135710581431595" })
+    local TabClasses = Window:Tab({ Title = lang.TabClasses, Icon = "rbxassetid://135710581431595" })
     local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
@@ -1637,7 +1637,7 @@ local function CriarMenu()
     TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
     TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
 
-    -- SEÇÃO RAID INFINITY 1
+    -- Raid Infinity 1
     TabMain:Section({ Title = lang.SecRaidInfinity1 })
     TabMain:Toggle({
         Title = lang.ToggleRaidInfinity1,
@@ -1913,6 +1913,29 @@ local function CriarMenu()
         Title = lang.BtnMergulhador,
         Desc = lang.DescMergulhador,
         Callback = function() ExecutarTeleporte(CFrame.new(5321, -466, -283)) end
+    })
+
+    -- ====== ABA CLASSES ======
+    TabClasses:Section({ Title = lang.SecClasses })
+    TabClasses:Button({
+        Title = lang.BtnPrototipo,
+        Desc = lang.DescPrototipo,
+        Callback = function() ExecutarTeleporte(CFrame.new(-363, -44, -4330)) end
+    })
+    TabClasses:Button({
+        Title = lang.BtnPrototipo10k,
+        Desc = lang.DescPrototipo10k,
+        Callback = function() ExecutarTeleporte(CFrame.new(2255, 35287, 51610)) end
+    })
+    TabClasses:Button({
+        Title = lang.BtnOsmosiano,
+        Desc = lang.DescOsmosiano,
+        Callback = function() ExecutarTeleporte(CFrame.new(281, -112, -272)) end
+    })
+    TabClasses:Button({
+        Title = lang.BtnOsmosianoMaster,
+        Desc = lang.DescOsmosianoMaster,
+        Callback = function() ExecutarTeleporte(CFrame.new(2201, 35288, 51615)) end
     })
 
     -- ====== ABA EXTRA ======
@@ -2448,8 +2471,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Raid Infinity 1 corrigida com auto coleta.",
+    Text = "Carregado! Aba Classes adicionada.",
     Duration = 3
 })
 
-print("Project Sor carregado. Raid Infinity 1 corrigida com auto coleta.")
+print("Project Sor carregado. Aba Classes disponível.")
