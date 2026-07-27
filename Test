@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado)
+-- DICIONÁRIO DE IDIOMAS (resumido)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -306,6 +306,7 @@ local Idiomas = {
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente"
     },
+    -- Espanhol e Inglês mantidos compactados para o código não ficar muito extenso
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
@@ -764,12 +765,13 @@ if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config
 end
 
 -- =============================================
--- LOOP RAID INFINITY 1 (CORRIGIDO)
+-- LOOP RAID INFINITY 1 (CORRIGIDO - LÓGICA CLARA)
 -- =============================================
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
 local spawnPos = CFrame.new(430, -137, 95)
-local milkyaPart = nil -- será atualizado a cada iteração
+local ultimoEstadoBoss = "desconhecido" -- "vivo", "morto", "ausente"
+local etapaAtual = "spawn" -- "spawn", "combate", "transicao", "coleta"
 
 -- Função para desativar colisão dos spikes
 local function noclipearSpikes()
@@ -796,33 +798,58 @@ local function teleportarComVelocidade(cframe, velocidade)
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
-    -- Remove qualquer BodyVelocity existente
+    -- Remove BodyVelocity anterior
     for _, v in ipairs(root:GetChildren()) do
         if v:IsA("BodyVelocity") then
             v:Destroy()
         end
     end
     
-    -- Cria BodyVelocity para mover rapidamente
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
     bv.Velocity = Vector3.zero
     bv.Parent = root
     
-    -- Calcula direção
     local direction = (cframe.Position - root.Position).Unit
     bv.Velocity = direction * velocidade
     
-    -- Aguarda até chegar perto (máximo 2 segundos)
     local timeout = 0
-    while (root.Position - cframe.Position).Magnitude > 5 and timeout < 2 do
+    while (root.Position - cframe.Position).Magnitude > 5 and timeout < 3 do
         task.wait(0.05)
         timeout = timeout + 0.05
     end
-    -- Ajusta posição final
     root.CFrame = cframe
     bv:Destroy()
     print("[RaidInfinity1] Teleportado para Milkya_Temple.")
+end
+
+-- Função para coletar ProximityPrompt
+local function coletarPrompt(part)
+    if not part then return false end
+    local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+    if prompt then
+        pcall(function()
+            prompt:InputHoldBegin(LocalPlayer)
+            task.wait(1) -- tempo suficiente para ativar
+            prompt:InputHoldEnd(LocalPlayer)
+            print("[RaidInfinity1] Prompt coletado!")
+            return true
+        end)
+    else
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("ProximityPrompt") then
+                pcall(function()
+                    child:InputHoldBegin(LocalPlayer)
+                    task.wait(1)
+                    child:InputHoldEnd(LocalPlayer)
+                    print("[RaidInfinity1] Prompt coletado!")
+                    return true
+                end)
+                break
+            end
+        end
+    end
+    return false
 end
 
 local function startRaidInfinity1Loop()
@@ -842,7 +869,7 @@ local function startRaidInfinity1Loop()
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        -- 1. Encontrar o Salamander
+        -- 1. Verificar estado do Salamander
         local salamander = Workspace:FindFirstChild("Enemys")
         if salamander then
             salamander = salamander:FindFirstChild("Double Fire Salamander")
@@ -851,23 +878,22 @@ local function startRaidInfinity1Loop()
             end
         end
 
-        local salamanderAlive = false
+        local salamanderVivo = false
         local targetPart = nil
-
         if salamander and salamander:IsA("Model") then
             local hum = salamander:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                salamanderAlive = true
+                salamanderVivo = true
                 targetPart = salamander:FindFirstChild("HumanoidRootPart") or salamander:FindFirstChild("Torso")
             end
         end
 
-        if salamanderAlive and targetPart then
-            -- 2. Boss vivo: teleporta para perto e atira
+        -- 2. Se Salamander está vivo: gruda e atira
+        if salamanderVivo and targetPart then
+            etapaAtual = "combate"
             root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
             local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
             if multiplier < 1 then multiplier = 1 end
-
             for i = 1, multiplier do
                 if not Config.RaidInfinity1Enabled then break end
                 Laser()
@@ -876,59 +902,50 @@ local function startRaidInfinity1Loop()
                 Armature()
                 task.wait(0.05)
             end
-            -- Sai do loop para não executar o resto enquanto o boss está vivo
             return
         end
 
-        -- 3. Boss morto ou não encontrado: executar teleporte e coleta
-        -- Localiza Milkya_Temple
-        local milkya = Workspace:FindFirstChild("World")
-        if milkya then
-            milkya = milkya:FindFirstChild("Map")
-            if milkya then
-                milkya = milkya:FindFirstChild("Milkya_Temple")
+        -- 3. Se Salamander está morto ou ausente: transição para teleporte e coleta
+        if etapaAtual ~= "spawn" then
+            -- Se ainda não fez a transição, executa
+            if etapaAtual == "combate" or etapaAtual == "spawn" then
+                etapaAtual = "transicao"
+                -- Teleporta para Milkya_Temple
+                local milkya = Workspace:FindFirstChild("World")
                 if milkya then
-                    milkya = milkya:FindFirstChild("Map_Part")
-                end
-            end
-        end
-
-        if milkya and milkya:IsA("BasePart") then
-            -- Teleporta com velocidade 350
-            teleportarComVelocidade(milkya.CFrame, 350)
-            task.wait(0.5)
-            -- Fica grudado (loop de posição)
-            root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
-            
-            -- 4. Coletar ProximityPrompt
-            local prompt = milkya:FindFirstChildOfClass("ProximityPrompt")
-            if prompt then
-                pcall(function()
-                    prompt:InputHoldBegin(LocalPlayer)
-                    task.wait(1)
-                    prompt:InputHoldEnd(LocalPlayer)
-                    print("[RaidInfinity1] Prompt coletado!")
-                end)
-            else
-                -- Procurar prompts nos filhos
-                for _, child in ipairs(milkya:GetChildren()) do
-                    if child:IsA("ProximityPrompt") then
-                        pcall(function()
-                            child:InputHoldBegin(LocalPlayer)
-                            task.wait(1)
-                            child:InputHoldEnd(LocalPlayer)
-                            print("[RaidInfinity1] Prompt coletado!")
-                        end)
-                        break
+                    milkya = milkya:FindFirstChild("Map")
+                    if milkya then
+                        milkya = milkya:FindFirstChild("Milkya_Temple")
+                        if milkya then
+                            milkya = milkya:FindFirstChild("Map_Part")
+                        end
                     end
                 end
+                if milkya and milkya:IsA("BasePart") then
+                    teleportarComVelocidade(milkya.CFrame, 350)
+                    task.wait(0.5)
+                    -- Gruda no Map_Part
+                    root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
+                    -- Coleta o prompt
+                    coletarPrompt(milkya)
+                    etapaAtual = "coleta"
+                    print("[RaidInfinity1] Coleta finalizada.")
+                else
+                    print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
+                end
             end
+            -- Aguarda um pouco antes de reiniciar o ciclo
+            task.wait(2)
+            -- Se a coleta já foi feita, pode resetar a etapa para spawn na próxima iteração? 
+            -- Mas queremos que após a coleta, o script não fique repetindo o teleporte.
+            -- Vamos apenas deixar como está, e se o jogador quiser reiniciar, desliga e liga o toggle.
         else
-            print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
+            -- Primeira execução: teleporte para spawnar
+            etapaAtual = "spawn"
+            ExecutarTeleporte(spawnPos)
+            task.wait(0.5)
+            etapaAtual = "combate" -- após spawnar, entra em combate
         end
-
-        -- Aguarda um pouco antes de reiniciar o ciclo para não sobrecarregar
-        task.wait(2)
     end)
 end
 
@@ -1396,7 +1413,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (atualizado)
+-- MENU – WINDUI (completo)
 -- =============================================
 local oldWindow = nil
 
@@ -1554,6 +1571,7 @@ local function CriarMenu()
                     raidInfinity1Connection:Disconnect()
                     raidInfinity1Connection = nil
                 end
+                etapaAtual = "spawn"
             end
         end
     })
@@ -2350,4 +2368,4 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-print("Project Sor carregado. Raid Infinity 1 corrigida.")
+print("Project Sor carregado. Raid Infinity 1 corrigida com lógica clara.")
