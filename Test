@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - RAID INFINITY 1 CORRIGIDA
+-- SCRIPT COMPLETO (Project Sor) - RAID INFINITY 1 CORRIGIDA (FINAL)
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (resumido)
+-- DICIONÁRIO DE IDIOMAS (resumido para economizar espaço)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -306,7 +306,6 @@ local Idiomas = {
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente"
     },
-    -- Espanhol e Inglês mantidos compactados para o código não ficar muito extenso
     ["Espanhol"] = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
@@ -765,13 +764,14 @@ if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config
 end
 
 -- =============================================
--- LOOP RAID INFINITY 1 (CORRIGIDO - LÓGICA CLARA)
+-- LOOP RAID INFINITY 1 (VERSÃO FINAL CORRIGIDA)
 -- =============================================
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
 local spawnPos = CFrame.new(430, -137, 95)
-local ultimoEstadoBoss = "desconhecido" -- "vivo", "morto", "ausente"
-local etapaAtual = "spawn" -- "spawn", "combate", "transicao", "coleta"
+local etapaAtual = "spawn" -- "spawn", "combate", "transicao", "coleta", "finalizado"
+local collectAttempts = 0
+local stayConnected = nil -- conexão para manter grudado
 
 -- Função para desativar colisão dos spikes
 local function noclipearSpikes()
@@ -792,8 +792,8 @@ local function noclipearSpikes()
     end
 end
 
--- Função para teleportar com velocidade (usando BodyVelocity)
-local function teleportarComVelocidade(cframe, velocidade)
+-- Função para teleportar com velocidade e depois grudar
+local function teleportarEGrudar(cframe, velocidade, alvoPart)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
@@ -805,6 +805,7 @@ local function teleportarComVelocidade(cframe, velocidade)
         end
     end
     
+    -- Cria BodyVelocity para o teleporte
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
     bv.Velocity = Vector3.zero
@@ -813,36 +814,59 @@ local function teleportarComVelocidade(cframe, velocidade)
     local direction = (cframe.Position - root.Position).Unit
     bv.Velocity = direction * velocidade
     
+    -- Aguarda chegar perto
     local timeout = 0
     while (root.Position - cframe.Position).Magnitude > 5 and timeout < 3 do
         task.wait(0.05)
         timeout = timeout + 0.05
     end
-    root.CFrame = cframe
     bv:Destroy()
-    print("[RaidInfinity1] Teleportado para Milkya_Temple.")
+    
+    -- Ajusta posição final
+    root.CFrame = cframe
+    
+    -- Inicia o loop para manter grudado
+    if stayConnected then
+        stayConnected:Disconnect()
+        stayConnected = nil
+    end
+    stayConnected = RunService.Heartbeat:Connect(function()
+        if not Config.RaidInfinity1Enabled then
+            if stayConnected then
+                stayConnected:Disconnect()
+                stayConnected = nil
+            end
+            return
+        end
+        if root and alvoPart and alvoPart:IsA("BasePart") then
+            root.CFrame = alvoPart.CFrame * CFrame.new(0, 2, 0)
+        end
+    end)
+    
+    print("[RaidInfinity1] Grudado no Map_Part.")
 end
 
--- Função para coletar ProximityPrompt
+-- Função para coletar ProximityPrompt (tenta várias vezes)
 local function coletarPrompt(part)
     if not part then return false end
     local prompt = part:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         pcall(function()
             prompt:InputHoldBegin(LocalPlayer)
-            task.wait(1) -- tempo suficiente para ativar
+            task.wait(1.5) -- tempo suficiente para ativar
             prompt:InputHoldEnd(LocalPlayer)
-            print("[RaidInfinity1] Prompt coletado!")
+            print("[RaidInfinity1] Prompt coletado com sucesso!")
             return true
         end)
     else
+        -- Procura em filhos
         for _, child in ipairs(part:GetChildren()) do
             if child:IsA("ProximityPrompt") then
                 pcall(function()
                     child:InputHoldBegin(LocalPlayer)
-                    task.wait(1)
+                    task.wait(1.5)
                     child:InputHoldEnd(LocalPlayer)
-                    print("[RaidInfinity1] Prompt coletado!")
+                    print("[RaidInfinity1] Prompt coletado com sucesso!")
                     return true
                 end)
                 break
@@ -862,6 +886,11 @@ local function startRaidInfinity1Loop()
                 raidInfinity1Connection:Disconnect()
                 raidInfinity1Connection = nil
             end
+            if stayConnected then
+                stayConnected:Disconnect()
+                stayConnected = nil
+            end
+            etapaAtual = "spawn"
             return
         end
 
@@ -888,8 +917,8 @@ local function startRaidInfinity1Loop()
             end
         end
 
-        -- 2. Se Salamander está vivo: gruda e atira
-        if salamanderVivo and targetPart then
+        -- Se o boss está vivo e estamos na fase de combate ou spawn, atira
+        if salamanderVivo and targetPart and (etapaAtual == "spawn" or etapaAtual == "combate") then
             etapaAtual = "combate"
             root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
             local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
@@ -905,46 +934,91 @@ local function startRaidInfinity1Loop()
             return
         end
 
-        -- 3. Se Salamander está morto ou ausente: transição para teleporte e coleta
-        if etapaAtual ~= "spawn" then
-            -- Se ainda não fez a transição, executa
-            if etapaAtual == "combate" or etapaAtual == "spawn" then
-                etapaAtual = "transicao"
-                -- Teleporta para Milkya_Temple
-                local milkya = Workspace:FindFirstChild("World")
+        -- Se o boss morreu ou sumiu, e ainda não fizemos a transição
+        if (not salamanderVivo or not targetPart) and etapaAtual ~= "finalizado" and etapaAtual ~= "coleta" then
+            -- Localiza Milkya_Temple
+            local milkya = Workspace:FindFirstChild("World")
+            if milkya then
+                milkya = milkya:FindFirstChild("Map")
                 if milkya then
-                    milkya = milkya:FindFirstChild("Map")
+                    milkya = milkya:FindFirstChild("Milkya_Temple")
                     if milkya then
-                        milkya = milkya:FindFirstChild("Milkya_Temple")
-                        if milkya then
-                            milkya = milkya:FindFirstChild("Map_Part")
-                        end
+                        milkya = milkya:FindFirstChild("Map_Part")
                     end
                 end
-                if milkya and milkya:IsA("BasePart") then
-                    teleportarComVelocidade(milkya.CFrame, 350)
-                    task.wait(0.5)
-                    -- Gruda no Map_Part
-                    root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
-                    -- Coleta o prompt
-                    coletarPrompt(milkya)
-                    etapaAtual = "coleta"
-                    print("[RaidInfinity1] Coleta finalizada.")
-                else
-                    print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
-                end
             end
-            -- Aguarda um pouco antes de reiniciar o ciclo
-            task.wait(2)
-            -- Se a coleta já foi feita, pode resetar a etapa para spawn na próxima iteração? 
-            -- Mas queremos que após a coleta, o script não fique repetindo o teleporte.
-            -- Vamos apenas deixar como está, e se o jogador quiser reiniciar, desliga e liga o toggle.
-        else
-            -- Primeira execução: teleporte para spawnar
-            etapaAtual = "spawn"
+
+            if milkya and milkya:IsA("BasePart") then
+                if etapaAtual == "spawn" or etapaAtual == "combate" then
+                    etapaAtual = "transicao"
+                    print("[RaidInfinity1] Iniciando transição para Milkya_Temple.")
+                    teleportarEGrudar(milkya.CFrame, 350, milkya)
+                    etapaAtual = "coleta"
+                    collectAttempts = 0
+                end
+
+                -- Fase de coleta: tenta coletar repetidamente enquanto gruda
+                if etapaAtual == "coleta" then
+                    -- Garantir que está grudado
+                    if stayConnected then
+                        stayConnected:Disconnect()
+                        stayConnected = nil
+                    end
+                    stayConnected = RunService.Heartbeat:Connect(function()
+                        if not Config.RaidInfinity1Enabled then
+                            if stayConnected then
+                                stayConnected:Disconnect()
+                                stayConnected = nil
+                            end
+                            return
+                        end
+                        if root and milkya and milkya:IsA("BasePart") then
+                            root.CFrame = milkya.CFrame * CFrame.new(0, 2, 0)
+                        end
+                    end)
+
+                    -- Tenta coletar
+                    local sucesso = coletarPrompt(milkya)
+                    collectAttempts = collectAttempts + 1
+                    if sucesso then
+                        etapaAtual = "finalizado"
+                        print("[RaidInfinity1] Raid Infinity 1 concluída!")
+                        if stayConnected then
+                            stayConnected:Disconnect()
+                            stayConnected = nil
+                        end
+                        -- Notifica o usuário
+                        StarterGui:SetCore("SendNotification", {
+                            Title = "Raid Infinity 1",
+                            Text = "Raid concluída com sucesso!",
+                            Duration = 3
+                        })
+                    elseif collectAttempts > 10 then
+                        print("[RaidInfinity1] Tentativas de coleta excedidas. Reiniciando ciclo.")
+                        etapaAtual = "spawn"
+                        collectAttempts = 0
+                        if stayConnected then
+                            stayConnected:Disconnect()
+                            stayConnected = nil
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            else
+                print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
+                etapaAtual = "spawn"
+            end
+        end
+
+        -- Se já finalizou, não faz nada (aguarda desligar)
+        if etapaAtual == "finalizado" then
+            return
+        end
+
+        -- Se não há boss e não está em transição, volta para spawn (reinicia)
+        if not salamanderVivo and etapaAtual == "spawn" then
             ExecutarTeleporte(spawnPos)
             task.wait(0.5)
-            etapaAtual = "combate" -- após spawnar, entra em combate
         end
     end)
 end
@@ -1570,6 +1644,10 @@ local function CriarMenu()
                 if raidInfinity1Connection then
                     raidInfinity1Connection:Disconnect()
                     raidInfinity1Connection = nil
+                end
+                if stayConnected then
+                    stayConnected:Disconnect()
+                    stayConnected = nil
                 end
                 etapaAtual = "spawn"
             end
@@ -2364,8 +2442,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Raid Infinity 1 corrigida.",
+    Text = "Carregado! Raid Infinity 1 finalizada.",
     Duration = 3
 })
 
-print("Project Sor carregado. Raid Infinity 1 corrigida com lógica clara.")
+print("Project Sor carregado. Raid Infinity 1 corrigida (coleta e grude).")
