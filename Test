@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - COM CORREÇÃO HOKESTAR E DELETAR MÚSICA
+-- SCRIPT COMPLETO (Project Sor) - HOKESTAR CORRIGIDO + DELETAR MÚSICA
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -182,7 +182,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (com novas entradas)
+-- DICIONÁRIO DE IDIOMAS (atualizado com "Deletar Música")
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -233,7 +233,6 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
-        -- Shop
         SecConcessionaria = "🚗 Concessionária",
         BtnKevin = "Kevin",
         DescKevin = "Teleporta para o Kevin",
@@ -257,13 +256,14 @@ local Idiomas = {
         DropMusica = "Selecionar Música",
         ToggleMusica = "Tocar Música",
         BtnSalvarMusica = "Salva Música",
+        BtnDeletarMusica = "Deleta Música",
         TituloSalvarMusica = "Salvar Música",
         LabelID = "ID da Música",
         LabelNome = "Nome da Música",
         BtnAplicar = "Aplicar",
-        BtnDeletarMusica = "Deletar Música",
-        TituloDeletar = "Deletar Música",
-        BtnDeletar = "Deletar",
+        TituloDeletarMusica = "Deletar Música",
+        DropDeletar = "Selecionar Música para deletar",
+        BtnDeletar = "🗑️ Deletar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -353,13 +353,14 @@ local Idiomas = {
         DropMusica = "Seleccionar Música",
         ToggleMusica = "Tocar Música",
         BtnSalvarMusica = "Guardar Música",
+        BtnDeletarMusica = "Eliminar Música",
         TituloSalvarMusica = "Guardar Música",
         LabelID = "ID de la Música",
         LabelNome = "Nombre de la Música",
         BtnAplicar = "Aplicar",
-        BtnDeletarMusica = "Borrar Música",
-        TituloDeletar = "Borrar Música",
-        BtnDeletar = "Borrar",
+        TituloDeletarMusica = "Eliminar Música",
+        DropDeletar = "Seleccionar música para eliminar",
+        BtnDeletar = "🗑️ Eliminar",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -449,13 +450,14 @@ local Idiomas = {
         DropMusica = "Select Music",
         ToggleMusica = "Play Music",
         BtnSalvarMusica = "Save Music",
+        BtnDeletarMusica = "Delete Music",
         TituloSalvarMusica = "Save Music",
         LabelID = "Music ID",
         LabelNome = "Music Name",
         BtnAplicar = "Apply",
-        BtnDeletarMusica = "Delete Music",
-        TituloDeletar = "Delete Music",
-        BtnDeletar = "Delete",
+        TituloDeletarMusica = "Delete Music",
+        DropDeletar = "Select music to delete",
+        BtnDeletar = "🗑️ Delete",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -556,63 +558,6 @@ local function ExecutarTeleporte(cframe)
     estaTeleportando = false
 end
 
--- =============================================
--- FUNÇÃO CORRIGIDA PARA TELEPORTAR PARA HOKESTAR
--- =============================================
-local function TeleportarParaHokestar()
-    local npcs = Workspace:FindFirstChild("NPCS")
-    if npcs then
-        local hokestarFolder = npcs:FindFirstChild("Hokestar")
-        if hokestarFolder then
-            local character = hokestarFolder:FindFirstChild("Character")
-            if character then
-                -- Tenta HumanoidRootPart, Hokestar, Torso, ou qualquer BasePart
-                local part = character:FindFirstChild("HumanoidRootPart") or 
-                             character:FindFirstChild("Hokestar") or 
-                             character:FindFirstChild("Torso") or 
-                             character:FindFirstChild("UpperTorso")
-                if not part then
-                    -- Procura qualquer BasePart
-                    for _, child in ipairs(character:GetChildren()) do
-                        if child:IsA("BasePart") then
-                            part = child
-                            break
-                        end
-                    end
-                end
-                if part then
-                    ExecutarTeleporte(part.CFrame)
-                    return
-                else
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "Erro",
-                        Text = "Nenhuma parte encontrada no Hokestar.",
-                        Duration = 2
-                    })
-                end
-            else
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "Character do Hokestar não encontrado.",
-                    Duration = 2
-                })
-            end
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Pasta Hokestar não encontrada.",
-                Duration = 2
-            })
-        end
-    else
-        StarterGui:SetCore("SendNotification", {
-            Title = "Erro",
-            Text = "Pasta NPCS não encontrada.",
-            Duration = 2
-        })
-    end
-end
-
 local function MudarServidor(ordem)
     local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
     local success, result = pcall(function()
@@ -631,7 +576,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID
+-- LOOP DA RAID (CORRIGIDO)
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -674,7 +619,7 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES
+-- LOOP DOS BOSSES (CORRIGIDO)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
@@ -1212,7 +1157,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (com correção Hokestar e Deletar Música)
+-- MENU – WINDUI (com Shop e Segundo Mundo)
 -- =============================================
 local oldWindow = nil
 
@@ -1436,7 +1381,7 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA TELEPORTE ======
+    -- ====== ABA TELEPORTE (com Segundo Mundo) ======
     TabTeleport:Section({ Title = lang.SecTerra })
     TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
     TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
@@ -1466,13 +1411,40 @@ local function CriarMenu()
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
 
-    -- SEGUNDO MUNDO (CORRIGIDO)
+    -- SEGUNDO MUNDO - HOKESTAR CORRIGIDO
     TabTeleport:Section({ Title = lang.SecSegundoMundo })
     TabTeleport:Button({
         Title = lang.BtnHokestar,
         Desc = lang.DescHokestar,
         Callback = function()
-            TeleportarParaHokestar()
+            local hokestarModel = Workspace:FindFirstChild("NPCS")
+            if hokestarModel then
+                hokestarModel = hokestarModel:FindFirstChild("Hokestar")
+                if hokestarModel then
+                    local char = hokestarModel:FindFirstChild("Character")
+                    if char and char:IsA("Model") then
+                        -- Procura por qualquer parte do corpo
+                        local part = char:FindFirstChild("Hokestar") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+                        if not part then
+                            for _, child in ipairs(char:GetChildren()) do
+                                if child:IsA("BasePart") then
+                                    part = child
+                                    break
+                                end
+                            end
+                        end
+                        if part then
+                            ExecutarTeleporte(part.CFrame)
+                            return
+                        end
+                    end
+                end
+            end
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "NPC Hokestar não encontrado!",
+                Duration = 3
+            })
         end
     })
 
@@ -1522,7 +1494,7 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(5318, -466, -228)) end
     })
 
-    -- ====== ABA EXTRA (com Deletar Música) ======
+    -- ====== ABA EXTRA ======
     local dropdownMusica = nil
     local toggleMusicaRef = nil
 
@@ -1730,11 +1702,11 @@ local function CriarMenu()
         end
     })
 
-    -- NOVO BOTÃO: DELETAR MÚSICA
+    -- NOVO BOTÃO: DELETA MÚSICA
     TabExtra:Button({
         Title = lang.BtnDeletarMusica,
         Callback = function()
-            -- Menu para deletar música
+            -- Criar menu de deletar com bordas alternando vermelho/azul
             local deleteGui = Instance.new("ScreenGui")
             deleteGui.Name = "DeletarMusicaGui"
             deleteGui.ResetOnSpawn = false
@@ -1742,44 +1714,35 @@ local function CriarMenu()
             deleteGui.Parent = coreGui
 
             local mainFrame = Instance.new("Frame")
-            mainFrame.Size = UDim2.new(0, 350, 0, 200)
-            mainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
-            mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
-            mainFrame.BackgroundTransparency = 0.1
+            mainFrame.Size = UDim2.new(0, 400, 0, 200)
+            mainFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
+            mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- fundo preto
+            mainFrame.BackgroundTransparency = 0
             mainFrame.BorderSizePixel = 0
             mainFrame.Parent = deleteGui
 
             local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 16)
+            corner.CornerRadius = UDim.new(0, 12)
             corner.Parent = mainFrame
 
-            -- Borda com cores alternando (vermelho e azul)
+            -- Stroke com borda que vai alternar cores
             local stroke = Instance.new("UIStroke")
-            stroke.Color = Color3.fromRGB(255, 0, 0)
             stroke.Thickness = 3
+            stroke.Color = Color3.fromRGB(255, 0, 0) -- começa vermelho
             stroke.Parent = mainFrame
 
-            -- Alternância de cores
-            local alternar = true
-            task.spawn(function()
-                while deleteGui and deleteGui.Parent do
-                    task.wait(0.8)
-                    alternar = not alternar
-                    stroke.Color = alternar and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 100, 255)
-                end
-            end)
-
+            -- Título
             local titleLabel = Instance.new("TextLabel")
             titleLabel.Size = UDim2.new(1, 0, 0, 40)
             titleLabel.Position = UDim2.new(0, 0, 0, 0)
             titleLabel.BackgroundTransparency = 1
-            titleLabel.Text = lang.TituloDeletar
+            titleLabel.Text = lang.TituloDeletarMusica
             titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            titleLabel.TextSize = 18
+            titleLabel.TextSize = 20
             titleLabel.Font = Enum.Font.GothamBold
             titleLabel.Parent = mainFrame
 
-            -- Botão fechar
+            -- Botão fechar (X vermelho)
             local closeBtn = Instance.new("TextButton")
             closeBtn.Size = UDim2.new(0, 35, 0, 35)
             closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -1791,28 +1754,110 @@ local function CriarMenu()
             closeBtn.Parent = mainFrame
             closeBtn.MouseButton1Click:Connect(function()
                 deleteGui:Destroy()
+                if strokeLoop then
+                    strokeLoop:Disconnect()
+                    strokeLoop = nil
+                end
             end)
 
-            -- Dropdown com as músicas
+            -- Dropdown para selecionar música
             local nomes = {}
             for _, m in ipairs(Config.MusicasSalvas) do
                 table.insert(nomes, m.nome)
             end
+            -- Fallback se não houver músicas
+            if #nomes == 0 then
+                table.insert(nomes, "Nenhuma música salva")
+            end
+            local dropdownDeletar = nil
 
-            local dropdownDelete = WindUI:CreateDropdown({
-                Title = "Selecionar Música",
-                Values = nomes,
-                Value = nomes[1] or "",
-                Parent = mainFrame,
-                Position = UDim2.new(0.1, 0, 0.3, 0),
-                Size = UDim2.new(0.8, 0, 0, 30)
-            })
+            local labelDrop = Instance.new("TextLabel")
+            labelDrop.Size = UDim2.new(0, 150, 0, 30)
+            labelDrop.Position = UDim2.new(0, 20, 0, 55)
+            labelDrop.BackgroundTransparency = 1
+            labelDrop.Text = lang.DropDeletar .. ":"
+            labelDrop.TextColor3 = Color3.fromRGB(200, 200, 200)
+            labelDrop.TextSize = 14
+            labelDrop.Font = Enum.Font.Gotham
+            labelDrop.TextXAlignment = Enum.TextXAlignment.Right
+            labelDrop.Parent = mainFrame
+
+            -- Usar um Dropdown do WindUI? Para simplicidade, vou criar um menu dropdown manual com um TextButton e um ScrollingFrame.
+            -- Vou usar uma abordagem mais simples: um TextButton que ao clicar mostra uma lista, mas para manter a consistência com o restante, vou usar um TextBox com autocompletar? Não, vou criar um dropdown estilo roblox.
+
+            -- Como o WindUI já tem Dropdown, vou criar um dropdown interno usando o mesmo estilo, mas para não complicar, vou fazer um TextBox com placeholder e um botão de confirmar, mas o pedido foi por um dropdown.
+
+            -- Vou criar um dropdown manual com um TextButton que exibe o valor selecionado e um ScrollingFrame com os itens.
+
+            local selectedMusic = nomes[1] or "Nenhuma"
+            local dropBtn = Instance.new("TextButton")
+            dropBtn.Size = UDim2.new(0, 200, 0, 30)
+            dropBtn.Position = UDim2.new(0, 180, 0, 55)
+            dropBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+            dropBtn.Text = selectedMusic
+            dropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            dropBtn.TextSize = 14
+            dropBtn.Font = Enum.Font.Gotham
+            dropBtn.Parent = mainFrame
+
+            local dropCorner = Instance.new("UICorner")
+            dropCorner.CornerRadius = UDim.new(0, 6)
+            dropCorner.Parent = dropBtn
+
+            -- Dropdown list (ScrollingFrame)
+            local dropList = Instance.new("ScrollingFrame")
+            dropList.Size = UDim2.new(0, 200, 0, 100)
+            dropList.Position = UDim2.new(0, 180, 0, 85)
+            dropList.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+            dropList.BorderSizePixel = 0
+            dropList.ScrollBarThickness = 8
+            dropList.CanvasSize = UDim2.new(0, 0, 0, #nomes * 30)
+            dropList.Visible = false
+            dropList.Parent = mainFrame
+
+            local listCorner = Instance.new("UICorner")
+            listCorner.CornerRadius = UDim.new(0, 6)
+            listCorner.Parent = dropList
+
+            local listStroke = Instance.new("UIStroke")
+            listStroke.Color = Color3.fromRGB(200, 50, 50)
+            listStroke.Thickness = 1
+            listStroke.Parent = dropList
+
+            -- Preencher a lista
+            local buttons = {}
+            for i, nome in ipairs(nomes) do
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 30)
+                btn.Position = UDim2.new(0, 0, 0, (i-1)*30)
+                btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+                btn.Text = nome
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.TextSize = 14
+                btn.Font = Enum.Font.Gotham
+                btn.Parent = dropList
+
+                local btnCorner = Instance.new("UICorner")
+                btnCorner.CornerRadius = UDim.new(0, 4)
+                btnCorner.Parent = btn
+
+                btn.MouseButton1Click:Connect(function()
+                    selectedMusic = nome
+                    dropBtn.Text = nome
+                    dropList.Visible = false
+                end)
+                table.insert(buttons, btn)
+            end
+
+            dropBtn.MouseButton1Click:Connect(function()
+                dropList.Visible = not dropList.Visible
+            end)
 
             -- Botão Deletar
             local deleteBtn = Instance.new("TextButton")
-            deleteBtn.Size = UDim2.new(0, 120, 0, 40)
-            deleteBtn.Position = UDim2.new(0.5, -60, 0.8, 0)
-            deleteBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+            deleteBtn.Size = UDim2.new(0, 150, 0, 40)
+            deleteBtn.Position = UDim2.new(0.5, -75, 1, -55)
+            deleteBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
             deleteBtn.Text = lang.BtnDeletar
             deleteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             deleteBtn.TextSize = 16
@@ -1824,56 +1869,87 @@ local function CriarMenu()
             deleteCorner.Parent = deleteBtn
 
             deleteBtn.MouseButton1Click:Connect(function()
-                local selecionada = dropdownDelete.Value
-                if selecionada and selecionada ~= "" then
+                if selectedMusic and selectedMusic ~= "Nenhuma música salva" and selectedMusic ~= "Nenhuma" then
+                    -- Encontrar o índice da música
                     local index = nil
                     for i, m in ipairs(Config.MusicasSalvas) do
-                        if m.nome == selecionada then
+                        if m.nome == selectedMusic then
                             index = i
                             break
                         end
                     end
                     if index then
                         table.remove(Config.MusicasSalvas, index)
-                        if Config.MusicaAtual == selecionada then
-                            if #Config.MusicasSalvas > 0 then
-                                Config.MusicaAtual = Config.MusicasSalvas[1].nome
-                            else
-                                Config.MusicaAtual = ""
-                            end
-                        end
                         SaveConfig()
-                        -- Atualiza dropdown principal
+                        -- Atualizar dropdown principal
                         local novosNomes = {}
                         for _, m in ipairs(Config.MusicasSalvas) do
                             table.insert(novosNomes, m.nome)
                         end
                         dropdownMusica:Refresh(novosNomes, true)
-                        if #Config.MusicasSalvas > 0 then
-                            dropdownMusica:SetValue(Config.MusicaAtual)
-                        end
-                        -- Se a música estava tocando e foi deletada, para
-                        if Config.TocarMusica and selecionada == Config.MusicaAtual then
-                            pararMusica()
-                            if #Config.MusicasSalvas > 0 then
+                        if #novosNomes > 0 then
+                            dropdownMusica:SetValue(novosNomes[1])
+                            Config.MusicaAtual = novosNomes[1]
+                            if Config.TocarMusica then
+                                pararMusica()
                                 tocarMusica(Config.MusicasSalvas[1].id)
                             end
+                        else
+                            Config.MusicaAtual = ""
+                            Config.TocarMusica = false
+                            pararMusica()
                         end
-                        deleteGui:Destroy()
+                        SaveConfig()
                         StarterGui:SetCore("SendNotification", {
                             Title = "Música",
-                            Text = "Música deletada: " .. selecionada,
+                            Text = "Música deletada: " .. selectedMusic,
                             Duration = 2
                         })
+                        deleteGui:Destroy()
+                        if strokeLoop then
+                            strokeLoop:Disconnect()
+                            strokeLoop = nil
+                        end
                     end
                 else
                     StarterGui:SetCore("SendNotification", {
                         Title = "Erro",
-                        Text = "Selecione uma música para deletar.",
+                        Text = "Selecione uma música válida para deletar.",
                         Duration = 2
                     })
                 end
             end)
+
+            -- Loop para alternar cores da borda
+            local strokeLoop = nil
+            local colors = {Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 0, 255)}
+            local colorIndex = 1
+            strokeLoop = RunService.Heartbeat:Connect(function()
+                if deleteGui and deleteGui.Parent then
+                    -- alternar a cor a cada 0.5 segundos
+                    if tick() % 1 < 0.5 then
+                        stroke.Color = colors[1]
+                    else
+                        stroke.Color = colors[2]
+                    end
+                else
+                    if strokeLoop then
+                        strokeLoop:Disconnect()
+                        strokeLoop = nil
+                    end
+                end
+            end)
+
+            -- Quando fechar, desconectar o loop
+            deleteGui.AncestryChanged:Connect(function()
+                if not deleteGui.Parent then
+                    if strokeLoop then
+                        strokeLoop:Disconnect()
+                        strokeLoop = nil
+                    end
+                end
+            end)
+
         end
     })
 
@@ -1987,4 +2063,4 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-print("Project Sor carregado. Correções aplicadas.")
+print("Project Sor carregado. Hokestar corrigido e Deletar Música disponível.")
