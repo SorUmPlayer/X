@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - MULTIPLICADOR CORRIGIDO
+-- SCRIPT COMPLETO (Project Sor) - COM SHOP E SEGUNDO MUNDO
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -15,6 +15,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local TextChatService = game:GetService("TextChatService")
 local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
@@ -49,13 +50,13 @@ end
 
 local Config = {
     RaidEnabled = false,
-    ShotSpeedIndex = 1,          -- Multiplicador Raid
+    ShotSpeedIndex = 1,
     NpcDistance = 2,
     Language = "Português",
     RemoverIntro = false,
     AntiAFK = false,
     BossDistance = 2,
-    BossShotMultiplier = 1,      -- Multiplicador Boss
+    BossShotMultiplier = 1,
     BossShip = false,
     BossKraken = false,
     BossTransDimensional = false,
@@ -181,13 +182,14 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS
+-- DICIONÁRIO DE IDIOMAS (atualizado)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
         TabMain = "Raid & Teleportes",
         TabBoss = "Boss",
         TabTeleport = "Teleporte",
+        TabShop = "Shop",
         TabExtra = "Extra",
         TabConfig = "Configurações",
         SecRaid = "Raid",
@@ -199,6 +201,9 @@ local Idiomas = {
         Distancia = "Distância",
         DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Segundo Mundo",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teleporta para o NPC Hokestar",
         SecBossConfig = "Boss Config",
         DescBossDist = "Distância acima do Boss (0 a 20)",
         DescBossMulti = "Multiplicador de tiros para Boss",
@@ -228,6 +233,26 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Prédio",
+        -- Shop
+        SecConcessionaria = "🚗 Concessionária",
+        BtnKevin = "Kevin",
+        DescKevin = "Teleporta para o Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Loja Espada/Redefinir Time",
+        DescLojaEspada = "Teleporta para a Loja de Espadas",
+        SecHoverBoards = "🛹 HoverBoards/Naves",
+        BtnVendedorHover = "Vendedor HoverBoards Ilegal",
+        DescVendedorHover = "Teleporta para o vendedor ilegal",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teleporta para o Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teleporta para o BASTZIN22",
+        SecEstiloLuta = "🥊 Estilo de luta",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teleporta para o Fistrick",
+        SecLojaCelular = "📱 Loja de Celular",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teleporta para o Pakmar",
         SecExtra = "🎵 Música",
         DropMusica = "Selecionar Música",
         ToggleMusica = "Tocar Música",
@@ -258,6 +283,7 @@ local Idiomas = {
         TabMain = "Raid y Teleportes",
         TabBoss = "Jefe",
         TabTeleport = "Teletransporte",
+        TabShop = "Tienda",
         TabExtra = "Extra",
         TabConfig = "Configuraciones",
         SecRaid = "Raid",
@@ -269,6 +295,9 @@ local Idiomas = {
         Distancia = "Distancia",
         DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
         SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Segundo Mundo",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teletransporta al NPC Hokestar",
         SecBossConfig = "Config Jefe",
         DescBossDist = "Distancia sobre el Jefe (0 a 20)",
         DescBossMulti = "Multiplicador de disparos para Jefe",
@@ -298,6 +327,25 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX ADN",
         BtnPredioGalvan = "Edificio",
+        SecConcessionaria = "🚗 Concesionario",
+        BtnKevin = "Kevin",
+        DescKevin = "Teletransporta a Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Tienda de Espadas/Reiniciar Equipo",
+        DescLojaEspada = "Teletransporta a la Tienda de Espadas",
+        SecHoverBoards = "🛹 HoverBoards/Naves",
+        BtnVendedorHover = "Vendedor HoverBoards Ilegal",
+        DescVendedorHover = "Teletransporta al vendedor ilegal",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teletransporta a Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teletransporta a BASTZIN22",
+        SecEstiloLuta = "🥊 Estilo de lucha",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teletransporta a Fistrick",
+        SecLojaCelular = "📱 Tienda de Celulares",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teletransporta a Pakmar",
         SecExtra = "🎵 Música",
         DropMusica = "Seleccionar Música",
         ToggleMusica = "Tocar Música",
@@ -328,6 +376,7 @@ local Idiomas = {
         TabMain = "Raid & Teleports",
         TabBoss = "Boss",
         TabTeleport = "Teleport",
+        TabShop = "Shop",
         TabExtra = "Extra",
         TabConfig = "Settings",
         SecRaid = "Raid",
@@ -339,6 +388,9 @@ local Idiomas = {
         Distancia = "Distance",
         DescDist = "Distance above NPCs (Studs) - 0 to 20",
         SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Second World",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teleport to NPC Hokestar",
         SecBossConfig = "Boss Config",
         DescBossDist = "Distance above Boss (0 to 20)",
         DescBossMulti = "Shot multiplier for Boss",
@@ -368,6 +420,25 @@ local Idiomas = {
         BtnBBAlienX = "BB AlienX",
         BtnAlienXDNA = "AlienX DNA",
         BtnPredioGalvan = "Building",
+        SecConcessionaria = "🚗 Dealership",
+        BtnKevin = "Kevin",
+        DescKevin = "Teleport to Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Sword Shop/Reset Team",
+        DescLojaEspada = "Teleport to Sword Shop",
+        SecHoverBoards = "🛹 HoverBoards/Ships",
+        BtnVendedorHover = "Illegal HoverBoard Seller",
+        DescVendedorHover = "Teleport to illegal seller",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teleport to Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teleport to BASTZIN22",
+        SecEstiloLuta = "🥊 Fighting Style",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teleport to Fistrick",
+        SecLojaCelular = "📱 Cell Phone Shop",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teleport to Pakmar",
         SecExtra = "🎵 Music",
         DropMusica = "Select Music",
         ToggleMusica = "Play Music",
@@ -441,7 +512,7 @@ local function getClosestNPC()
     local _, myRoot = getLocalCharacter()
     if not myRoot then return nil end
 
-    local enemysFolder = workspace:FindFirstChild("Enemys")
+    local enemysFolder = Workspace:FindFirstChild("Enemys")
     if not enemysFolder then return nil end
 
     local closestNPC = nil
@@ -476,6 +547,17 @@ local function ExecutarTeleporte(cframe)
     estaTeleportando = false
 end
 
+-- Função para teleportar para um NPC específico (Hokestar)
+local function TeleportarParaNPC(caminho)
+    local npc = caminho
+    if npc and npc:IsA("BasePart") then
+        local pos = npc.Position
+        ExecutarTeleporte(CFrame.new(pos))
+    else
+        print("[Teleporte] NPC não encontrado ou inválido.")
+    end
+end
+
 local function MudarServidor(ordem)
     local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
     local success, result = pcall(function()
@@ -494,7 +576,7 @@ local function MudarServidor(ordem)
 end
 
 -- =============================================
--- LOOP DA RAID (CORRIGIDO - MULTIPLICADOR FUNCIONA)
+-- LOOP DA RAID (CORRIGIDO)
 -- =============================================
 local raidRunning = false
 local raidConnection = nil
@@ -516,21 +598,18 @@ local function startRaidLoop()
         local targetNPC = getClosestNPC()
         if not myRoot or not targetNPC then return end
 
-        -- Teleporta para o NPC
         myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
 
-        -- Lê o multiplicador e garante que é um número inteiro positivo
         local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
         if multiplier < 1 then multiplier = 1 end
 
-        -- Executa os disparos em sequência com um pequeno delay
         for i = 1, multiplier do
             if not Config.RaidEnabled then break end
             Laser()
             GunArm()
             ArmFire(targetNPC)
             Armature()
-            task.wait(0.05) -- delay entre tiros para garantir que todos sejam enviados
+            task.wait(0.05)
         end
     end)
 end
@@ -540,13 +619,13 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES (CORRIGIDO - MULTIPLICADOR FUNCIONA)
+-- LOOP DOS BOSSES (CORRIGIDO)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
 
 local function getActiveBossTarget()
-    local enemys = workspace:FindFirstChild("Enemys")
+    local enemys = Workspace:FindFirstChild("Enemys")
     if not enemys then return nil end
 
     local bosses = {
@@ -599,14 +678,11 @@ local function startBossLoop()
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
 
-        -- Teleporta para o Boss
         myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
 
-        -- Lê o multiplicador do Boss
         local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
         if multiplier < 1 then multiplier = 1 end
 
-        -- Executa os disparos em sequência com delay
         for i = 1, multiplier do
             if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional) then break end
             Laser()
@@ -1081,7 +1157,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- MENU – WINDUI (com aba Extra)
+-- MENU – WINDUI (com Shop e Segundo Mundo)
 -- =============================================
 local oldWindow = nil
 
@@ -1154,10 +1230,11 @@ local function CriarMenu()
     local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
     local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
+    local TabShop = Window:Tab({ Title = lang.TabShop, Icon = "rbxassetid://135710581431595" })
     local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
-    -- ====== ABA MAIN ======
+    -- ====== ABA MAIN (Raid) ======
     TabMain:Section({ Title = lang.SecRaid })
     TabMain:Toggle({
         Title = lang.ToggleRaid,
@@ -1304,7 +1381,7 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA TELEPORTE ======
+    -- ====== ABA TELEPORTE (com Segundo Mundo) ======
     TabTeleport:Section({ Title = lang.SecTerra })
     TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
     TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
@@ -1333,6 +1410,85 @@ local function CriarMenu()
 
     TabTeleport:Section({ Title = lang.SecGalvanPrime })
     TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
+
+    -- NOVA SEÇÃO: SEGUNDO MUNDO
+    TabTeleport:Section({ Title = lang.SecSegundoMundo })
+    TabTeleport:Button({
+        Title = lang.BtnHokestar,
+        Desc = lang.DescHokestar,
+        Callback = function()
+            local hokestar = Workspace:FindFirstChild("NPCS")
+            if hokestar then
+                hokestar = hokestar:FindFirstChild("Hokestar")
+                if hokestar then
+                    hokestar = hokestar:FindFirstChild("Character")
+                    if hokestar then
+                        local part = hokestar:FindFirstChild("Hokestar") or hokestar:FindFirstChild("HumanoidRootPart")
+                        if part then
+                            ExecutarTeleporte(part.CFrame)
+                            return
+                        end
+                    end
+                end
+            end
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "NPC Hokestar não encontrado!",
+                Duration = 2
+            })
+        end
+    })
+
+    -- ====== ABA SHOP ======
+    -- Concessionária
+    TabShop:Section({ Title = lang.SecConcessionaria })
+    TabShop:Button({
+        Title = lang.BtnKevin,
+        Desc = lang.DescKevin,
+        Callback = function() ExecutarTeleporte(CFrame.new(-241, 15, 466)) end
+    })
+
+    -- Dojo
+    TabShop:Section({ Title = lang.SecDojo })
+    TabShop:Button({
+        Title = lang.BtnLojaEspada,
+        Desc = lang.DescLojaEspada,
+        Callback = function() ExecutarTeleporte(CFrame.new(-41, 82, 2029)) end
+    })
+
+    -- HoverBoards/Naves
+    TabShop:Section({ Title = lang.SecHoverBoards })
+    TabShop:Button({
+        Title = lang.BtnVendedorHover,
+        Desc = lang.DescVendedorHover,
+        Callback = function() ExecutarTeleporte(CFrame.new(1314, 7, -2232)) end
+    })
+    TabShop:Button({
+        Title = lang.BtnTetrax,
+        Desc = lang.DescTetrax,
+        Callback = function() ExecutarTeleporte(CFrame.new(6923, 10, -1923)) end
+    })
+    TabShop:Button({
+        Title = lang.BtnBASTZIN22,
+        Desc = lang.DescBASTZIN22,
+        Callback = function() ExecutarTeleporte(CFrame.new(-6574, 10, -8939)) end
+    })
+
+    -- Estilo de luta
+    TabShop:Section({ Title = lang.SecEstiloLuta })
+    TabShop:Button({
+        Title = lang.BtnFistrick,
+        Desc = lang.DescFistrick,
+        Callback = function() ExecutarTeleporte(CFrame.new(5419, -466, -572)) end
+    })
+
+    -- Loja de Celular
+    TabShop:Section({ Title = lang.SecLojaCelular })
+    TabShop:Button({
+        Title = lang.BtnPakmar,
+        Desc = lang.DescPakmar,
+        Callback = function() ExecutarTeleporte(CFrame.new(5318, -466, -228)) end
+    })
 
     -- ====== ABA EXTRA ======
     local dropdownMusica = nil
@@ -1647,8 +1803,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Multiplicador corrigido.",
+    Text = "Carregado! Shop e Segundo Mundo adicionados.",
     Duration = 3
 })
 
-print("Project Sor carregado. Multiplicador de tiro funcionando.")
+print("Project Sor carregado. Aba Shop e Segundo Mundo disponíveis.")
