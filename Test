@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - HOKESTAR CORRIGIDO + DELETAR MÚSICA
+-- SCRIPT COMPLETO (Project Sor) - HOKESTAR CORRIGIDO + NOTIFICAÇÕES
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -182,7 +182,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (atualizado com "Deletar Música")
+-- DICIONÁRIO DE IDIOMAS (atualizado com notificações)
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -264,6 +264,11 @@ local Idiomas = {
         TituloDeletarMusica = "Deletar Música",
         DropDeletar = "Selecionar Música para deletar",
         BtnDeletar = "🗑️ Deletar",
+        NotifMusicaSalva = "Música salva: ",
+        NotifMusicaDeletada = "Música deletada: ",
+        ErroPreencherCampos = "Preencha todos os campos!",
+        ErroSelecionarMusica = "Selecione uma música válida para deletar.",
+        ErroHokestarNaoEncontrado = "NPC Hokestar não encontrado!",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Altere o idioma do Script",
@@ -361,6 +366,11 @@ local Idiomas = {
         TituloDeletarMusica = "Eliminar Música",
         DropDeletar = "Seleccionar música para eliminar",
         BtnDeletar = "🗑️ Eliminar",
+        NotifMusicaSalva = "Música guardada: ",
+        NotifMusicaDeletada = "Música eliminada: ",
+        ErroPreencherCampos = "¡Completa todos los campos!",
+        ErroSelecionarMusica = "Selecciona una música válida para eliminar.",
+        ErroHokestarNaoEncontrado = "¡NPC Hokestar no encontrado!",
         SecConfig = "Config",
         DropIdioma = "Idiomas",
         DescIdioma = "Cambia el idioma del Script",
@@ -458,6 +468,11 @@ local Idiomas = {
         TituloDeletarMusica = "Delete Music",
         DropDeletar = "Select music to delete",
         BtnDeletar = "🗑️ Delete",
+        NotifMusicaSalva = "Music saved: ",
+        NotifMusicaDeletada = "Music deleted: ",
+        ErroPreencherCampos = "Please fill all fields!",
+        ErroSelecionarMusica = "Select a valid music to delete.",
+        ErroHokestarNaoEncontrado = "NPC Hokestar not found!",
         SecConfig = "Config",
         DropIdioma = "Languages",
         DescIdioma = "Change the script language",
@@ -1417,34 +1432,32 @@ local function CriarMenu()
         Title = lang.BtnHokestar,
         Desc = lang.DescHokestar,
         Callback = function()
-            local hokestarModel = Workspace:FindFirstChild("NPCS")
-            if hokestarModel then
-                hokestarModel = hokestarModel:FindFirstChild("Hokestar")
-                if hokestarModel then
-                    local char = hokestarModel:FindFirstChild("Character")
+            local found = false
+            local npcsFolder = Workspace:FindFirstChild("NPCS")
+            if npcsFolder then
+                local hokestarFolder = npcsFolder:FindFirstChild("Hokestar")
+                if hokestarFolder then
+                    local char = hokestarFolder:FindFirstChild("Character")
                     if char and char:IsA("Model") then
-                        -- Procura por qualquer parte do corpo
-                        local part = char:FindFirstChild("Hokestar") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                        if not part then
-                            for _, child in ipairs(char:GetChildren()) do
-                                if child:IsA("BasePart") then
-                                    part = child
-                                    break
-                                end
+                        -- Procura por qualquer BasePart dentro do Character
+                        local parts = char:GetDescendants()
+                        for _, part in ipairs(parts) do
+                            if part:IsA("BasePart") then
+                                ExecutarTeleporte(part.CFrame)
+                                found = true
+                                break
                             end
-                        end
-                        if part then
-                            ExecutarTeleporte(part.CFrame)
-                            return
                         end
                     end
                 end
             end
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "NPC Hokestar não encontrado!",
-                Duration = 3
-            })
+            if not found then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = lang.ErroHokestarNaoEncontrado,
+                    Duration = 3
+                })
+            end
         end
     })
 
@@ -1688,13 +1701,13 @@ local function CriarMenu()
                     saveGui:Destroy()
                     StarterGui:SetCore("SendNotification", {
                         Title = "Música",
-                        Text = "Música salva: " .. nome,
+                        Text = lang.NotifMusicaSalva .. nome,
                         Duration = 2
                     })
                 else
                     StarterGui:SetCore("SendNotification", {
                         Title = "Erro",
-                        Text = "Preencha todos os campos!",
+                        Text = lang.ErroPreencherCampos,
                         Duration = 2
                     })
                 end
@@ -1702,11 +1715,10 @@ local function CriarMenu()
         end
     })
 
-    -- NOVO BOTÃO: DELETA MÚSICA
+    -- Botão Deletar Música
     TabExtra:Button({
         Title = lang.BtnDeletarMusica,
         Callback = function()
-            -- Criar menu de deletar com bordas alternando vermelho/azul
             local deleteGui = Instance.new("ScreenGui")
             deleteGui.Name = "DeletarMusicaGui"
             deleteGui.ResetOnSpawn = false
@@ -1716,7 +1728,7 @@ local function CriarMenu()
             local mainFrame = Instance.new("Frame")
             mainFrame.Size = UDim2.new(0, 400, 0, 200)
             mainFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-            mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- fundo preto
+            mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
             mainFrame.BackgroundTransparency = 0
             mainFrame.BorderSizePixel = 0
             mainFrame.Parent = deleteGui
@@ -1725,13 +1737,11 @@ local function CriarMenu()
             corner.CornerRadius = UDim.new(0, 12)
             corner.Parent = mainFrame
 
-            -- Stroke com borda que vai alternar cores
             local stroke = Instance.new("UIStroke")
             stroke.Thickness = 3
-            stroke.Color = Color3.fromRGB(255, 0, 0) -- começa vermelho
+            stroke.Color = Color3.fromRGB(255, 0, 0)
             stroke.Parent = mainFrame
 
-            -- Título
             local titleLabel = Instance.new("TextLabel")
             titleLabel.Size = UDim2.new(1, 0, 0, 40)
             titleLabel.Position = UDim2.new(0, 0, 0, 0)
@@ -1742,7 +1752,6 @@ local function CriarMenu()
             titleLabel.Font = Enum.Font.GothamBold
             titleLabel.Parent = mainFrame
 
-            -- Botão fechar (X vermelho)
             local closeBtn = Instance.new("TextButton")
             closeBtn.Size = UDim2.new(0, 35, 0, 35)
             closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -1760,36 +1769,15 @@ local function CriarMenu()
                 end
             end)
 
-            -- Dropdown para selecionar música
             local nomes = {}
             for _, m in ipairs(Config.MusicasSalvas) do
                 table.insert(nomes, m.nome)
             end
-            -- Fallback se não houver músicas
             if #nomes == 0 then
                 table.insert(nomes, "Nenhuma música salva")
             end
-            local dropdownDeletar = nil
-
-            local labelDrop = Instance.new("TextLabel")
-            labelDrop.Size = UDim2.new(0, 150, 0, 30)
-            labelDrop.Position = UDim2.new(0, 20, 0, 55)
-            labelDrop.BackgroundTransparency = 1
-            labelDrop.Text = lang.DropDeletar .. ":"
-            labelDrop.TextColor3 = Color3.fromRGB(200, 200, 200)
-            labelDrop.TextSize = 14
-            labelDrop.Font = Enum.Font.Gotham
-            labelDrop.TextXAlignment = Enum.TextXAlignment.Right
-            labelDrop.Parent = mainFrame
-
-            -- Usar um Dropdown do WindUI? Para simplicidade, vou criar um menu dropdown manual com um TextButton e um ScrollingFrame.
-            -- Vou usar uma abordagem mais simples: um TextButton que ao clicar mostra uma lista, mas para manter a consistência com o restante, vou usar um TextBox com autocompletar? Não, vou criar um dropdown estilo roblox.
-
-            -- Como o WindUI já tem Dropdown, vou criar um dropdown interno usando o mesmo estilo, mas para não complicar, vou fazer um TextBox com placeholder e um botão de confirmar, mas o pedido foi por um dropdown.
-
-            -- Vou criar um dropdown manual com um TextButton que exibe o valor selecionado e um ScrollingFrame com os itens.
-
             local selectedMusic = nomes[1] or "Nenhuma"
+
             local dropBtn = Instance.new("TextButton")
             dropBtn.Size = UDim2.new(0, 200, 0, 30)
             dropBtn.Position = UDim2.new(0, 180, 0, 55)
@@ -1804,7 +1792,6 @@ local function CriarMenu()
             dropCorner.CornerRadius = UDim.new(0, 6)
             dropCorner.Parent = dropBtn
 
-            -- Dropdown list (ScrollingFrame)
             local dropList = Instance.new("ScrollingFrame")
             dropList.Size = UDim2.new(0, 200, 0, 100)
             dropList.Position = UDim2.new(0, 180, 0, 85)
@@ -1824,7 +1811,6 @@ local function CriarMenu()
             listStroke.Thickness = 1
             listStroke.Parent = dropList
 
-            -- Preencher a lista
             local buttons = {}
             for i, nome in ipairs(nomes) do
                 local btn = Instance.new("TextButton")
@@ -1853,7 +1839,6 @@ local function CriarMenu()
                 dropList.Visible = not dropList.Visible
             end)
 
-            -- Botão Deletar
             local deleteBtn = Instance.new("TextButton")
             deleteBtn.Size = UDim2.new(0, 150, 0, 40)
             deleteBtn.Position = UDim2.new(0.5, -75, 1, -55)
@@ -1870,7 +1855,6 @@ local function CriarMenu()
 
             deleteBtn.MouseButton1Click:Connect(function()
                 if selectedMusic and selectedMusic ~= "Nenhuma música salva" and selectedMusic ~= "Nenhuma" then
-                    -- Encontrar o índice da música
                     local index = nil
                     for i, m in ipairs(Config.MusicasSalvas) do
                         if m.nome == selectedMusic then
@@ -1881,7 +1865,6 @@ local function CriarMenu()
                     if index then
                         table.remove(Config.MusicasSalvas, index)
                         SaveConfig()
-                        -- Atualizar dropdown principal
                         local novosNomes = {}
                         for _, m in ipairs(Config.MusicasSalvas) do
                             table.insert(novosNomes, m.nome)
@@ -1902,7 +1885,7 @@ local function CriarMenu()
                         SaveConfig()
                         StarterGui:SetCore("SendNotification", {
                             Title = "Música",
-                            Text = "Música deletada: " .. selectedMusic,
+                            Text = lang.NotifMusicaDeletada .. selectedMusic,
                             Duration = 2
                         })
                         deleteGui:Destroy()
@@ -1914,23 +1897,19 @@ local function CriarMenu()
                 else
                     StarterGui:SetCore("SendNotification", {
                         Title = "Erro",
-                        Text = "Selecione uma música válida para deletar.",
+                        Text = lang.ErroSelecionarMusica,
                         Duration = 2
                     })
                 end
             end)
 
-            -- Loop para alternar cores da borda
             local strokeLoop = nil
-            local colors = {Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 0, 255)}
-            local colorIndex = 1
             strokeLoop = RunService.Heartbeat:Connect(function()
                 if deleteGui and deleteGui.Parent then
-                    -- alternar a cor a cada 0.5 segundos
                     if tick() % 1 < 0.5 then
-                        stroke.Color = colors[1]
+                        stroke.Color = Color3.fromRGB(255, 0, 0)
                     else
-                        stroke.Color = colors[2]
+                        stroke.Color = Color3.fromRGB(0, 0, 255)
                     end
                 else
                     if strokeLoop then
@@ -1940,7 +1919,6 @@ local function CriarMenu()
                 end
             end)
 
-            -- Quando fechar, desconectar o loop
             deleteGui.AncestryChanged:Connect(function()
                 if not deleteGui.Parent then
                     if strokeLoop then
@@ -1949,7 +1927,6 @@ local function CriarMenu()
                     end
                 end
             end)
-
         end
     })
 
@@ -2059,8 +2036,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Hokestar corrigido e Deletar Música.",
+    Text = "Carregado! Hokestar corrigido e notificações.",
     Duration = 3
 })
 
-print("Project Sor carregado. Hokestar corrigido e Deletar Música disponível.")
+print("Project Sor carregado. Hokestar corrigido e notificações aprimoradas.")
