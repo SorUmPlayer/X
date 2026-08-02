@@ -1,7 +1,6 @@
 -- =============================================
--- SCRIPT KILL BOSS (DIMENSÃO 23)
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - CORRIGIDO
 -- =============================================
--- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
 local lighting = game:GetService("Lighting")
@@ -20,7 +19,7 @@ local LocalPlayer = players.LocalPlayer
 local estaTeleportando = false
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES (KILL BOSS)
+-- CONFIGURAÇÕES PERSISTENTES
 -- =============================================
 local CONFIG_FILE = "SorOminiX_KillBoss_Config.json"
 
@@ -103,36 +102,54 @@ local function getLocalCharacter()
     return char, root
 end
 
-local function getActiveBossTarget()
+-- Função melhorada para obter a parte do boss
+local function getBossPart(bossName, partName)
     local enemys = Workspace:FindFirstChild("Enemys")
-    if not enemys then return nil end
-
-    local bosses = {
-        { configKey = "Bivalvan", folderName = "Bivalvan", charName = "Character", partName = "Ominitrix_Symbol" },
-        { configKey = "Galapagus", folderName = "Galapagus", charName = "Character", partName = "Ominitrix_Symbol" },
-    }
-
-    for _, boss in ipairs(bosses) do
-        if Config[boss.configKey] then
-            local folder = enemys:FindFirstChild(boss.folderName)
-            if folder then
-                local char = folder:FindFirstChild(boss.charName)
-                if char and char:IsA("Model") then
-                    local part = char:FindFirstChild(boss.partName) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                    if not part then
-                        for _, child in ipairs(char:GetChildren()) do
-                            if child:IsA("BasePart") then
-                                part = child
-                                break
-                            end
-                        end
-                    end
-                    if part and part:IsA("BasePart") then
-                        return part
-                    end
-                end
-            end
+    if not enemys then
+        print("[Kill Boss] Pasta Enemys não encontrada!")
+        return nil
+    end
+    local bossFolder = enemys:FindFirstChild(bossName)
+    if not bossFolder then
+        print("[Kill Boss] Boss " .. bossName .. " não encontrado!")
+        return nil
+    end
+    local char = bossFolder:FindFirstChild("Character")
+    if not char then
+        print("[Kill Boss] Character de " .. bossName .. " não encontrado!")
+        return nil
+    end
+    -- Tenta a parte específica
+    local part = char:FindFirstChild(partName)
+    if part and part:IsA("BasePart") then
+        print("[Kill Boss] Parte " .. partName .. " encontrada para " .. bossName)
+        return part
+    end
+    -- Fallback: HumanoidRootPart ou Torso
+    part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    if part and part:IsA("BasePart") then
+        print("[Kill Boss] Usando parte alternativa (HumanoidRootPart/Torso) para " .. bossName)
+        return part
+    end
+    -- Fallback: qualquer BasePart
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("BasePart") then
+            print("[Kill Boss] Usando parte genérica (" .. child.Name .. ") para " .. bossName)
+            return child
         end
+    end
+    print("[Kill Boss] Nenhuma BasePart encontrada para " .. bossName)
+    return nil
+end
+
+local function getActiveBossTarget()
+    if Config.Bivalvan then
+        local part = getBossPart("Bivalvan", "Ominitrix_Symbol")
+        if part then return part end
+    end
+    if Config.Galapagus then
+        local part = getBossPart("Galapagus", "Ominitrix_Symbol")
+        if part then return part end
     end
     return nil
 end
@@ -157,7 +174,14 @@ local function startKillBossLoop()
         end
 
         local targetPart = getActiveBossTarget()
-        if not targetPart then return end
+        if not targetPart then
+            -- Se não encontrar, print a cada 5 segundos para não floodar
+            if not killBossConnection._lastPrint or tick() - killBossConnection._lastPrint > 5 then
+                print("[Kill Boss] Nenhum boss alvo encontrado. Verifique se os bosses estão ativos.")
+                killBossConnection._lastPrint = tick()
+            end
+            return
+        end
 
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
