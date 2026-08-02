@@ -1,55 +1,61 @@
 -- =============================================
 -- SCRIPT DIMENSÃO 23 - KILL BOSS
 -- =============================================
--- [[ SERVIÇOS ]]
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
+-- [[ CONFIGURAÇÕES ]]
+local players = game:GetService("Players")
+local coreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
 
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = players.LocalPlayer
+local estaTeleportando = false
 
 -- =============================================
 -- CONFIGURAÇÕES PERSISTENTES
 -- =============================================
 local CONFIG_FILE = "Dimensao23_KillBoss_Config.json"
 
-local Config = {
-    Distancia = 10,
-    Posicao = "Frente",
-    Multiplicador = 1,
-    Bivalvan = false,
-    Galapagus = false
-}
-
 local function LoadConfig()
-    if not isfile then return end
+    if not isfile then return {} end
     if isfile(CONFIG_FILE) then
         local success, data = pcall(function()
             return HttpService:JSONDecode(readfile(CONFIG_FILE))
         end)
         if success and type(data) == "table" then
-            for k, v in pairs(data) do
-                Config[k] = v
-            end
+            return data
         end
     end
+    return {}
 end
 
-local function SaveConfig()
+local function SaveConfigToFile(configTable)
     if not writefile then return end
     local success, json = pcall(function()
-        return HttpService:JSONEncode(Config)
+        return HttpService:JSONEncode(configTable)
     end)
     if success then
         pcall(function() writefile(CONFIG_FILE, json) end)
     end
 end
 
-LoadConfig()
+local Config = {
+    Distancia = 10,
+    Direcao = "Cima", -- "Baixo", "Cima", "Frente", "Costa"
+    Multiplicador = 1,
+    Bivalvan = false,
+    Galapagus = false,
+}
+local savedConfig = LoadConfig()
+for k, v in pairs(savedConfig) do
+    Config[k] = v
+end
+
+local function SaveConfig()
+    SaveConfigToFile(Config)
+end
 
 -- =============================================
 -- SISTEMA DE COMBATE (REMOTES)
@@ -84,95 +90,88 @@ local function ArmFire(targetRoot)
 end
 
 -- =============================================
--- LÓGICA DE POSIÇÃO
+-- LÓGICA DE ALVO
 -- =============================================
-local function getOffset(posicao, distancia)
+local function getLocalCharacter()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    return char, root
+end
+
+-- Função para obter a parte alvo do boss ativo
+local function getActiveBossTarget()
+    local enemys = Workspace:FindFirstChild("Enemys")
+    if not enemys then return nil end
+
+    local bosses = {
+        { configKey = "Bivalvan", folderName = "Bivalvan", partName = "Ominitrix_Symbol" },
+        { configKey = "Galapagus", folderName = "Galapagus", partName = "Ominitrix_Symbol" },
+    }
+
+    for _, boss in ipairs(bosses) do
+        if Config[boss.configKey] then
+            local folder = enemys:FindFirstChild(boss.folderName)
+            if folder then
+                local char = folder:FindFirstChild("Character")
+                if char and char:IsA("Model") then
+                    local part = char:FindFirstChild(boss.partName) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+                    if part and part:IsA("BasePart") then
+                        return part
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Função para calcular o offset com base na direção e distância
+local function getOffset(direcao, distancia)
     local offset = Vector3.new(0, 0, 0)
-    if posicao == "Baixo" then
+    if direcao == "Baixo" then
         offset = Vector3.new(0, -distancia, 0)
-    elseif posicao == "Cima" then
+    elseif direcao == "Cima" then
         offset = Vector3.new(0, distancia, 0)
-    elseif posicao == "Frente" then
-        offset = Vector3.new(0, 0, -distancia)
-    elseif posicao == "Costa" then
+    elseif direcao == "Frente" then
         offset = Vector3.new(0, 0, distancia)
+    elseif direcao == "Costa" then
+        offset = Vector3.new(0, 0, -distancia)
     end
     return offset
 end
 
 -- =============================================
--- LOOP DE COMBATE
+-- LOOP KILL BOSS
 -- =============================================
-local killBossRunning = false
-local killBossConnection = nil
+local bossKillRunning = false
+local bossKillConnection = nil
 
-local function getBossTarget()
-    local enemys = Workspace:FindFirstChild("Enemys")
-    if not enemys then return nil end
-
-    -- Prioridade: Bivalvan > Galapagus (primeiro ativo)
-    if Config.Bivalvan then
-        local folder = enemys:FindFirstChild("Bivalvan")
-        if folder then
-            local char = folder:FindFirstChild("Character")
-            if char and char:IsA("Model") then
-                local part = char:FindFirstChild("Ominitrix_Symbol") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                if part then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        return part
-                    end
-                end
-            end
-        end
-    end
-
-    if Config.Galapagus then
-        local folder = enemys:FindFirstChild("Galapagus")
-        if folder then
-            local char = folder:FindFirstChild("Character")
-            if char and char:IsA("Model") then
-                local part = char:FindFirstChild("Ominitrix_Symbol") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                if part then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        return part
-                    end
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
-local function startKillBossLoop()
-    if killBossConnection then return end
-    killBossRunning = true
-    killBossConnection = RunService.Heartbeat:Connect(function()
+local function startBossKillLoop()
+    if bossKillConnection then return end
+    bossKillRunning = true
+    bossKillConnection = RunService.Heartbeat:Connect(function()
+        -- Verifica se algum boss está ativo
         if not (Config.Bivalvan or Config.Galapagus) then
-            killBossRunning = false
-            if killBossConnection then
-                killBossConnection:Disconnect()
-                killBossConnection = nil
+            bossKillRunning = false
+            if bossKillConnection then
+                bossKillConnection:Disconnect()
+                bossKillConnection = nil
             end
             return
         end
 
-        local targetPart = getBossTarget()
+        local targetPart = getActiveBossTarget()
         if not targetPart then return end
 
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        local _, myRoot = getLocalCharacter()
+        if not myRoot then return end
 
-        -- Calcula posição com offset
-        local offset = getOffset(Config.Posicao, Config.Distancia)
-        -- Aplica offset no CFrame do alvo
+        -- Calcula a posição alvo com offset
+        local offset = getOffset(Config.Direcao, Config.Distancia)
         local targetCFrame = targetPart.CFrame * CFrame.new(offset)
-        root.CFrame = targetCFrame
+        myRoot.CFrame = targetCFrame
 
-        -- Multiplicador
+        -- Executa os disparos com multiplicador
         local multiplier = math.floor(tonumber(Config.Multiplicador) or 1)
         if multiplier < 1 then multiplier = 1 end
 
@@ -187,15 +186,22 @@ local function startKillBossLoop()
     end)
 end
 
+-- Inicia automaticamente se algum boss estiver ativo ao carregar
 if Config.Bivalvan or Config.Galapagus then
-    task.spawn(startKillBossLoop)
+    task.spawn(startBossKillLoop)
 end
 
 -- =============================================
 -- INTERFACE WINDUI
 -- =============================================
+local oldWindow = nil
+
 local function CriarMenu()
-    -- Carrega a WindUI
+    if oldWindow then
+        pcall(function() oldWindow:Destroy() end)
+        oldWindow = nil
+    end
+
     local WindUI
     local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
     local success, result = pcall(function()
@@ -221,9 +227,9 @@ local function CriarMenu()
     end
 
     local Window = WindUI:CreateWindow({
-        Title = "Dimensão 23 - Kill Boss",
+        Title = "Dimensão 23",
         Icon = "rbxassetid://135710581431595",
-        Author = "Noob Must Die",
+        Author = "Kill Boss",
         Folder = "Dimensao23_KillBoss",
         Size = UDim2.fromOffset(460, 320),
         Transparent = false,
@@ -239,6 +245,7 @@ local function CriarMenu()
             Callback = function() print("clicked") end,
         },
     })
+    oldWindow = Window
     Window:SetIconSize(60)
 
     Window:EditOpenButton({
@@ -252,13 +259,12 @@ local function CriarMenu()
         Draggable = false
     })
 
-    -- Aba Kill Boss
-    local TabKillBoss = Window:Tab({ Title = "Kill Boss", Icon = "rbxassetid://135710581431595" })
+    local TabBoss = Window:Tab({ Title = "Kill Boss", Icon = "rbxassetid://135710581431595" })
 
-    -- Categoria Configuração do Boss
-    TabKillBoss:Section({ Title = "Configuração do Boss" })
+    -- ====== CONFIGURAÇÃO DO BOSS ======
+    TabBoss:Section({ Title = "⚙️ Configuração do Boss" })
 
-    TabKillBoss:Slider({
+    TabBoss:Slider({
         Title = "Distância",
         Desc = "Distância do boss (1-100)",
         Step = 1,
@@ -269,20 +275,20 @@ local function CriarMenu()
         end
     })
 
-    TabKillBoss:Dropdown({
-        Title = "Posição",
+    TabBoss:Dropdown({
+        Title = "Direção",
         Desc = "Posição relativa ao boss",
         Values = {"Baixo", "Cima", "Frente", "Costa"},
-        Value = Config.Posicao,
+        Value = Config.Direcao,
         Callback = function(value)
-            Config.Posicao = value
+            Config.Direcao = value
             SaveConfig()
         end
     })
 
-    TabKillBoss:Input({
+    TabBoss:Input({
         Title = "Multiplicador do Tiro",
-        Desc = "Número de tiros por ciclo (Ex: 9)",
+        Desc = "Número de tiros por ciclo (Ex: 5)",
         Value = tostring(Config.Multiplicador),
         Placeholder = "Digite um número...",
         Callback = function(text)
@@ -290,6 +296,7 @@ local function CriarMenu()
             if numero and numero > 0 then
                 Config.Multiplicador = numero
                 SaveConfig()
+                print("[Multiplicador] Novo valor: " .. numero)
             else
                 StarterGui:SetCore("SendNotification", {
                     Title = "Erro",
@@ -300,54 +307,76 @@ local function CriarMenu()
         end
     })
 
-    -- Categoria Boss
-    TabKillBoss:Section({ Title = "Boss" })
+    -- ====== BOSS ======
+    TabBoss:Section({ Title = "👾 Boss" })
 
-    TabKillBoss:Toggle({
+    TabBoss:Toggle({
         Title = "Bivalvan",
-        Desc = "Ativa o farm automático do Bivalvan",
+        Desc = "Ativa o farm para Bivalvan",
         Value = Config.Bivalvan,
         Callback = function(value)
             Config.Bivalvan = value
             SaveConfig()
             if value or Config.Galapagus then
-                task.spawn(startKillBossLoop)
+                task.spawn(startBossKillLoop)
             else
-                if killBossConnection then
-                    killBossConnection:Disconnect()
-                    killBossConnection = nil
+                if bossKillConnection then
+                    bossKillConnection:Disconnect()
+                    bossKillConnection = nil
                 end
             end
         end
     })
 
-    TabKillBoss:Toggle({
+    TabBoss:Toggle({
         Title = "Galapagus",
-        Desc = "Ativa o farm automático do Galapagus",
+        Desc = "Ativa o farm para Galapagus",
         Value = Config.Galapagus,
         Callback = function(value)
             Config.Galapagus = value
             SaveConfig()
             if Config.Bivalvan or value then
-                task.spawn(startKillBossLoop)
+                task.spawn(startBossKillLoop)
             else
-                if killBossConnection then
-                    killBossConnection:Disconnect()
-                    killBossConnection = nil
+                if bossKillConnection then
+                    bossKillConnection:Disconnect()
+                    bossKillConnection = nil
                 end
             end
         end
     })
 
-    return Window
+    -- ====== BOTÃO RESET ======
+    TabBoss:Button({
+        Title = "🔄 Resetar Configurações",
+        Desc = "Reseta todas as configurações para os valores padrão",
+        Callback = function()
+            Config.Distancia = 10
+            Config.Direcao = "Cima"
+            Config.Multiplicador = 1
+            Config.Bivalvan = false
+            Config.Galapagus = false
+            SaveConfig()
+            if bossKillConnection then
+                bossKillConnection:Disconnect()
+                bossKillConnection = nil
+            end
+            Window:Notify({
+                Title = "Resetado",
+                Desc = "Configurações resetadas com sucesso!",
+                Duration = 3,
+            })
+            -- Recria o menu para atualizar os valores
+            CriarMenu()
+        end
+    })
 end
 
--- Inicia o menu
 pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Dimensão 23",
-    Text = "Kill Boss carregado!",
+    Text = "Carregado! Aba Kill Boss disponível.",
     Duration = 3
 })
 
