@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT KILL BOSS (DIMENSÃO 23) - CORRIGIDO
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - COM SONIC SHARD
 -- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
@@ -51,6 +51,7 @@ local Config = {
     Multiplicador = 1,
     Bivalvan = false,
     Galapagus = false,
+    ModoTiro = true, -- true = Laser, false = Sonic
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -71,7 +72,19 @@ local RS = pcall(function()
     end
 end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
 
-local function Laser()
+-- Remote Sonic
+local SonicRemote = nil
+pcall(function()
+    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
+    if remotes then
+        SonicRemote = remotes:FindFirstChild("uechoecho")
+        if SonicRemote then
+            SonicRemote = SonicRemote:FindFirstChild("Sonic_Shard")
+        end
+    end
+end)
+
+local function LaserAttack()
     if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
 end
 local function GunArm()
@@ -93,6 +106,18 @@ local function ArmFire(targetRoot)
     end
 end
 
+local function SonicAttack(targetRoot)
+    if not SonicRemote then
+        print("[Kill Boss] Remote Sonic_Shard não encontrado!")
+        return
+    end
+    local targetPosition = targetRoot and targetRoot.Position or Vector3.new(0, 0, 0)
+    pcall(function()
+        SonicRemote:InvokeServer(targetPosition, 26.567533493042)
+        print("[Kill Boss] Sonic_Shard invocado para: " .. tostring(targetPosition))
+    end)
+end
+
 -- =============================================
 -- LÓGICA DE ALVO E TELEPORTE
 -- =============================================
@@ -102,7 +127,6 @@ local function getLocalCharacter()
     return char, root
 end
 
--- Função melhorada para obter a parte do boss
 local function getBossPart(bossName, partName)
     local enemys = Workspace:FindFirstChild("Enemys")
     if not enemys then
@@ -119,19 +143,16 @@ local function getBossPart(bossName, partName)
         print("[Kill Boss] Character de " .. bossName .. " não encontrado!")
         return nil
     end
-    -- Tenta a parte específica
     local part = char:FindFirstChild(partName)
     if part and part:IsA("BasePart") then
         print("[Kill Boss] Parte " .. partName .. " encontrada para " .. bossName)
         return part
     end
-    -- Fallback: HumanoidRootPart ou Torso
     part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
     if part and part:IsA("BasePart") then
         print("[Kill Boss] Usando parte alternativa (HumanoidRootPart/Torso) para " .. bossName)
         return part
     end
-    -- Fallback: qualquer BasePart
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("BasePart") then
             print("[Kill Boss] Usando parte genérica (" .. child.Name .. ") para " .. bossName)
@@ -175,7 +196,6 @@ local function startKillBossLoop()
 
         local targetPart = getActiveBossTarget()
         if not targetPart then
-            -- Se não encontrar, print a cada 5 segundos para não floodar
             if not killBossConnection._lastPrint or tick() - killBossConnection._lastPrint > 5 then
                 print("[Kill Boss] Nenhum boss alvo encontrado. Verifique se os bosses estão ativos.")
                 killBossConnection._lastPrint = tick()
@@ -186,7 +206,6 @@ local function startKillBossLoop()
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
 
-        -- Teleporta grudado no boss com a distância configurada
         myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.Distancia, 0)
 
         local multiplier = math.floor(tonumber(Config.Multiplicador) or 1)
@@ -194,10 +213,16 @@ local function startKillBossLoop()
 
         for i = 1, multiplier do
             if not (Config.Bivalvan or Config.Galapagus) then break end
-            Laser()
-            GunArm()
-            ArmFire(targetPart)
-            Armature()
+            if Config.ModoTiro then
+                -- Modo Laser (padrão)
+                LaserAttack()
+                GunArm()
+                ArmFire(targetPart)
+                Armature()
+            else
+                -- Modo Sonic
+                SonicAttack(targetPart)
+            end
             task.wait(0.05)
         end
     end)
@@ -226,6 +251,8 @@ local function CriarMenu()
         Multiplicador = "Multiplicador do Tiro",
         DescMulti = "Número de tiros por ciclo (Ex: 9)",
         PlaceMulti = "Digite um número...",
+        ModoTiro = "Modo de Tiro",
+        DescModoTiro = "Ativado = Laser | Desativado = Sonic",
         SecBoss = "Boss",
         ToggleBivalvan = "Bivalvan",
         ToggleGalapagus = "Galapagus",
@@ -320,6 +347,16 @@ local function CriarMenu()
                     Duration = 2
                 })
             end
+        end
+    })
+    TabKill:Toggle({
+        Title = lang.ModoTiro,
+        Desc = lang.DescModoTiro,
+        Value = Config.ModoTiro, -- true = Laser, false = Sonic
+        Callback = function(value)
+            Config.ModoTiro = value
+            SaveConfig()
+            print("[Kill Boss] Modo de tiro: " .. (value and "Laser" or "Sonic"))
         end
     })
 
