@@ -1,78 +1,35 @@
 -- LocalScript em StarterGui
 local player = game.Players.LocalPlayer
-
--- Criar a GUI principal
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MenuAtualizacao"
-screenGui.Parent = player.PlayerGui
+local gui = Instance.new("ScreenGui")
+gui.Parent = player.PlayerGui
 
 -- Link do canal
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 
--- ===== Menu =====
+-- Menu verde
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 450, 0, 380)
-menu.Position = UDim2.new(0.5, -225, 0.5, -190)
+menu.Size = UDim2.new(0, 400, 0, 250)
+menu.Position = UDim2.new(0.5, -200, 0.5, -125)
 menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
 menu.BorderSizePixel = 0
-menu.Parent = screenGui
+menu.Parent = gui
 
--- ===== Mensagem principal =====
+-- Mensagem
 local mensagem = Instance.new("TextLabel")
 mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
 mensagem.Position = UDim2.new(0.05, 0, 0.05, 0)
 mensagem.BackgroundTransparency = 1
 mensagem.TextScaled = true
-mensagem.TextWrapped = true
 mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
 mensagem.Font = Enum.Font.GothamBold
-mensagem.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link....."
+mensagem.Text = "Script Atualizado!\nClique no botão abaixo para copiar o link do canal."
 mensagem.Parent = menu
 
--- ===== Traduções =====
-local traducoes = {
-    PT = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link.....",
-    EN = "Script has been updated....\nPlease enter the channel to get the new script...\nClick the button below to copy the link.....",
-    ES = "¡El script ha sido actualizado....\nPor favor, entre al canal para obtener el nuevo script...\nHaga clic en el botón de abajo para copiar el enlace....."
-}
-
-local function setLanguage(lang)
-    mensagem.Text = traducoes[lang]
-end
-
--- ===== Botões de idioma =====
-local idiomas = {
-    { texto = "Português", cor = Color3.fromRGB(0, 200, 0), lang = "PT" },
-    { texto = "English", cor = Color3.fromRGB(0, 100, 255), lang = "EN" },
-    { texto = "Español", cor = Color3.fromRGB(255, 150, 0), lang = "ES" }
-}
-
-local btnY = 0.45
-local btnWidth = 0.28
-local spacing = 0.03
-local startX = (1 - (btnWidth * 3 + spacing * 2)) / 2
-
-for i, dados in ipairs(idiomas) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(btnWidth, 0, 0.15, 0)
-    btn.Position = UDim2.new(startX + (btnWidth + spacing) * (i-1), 0, btnY, 0)
-    btn.BackgroundColor3 = dados.cor
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextScaled = true
-    btn.Text = dados.texto
-    btn.Font = Enum.Font.GothamBold
-    btn.Parent = menu
-    btn.MouseButton1Click:Connect(function()
-        setLanguage(dados.lang)
-        print("Idioma alterado para:", dados.lang)
-    end)
-end
-
--- ===== Botão Copiar Link =====
+-- Botão Copiar
 local copiarBtn = Instance.new("TextButton")
-copiarBtn.Size = UDim2.new(0.4, 0, 0.15, 0)
-copiarBtn.Position = UDim2.new(0.3, 0, 0.7, 0)
+copiarBtn.Size = UDim2.new(0.4, 0, 0.2, 0)
+copiarBtn.Position = UDim2.new(0.3, 0, 0.5, 0)
 copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
 copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 copiarBtn.TextScaled = true
@@ -80,25 +37,11 @@ copiarBtn.Text = "Copiar Link"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
--- Feedback visual (amarelo abaixo do botão)
-local feedback = Instance.new("TextLabel")
-feedback.Size = UDim2.new(0.8, 0, 0.1, 0)
-feedback.Position = UDim2.new(0.1, 0, 0.87, 0)
-feedback.BackgroundTransparency = 1
-feedback.TextScaled = true
-feedback.TextColor3 = Color3.fromRGB(255, 255, 0)
-feedback.Font = Enum.Font.GothamBold
-feedback.Text = ""
-feedback.Parent = menu
-
--- ===== Função de copiar =====
+-- Ação de copiar
 copiarBtn.MouseButton1Click:Connect(function()
-    print("Botão Copiar Link clicado!")  -- confirma no Output
-
     local clipboard = game:GetService("Clipboard")
     if not clipboard then
-        feedback.Text = "❌ Clipboard não disponível"
-        warn("Clipboard service não encontrado")
+        copiarBtn.Text = "Erro!"
         return
     end
 
@@ -107,21 +50,11 @@ copiarBtn.MouseButton1Click:Connect(function()
     end)
 
     if success then
-        feedback.Text = "✅ Link copiado! Cole onde quiser."
-        copiarBtn.Text = "Link copiado!"
-        copiarBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- muda pra verde
-        print("Link copiado com sucesso:", link)
-        task.wait(2)
-        copiarBtn.Text = "Copiar Link"
-        copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
-        task.wait(3)
-        feedback.Text = ""
+        copiarBtn.Text = "Link Copiado✅️"
+        copiarBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- verde
+        print("Link copiado:", link)
     else
-        feedback.Text = "❌ Erro ao copiar. Tente novamente."
-        warn("Erro ao copiar:", err)
-        task.wait(3)
-        feedback.Text = ""
+        copiarBtn.Text = "Falha!"
+        warn("Erro:", err)
     end
 end)
-
-print("Menu carregado. Link configurado.")
