@@ -1,6 +1,6 @@
 --[[
   Script de Propaganda - Atualização Obrigatória
-  com botão de fechar e cópia simples
+  Cópia confiável com fallback manual
 ]]
 
 local player = game.Players.LocalPlayer
@@ -23,8 +23,8 @@ pcall(function() sound:Play() end)
 
 -- Frame principal (Azul com bordas pretas)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 480, 0, 320)
-mainFrame.Position = UDim2.new(0.5, -240, 0.5, -160)
+mainFrame.Size = UDim2.new(0, 480, 0, 360) -- um pouco mais alto para caber o TextBox
+mainFrame.Position = UDim2.new(0.5, -240, 0.5, -180)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 mainFrame.BorderSizePixel = 3
 mainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -34,7 +34,7 @@ mainFrame.Parent = screenGui
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 30, 0, 30)
 closeButton.Position = UDim2.new(0, 5, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- Vermelho
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 closeButton.Text = "✕"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.TextScaled = true
@@ -74,17 +74,20 @@ local translations = {
     ["Português"] = {
         message = "Script Foi Atualizado 🆙\nObrigatório ir pegar Nova Versão do Script no Canal \"Sor_UmPlayer\"!!! 👺\nClique no botão abaixo para copiar o link.",
         buttonCopy = "Copiar Link☑️",
-        buttonCopied = "Copiado✅️"
+        buttonCopied = "Copiado✅️",
+        copyFailed = "Falha na cópia automática. Selecione o link abaixo e copie (Ctrl+C)."
     },
     ["English"] = {
         message = "Script Has Been Updated 🆙\nYou must get the new version from the channel \"Sor_UmPlayer\"!!! 👺\nClick the button below to copy the link.",
         buttonCopy = "Copy Link☑️",
-        buttonCopied = "Copied✅️"
+        buttonCopied = "Copied✅️",
+        copyFailed = "Auto-copy failed. Select the link below and copy (Ctrl+C)."
     },
     ["Español"] = {
         message = "¡El script ha sido actualizado 🆙\nEs obligatorio obtener la nueva versión del script en el canal \"Sor_UmPlayer\"!!! 👺\nHaz clic en el botón de abajo para copiar el enlace.",
         buttonCopy = "Copiar Enlace☑️",
-        buttonCopied = "Copiado✅️"
+        buttonCopied = "Copiado✅️",
+        copyFailed = "Fallo en la copia automática. Selecciona el enlace abajo y copia (Ctrl+C)."
     }
 }
 
@@ -92,10 +95,27 @@ local currentLanguage = "Português"
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 local isCopied = false
 
+-- TextBox para exibir o link (fallback)
+local linkTextBox = Instance.new("TextBox")
+linkTextBox.Size = UDim2.new(0.9, 0, 0, 30)
+linkTextBox.Position = UDim2.new(0.05, 0, 0.87, 0)
+linkTextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+linkTextBox.TextColor3 = Color3.fromRGB(0, 0, 0)
+linkTextBox.Text = link
+linkTextBox.Font = Enum.Font.Gotham
+linkTextBox.TextScaled = true
+linkTextBox.Visible = false -- só aparece se a cópia automática falhar
+linkTextBox.Parent = mainFrame
+-- Seleciona todo o texto ao ganhar foco
+linkTextBox.FocusLost:Connect(function()
+    linkTextBox.SelectionStart = 0
+    linkTextBox.SelectionEnd = #link
+end)
+
 -- Botão Copiar Link
 local copyButton = Instance.new("TextButton")
 copyButton.Size = UDim2.new(0.5, 0, 0, 40)
-copyButton.Position = UDim2.new(0.25, 0, 0.80, 0)
+copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
 copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- Cinza
 copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 copyButton.Text = "Copiar Link☑️"
@@ -113,11 +133,14 @@ local function updateLanguage(lang)
         messageLabel.Text = data.message
         copyButton.Text = data.buttonCopy
         copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
+        copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         isCopied = false
+        linkTextBox.Visible = false
+        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
     end
 end
 
--- Ação de copiar (simples e direta)
+-- Ação de copiar (com fallback robusto)
 copyButton.MouseButton1Click:Connect(function()
     if isCopied then return end
 
@@ -127,23 +150,23 @@ copyButton.MouseButton1Click:Connect(function()
     end)
 
     if success then
+        -- Cópia automática bem-sucedida
         copyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Verde
         copyButton.Text = translations[currentLanguage].buttonCopied or "Copiado✅️"
         isCopied = true
+        linkTextBox.Visible = false
+        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
     else
-        -- Fallback: exibe um aviso simples com o link em uma caixa de diálogo
-        local warning = Instance.new("TextLabel")
-        warning.Size = UDim2.new(0.9, 0, 0, 40)
-        warning.Position = UDim2.new(0.05, 0, 0.90, 0)
-        warning.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        warning.TextColor3 = Color3.fromRGB(0, 0, 0)
-        warning.Text = "Copie manualmente: " .. link
-        warning.TextScaled = true
-        warning.Font = Enum.Font.Gotham
-        warning.Parent = mainFrame
-        -- Remove o aviso após 3 segundos
-        task.wait(3)
-        warning:Destroy()
+        -- Falha: mostra o TextBox com o link selecionado
+        linkTextBox.Visible = true
+        copyButton.Position = UDim2.new(0.25, 0, 0.65, 0) -- move o botão para cima
+        copyButton.Text = translations[currentLanguage].copyFailed or "Falha na cópia. Selecione o link abaixo:"
+        copyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Vermelho
+        copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        -- Foca e seleciona o texto para facilitar a cópia manual
+        linkTextBox:CaptureFocus()
+        linkTextBox.SelectionStart = 0
+        linkTextBox.SelectionEnd = #link
     end
 end)
 
@@ -174,6 +197,9 @@ for i, name in ipairs(langNames) do
         if not isCopied then
             copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
             copyButton.Text = translations[name].buttonCopy
+            copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            linkTextBox.Visible = false
+            copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
         end
     end)
 end
