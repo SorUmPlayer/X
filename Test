@@ -1,104 +1,101 @@
--- =====================================================
--- Menu Verde com Tradução + Música + Cópia de Link
--- =====================================================
-
+-- Script LocalScript (coloque em StarterGui ou dentro de um ScreenGui)
 local player = game.Players.LocalPlayer
+
+-- Cria a interface
 local gui = Instance.new("ScreenGui")
-gui.Name = "MenuTraducao"
 gui.Parent = player.PlayerGui
 
 -- Frame principal (verde)
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 450, 0, 380)  -- Aumentei a altura para caber o aviso
-frame.Position = UDim2.new(0.5, -225, 0.5, -190)
-frame.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+frame.Size = UDim2.new(0, 450, 0, 250)
+frame.Position = UDim2.new(0.5, -225, 0.5, -125)
+frame.BackgroundColor3 = Color3.fromRGB(0, 180, 0) -- verde
+frame.BackgroundTransparency = 0.15
 frame.BorderSizePixel = 0
 frame.Parent = gui
 
--- Título / Mensagem (a que será traduzida)
+-- Texto da mensagem (inicial em português)
 local mensagem = Instance.new("TextLabel")
-mensagem.Size = UDim2.new(1, -20, 0, 50)
+mensagem.Size = UDim2.new(1, -20, 0, 60)
 mensagem.Position = UDim2.new(0, 10, 0, 10)
 mensagem.BackgroundTransparency = 1
-mensagem.Text = "Bem-vindo ao Menu! Escolha seu idioma."
-mensagem.TextColor3 = Color3.new(1, 1, 1)
+mensagem.Text = "Olá! Selecione o idioma abaixo."
+mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
 mensagem.TextScaled = true
 mensagem.Font = Enum.Font.SourceSansBold
 mensagem.Parent = frame
 
--- Dicionário de traduções
+-- Traduções
 local traducoes = {
-    Portugues = "Bem-vindo ao Menu! Escolha seu idioma.",
-    English = "Welcome to the Menu! Choose your language.",
-    Espanhol = "¡Bienvenido al Menú! Elige tu idioma."
+    Portugues = "Olá! Selecione o idioma abaixo.",
+    English = "Hello! Select a language below.",
+    Espanhol = "¡Hola! Selecciona un idioma abajo."
 }
 
--- Função para criar botões
-local function criarBotao(texto, cor, posY)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 200, 0, 40)
-    btn.Position = UDim2.new(0.5, -100, 0, posY)
-    btn.BackgroundColor3 = cor
-    btn.Text = texto
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.TextScaled = true
-    btn.Font = Enum.Font.SourceSansBold
-    btn.Parent = frame
-    return btn
+-- Função para traduzir
+local function traduzir(idioma)
+    mensagem.Text = traducoes[idioma] or mensagem.Text
 end
 
--- Botões
-local btnPt = criarBotao("Português", Color3.fromRGB(0, 180, 0), 80)
-local btnEn = criarBotao("English", Color3.fromRGB(0, 100, 255), 140)
-local btnEs = criarBotao("Espanhol", Color3.fromRGB(255, 140, 0), 200)
+-- Botão "Português" (verde)
+local btnPT = Instance.new("TextButton")
+btnPT.Size = UDim2.new(0, 120, 0, 45)
+btnPT.Position = UDim2.new(0.5, -185, 0, 90)
+btnPT.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+btnPT.Text = "Português"
+btnPT.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnPT.Font = Enum.Font.SourceSansBold
+btnPT.TextScaled = true
+btnPT.Parent = frame
+btnPT.MouseButton1Click:Connect(function() traduzir("Portugues") end)
 
--- Eventos de clique para traduzir
-btnPt.MouseButton1Click:Connect(function()
-    mensagem.Text = traducoes.Portugues
+-- Botão "English" (azul)
+local btnEN = Instance.new("TextButton")
+btnEN.Size = UDim2.new(0, 120, 0, 45)
+btnEN.Position = UDim2.new(0.5, -60, 0, 90)
+btnEN.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+btnEN.Text = "English"
+btnEN.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnEN.Font = Enum.Font.SourceSansBold
+btnEN.TextScaled = true
+btnEN.Parent = frame
+btnEN.MouseButton1Click:Connect(function() traduzir("English") end)
+
+-- Botão "Espanhol" (laranja)
+local btnES = Instance.new("TextButton")
+btnES.Size = UDim2.new(0, 120, 0, 45)
+btnES.Position = UDim2.new(0.5, 65, 0, 90)
+btnES.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+btnES.Text = "Espanhol"
+btnES.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnES.Font = Enum.Font.SourceSansBold
+btnES.TextScaled = true
+btnES.Parent = frame
+btnES.MouseButton1Click:Connect(function() traduzir("Espanhol") end)
+
+-- Botão "Copiar link" (cinza)
+local btnCopy = Instance.new("TextButton")
+btnCopy.Size = UDim2.new(0, 160, 0, 45)
+btnCopy.Position = UDim2.new(0.5, -80, 0, 160)
+btnCopy.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+btnCopy.Text = "Copiar link"
+btnCopy.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnCopy.Font = Enum.Font.SourceSansBold
+btnCopy.TextScaled = true
+btnCopy.Parent = frame
+
+-- Ação do botão copiar
+btnCopy.MouseButton1Click:Connect(function()
+    local sucesso, erro = pcall(function()
+        setclipboard("https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp")
+    end)
+    if sucesso then
+        btnCopy.Text = "✅ Link copiado!"
+        task.wait(2)
+        btnCopy.Text = "Copiar link"
+    else
+        btnCopy.Text = "❌ Erro ao copiar"
+        task.wait(1.5)
+        btnCopy.Text = "Copiar link"
+    end
 end)
-btnEn.MouseButton1Click:Connect(function()
-    mensagem.Text = traducoes.English
-end)
-btnEs.MouseButton1Click:Connect(function()
-    mensagem.Text = traducoes.Espanhol
-end)
-
--- ========== AVISO (agora com tamanho maior e visível) ==========
-local aviso = Instance.new("TextLabel")
-aviso.Size = UDim2.new(1, -20, 0, 80)          -- Altura 80 para caber 3 linhas
-aviso.Position = UDim2.new(0, 10, 0, 270)      -- Posicionado abaixo dos botões
-aviso.BackgroundTransparency = 1
-aviso.Text = "Script foi Atualizando....\nPor Favo Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente....."
-aviso.TextColor3 = Color3.new(1, 1, 0)         -- Amarelo
-aviso.TextScaled = true
-aviso.Font = Enum.Font.SourceSans
-aviso.TextWrapped = true                       -- Quebra linha automaticamente
-aviso.Visible = false                          -- Começa oculto, será mostrado após copiar
-aviso.Parent = frame
-
--- ========== COPIAR LINK PARA ÁREA DE TRANSFERÊNCIA ==========
-local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
-local sucesso, erro = pcall(function()
-    game:GetService("UserInputService"):SetClipboard(link)
-end)
-
-if sucesso then
-    aviso.Visible = true
-else
-    warn("Erro ao copiar link: " .. tostring(erro))
-    -- Exibe o link manualmente caso a cópia falhe
-    aviso.Text = "Link: " .. link .. "\nCopie manualmente."
-    aviso.Visible = true
-end
-
--- ========== MÚSICA ==========
--- Toca ao abrir o menu (ID fornecido)
-local som = Instance.new("Sound")
-som.SoundId = "rbxassetid://74575218169013"   -- ID da música
-som.Volume = 0.5
-som.Looped = false
-som.Parent = gui                              -- Coloca no GUI para tocar localmente
-som:Play()
-
--- (Opcional) Se quiser que a música pare ao fechar o menu, você pode adicionar um botão de fechar,
--- mas não foi pedido, então deixamos assim.
