@@ -1,208 +1,263 @@
 --[[
-  Script de Propaganda - Atualização Obrigatória
-  Cópia confiável com fallback manual
+    Script: Menu Sor_UmPlayer
+    Versão: 1.0
+    Descrição: Menu interativo com suporte a 3 idiomas e copiar link do canal.
+    Canal: https://youtube.com/@sorumplayer
 ]]
 
-local player = game.Players.LocalPlayer
-local guiService = game:GetService("GuiService")
+-- ============================================
+-- CONFIGURAÇÕES
+-- ============================================
+local LINK_CANAL = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 
--- Cria a ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AtualizacaoGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = player.PlayerGui
-
--- Toca a música (se o ID for válido)
-local sound = Instance.new("Sound")
-sound.SoundId = "rbxassetid://74575218169013"
-sound.Volume = 0.5
-sound.Looped = false
-sound.Parent = screenGui
-task.wait(0.5)
-pcall(function() sound:Play() end)
-
--- Frame principal (Azul com bordas pretas)
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 480, 0, 360) -- um pouco mais alto para caber o TextBox
-mainFrame.Position = UDim2.new(0.5, -240, 0.5, -180)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-mainFrame.BorderSizePixel = 3
-mainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.Parent = screenGui
-
--- Botão X vermelho (fechar)
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(0, 5, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-closeButton.Text = "✕"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.TextScaled = true
-closeButton.Font = Enum.Font.GothamBold
-closeButton.BorderSizePixel = 2
-closeButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-closeButton.Parent = mainFrame
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
-
--- Título
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 0, 30)
-title.Position = UDim2.new(0, 40, 0, 5)
-title.BackgroundTransparency = 1
-title.Text = "⚠️ ATUALIZAÇÃO NECESSÁRIA"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextScaled = true
-title.Font = Enum.Font.GothamBold
-title.Parent = mainFrame
-
--- Texto explicativo
-local messageLabel = Instance.new("TextLabel")
-messageLabel.Size = UDim2.new(1, -20, 0, 100)
-messageLabel.Position = UDim2.new(0, 10, 0, 40)
-messageLabel.BackgroundTransparency = 1
-messageLabel.Text = ""
-messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-messageLabel.TextScaled = true
-messageLabel.TextWrapped = true
-messageLabel.Font = Enum.Font.Gotham
-messageLabel.Parent = mainFrame
-
--- Traduções
-local translations = {
-    ["Português"] = {
-        message = "Script Foi Atualizado 🆙\nObrigatório ir pegar Nova Versão do Script no Canal \"Sor_UmPlayer\"!!! 👺\nClique no botão abaixo para copiar o link.",
-        buttonCopy = "Copiar Link☑️",
-        buttonCopied = "Copiado✅️",
-        copyFailed = "Falha na cópia automática. Selecione o link abaixo e copie (Ctrl+C)."
+-- Textos por idioma
+local TEXTOS = {
+    portugues = {
+        titulo = "Script foi Atualizado",
+        corpo = "Obrigatório ir no Canal \"Sor_UmPlayer\" pra pegar Nova Versão...\nClick no botão Abaixo Pra Copiar Link do Canal!!..",
+        copiar = "Copiar Link☑️",
+        copiado = "Link foi Copiado✅️"
     },
-    ["English"] = {
-        message = "Script Has Been Updated 🆙\nYou must get the new version from the channel \"Sor_UmPlayer\"!!! 👺\nClick the button below to copy the link.",
-        buttonCopy = "Copy Link☑️",
-        buttonCopied = "Copied✅️",
-        copyFailed = "Auto-copy failed. Select the link below and copy (Ctrl+C)."
+    english = {
+        titulo = "Script Updated",
+        corpo = "You must go to the Channel \"Sor_UmPlayer\" to get the New Version...\nClick the button below to Copy the Channel Link!!..",
+        copiar = "Copy Link☑️",
+        copiado = "Link Copied✅️"
     },
-    ["Español"] = {
-        message = "¡El script ha sido actualizado 🆙\nEs obligatorio obtener la nueva versión del script en el canal \"Sor_UmPlayer\"!!! 👺\nHaz clic en el botón de abajo para copiar el enlace.",
-        buttonCopy = "Copiar Enlace☑️",
-        buttonCopied = "Copiado✅️",
-        copyFailed = "Fallo en la copia automática. Selecciona el enlace abajo y copia (Ctrl+C)."
+    espanhol = {
+        titulo = "Script Actualizado",
+        corpo = "Es obligatorio ir al Canal \"Sor_UmPlayer\" para obtener la Nueva Versión...\nHaga clic en el botón de abajo para Copiar el Enlace del Canal!!..",
+        copiar = "Copiar Enlace☑️",
+        copiado = "Enlace Copiado✅️"
     }
 }
 
-local currentLanguage = "Português"
-local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
-local isCopied = false
+-- ============================================
+-- CRIAÇÃO DA GUI
+-- ============================================
+local player = game.Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "SorUmPlayerMenu"
+gui.Parent = player.PlayerGui
 
--- TextBox para exibir o link (fallback)
-local linkTextBox = Instance.new("TextBox")
-linkTextBox.Size = UDim2.new(0.9, 0, 0, 30)
-linkTextBox.Position = UDim2.new(0.05, 0, 0.87, 0)
-linkTextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-linkTextBox.TextColor3 = Color3.fromRGB(0, 0, 0)
-linkTextBox.Text = link
-linkTextBox.Font = Enum.Font.Gotham
-linkTextBox.TextScaled = true
-linkTextBox.Visible = false -- só aparece se a cópia automática falhar
-linkTextBox.Parent = mainFrame
--- Seleciona todo o texto ao ganhar foco
-linkTextBox.FocusLost:Connect(function()
-    linkTextBox.SelectionStart = 0
-    linkTextBox.SelectionEnd = #link
+-- ============================================
+-- FRAME PRINCIPAL (Verde com bordas pretas)
+-- ============================================
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Parent = gui
+frame.Size = UDim2.new(0, 440, 0, 360)
+frame.Position = UDim2.new(0.5, -220, 0.5, -180)
+frame.BackgroundColor3 = Color3.fromRGB(0, 140, 0)  -- Verde escuro
+frame.BorderSizePixel = 3
+frame.BorderColor3 = Color3.fromRGB(0, 0, 0)       -- Borda preta
+frame.BackgroundTransparency = 0
+frame.ClipsDescendants = false
+
+-- ============================================
+-- BOTÃO FECHAR (Vermelho - canto superior esquerdo)
+-- ============================================
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Parent = frame
+closeBtn.Size = UDim2.new(0, 36, 0, 36)
+closeBtn.Position = UDim2.new(0, 8, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+closeBtn.BorderSizePixel = 2
+closeBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.MouseButton1Click:Connect(function()
+    frame.Visible = false
 end)
 
--- Botão Copiar Link
-local copyButton = Instance.new("TextButton")
-copyButton.Size = UDim2.new(0.5, 0, 0, 40)
-copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
-copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- Cinza
-copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-copyButton.Text = "Copiar Link☑️"
-copyButton.Font = Enum.Font.GothamBold
-copyButton.TextScaled = true
-copyButton.BorderSizePixel = 2
-copyButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-copyButton.Parent = mainFrame
+-- ============================================
+-- TÍTULO "Menu"
+-- ============================================
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Parent = frame
+title.Size = UDim2.new(0, 200, 0, 34)
+title.Position = UDim2.new(0.5, -100, 0, 8)
+title.BackgroundTransparency = 1
+title.Text = "Menu"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 26
+title.Font = Enum.Font.SourceSansBold
+title.TextXAlignment = Enum.TextXAlignment.Center
 
--- Função para atualizar idioma
-local function updateLanguage(lang)
-    currentLanguage = lang
-    local data = translations[lang]
-    if data then
-        messageLabel.Text = data.message
-        copyButton.Text = data.buttonCopy
-        copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
-        copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        isCopied = false
-        linkTextBox.Visible = false
-        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
-    end
-end
+-- ============================================
+-- TEXTO PRINCIPAL (conteúdo)
+-- ============================================
+local content = Instance.new("TextLabel")
+content.Name = "Content"
+content.Parent = frame
+content.Size = UDim2.new(0, 410, 0, 100)
+content.Position = UDim2.new(0.5, -205, 0, 50)
+content.BackgroundTransparency = 1
+content.Text = TEXTOS.portugues.titulo .. "\n" .. TEXTOS.portugues.corpo
+content.TextColor3 = Color3.fromRGB(255, 255, 255)
+content.TextSize = 15
+content.Font = Enum.Font.SourceSans
+content.TextWrapped = true
+content.TextXAlignment = Enum.TextXAlignment.Center
+content.TextYAlignment = Enum.TextYAlignment.Center
 
--- Ação de copiar (com fallback robusto)
-copyButton.MouseButton1Click:Connect(function()
-    if isCopied then return end
-
-    -- Tenta copiar com GuiService
-    local success = pcall(function()
-        guiService:SetClipboard(link)
-    end)
-
-    if success then
-        -- Cópia automática bem-sucedida
-        copyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Verde
-        copyButton.Text = translations[currentLanguage].buttonCopied or "Copiado✅️"
-        isCopied = true
-        linkTextBox.Visible = false
-        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
-    else
-        -- Falha: mostra o TextBox com o link selecionado
-        linkTextBox.Visible = true
-        copyButton.Position = UDim2.new(0.25, 0, 0.65, 0) -- move o botão para cima
-        copyButton.Text = translations[currentLanguage].copyFailed or "Falha na cópia. Selecione o link abaixo:"
-        copyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Vermelho
-        copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        -- Foca e seleciona o texto para facilitar a cópia manual
-        linkTextBox:CaptureFocus()
-        linkTextBox.SelectionStart = 0
-        linkTextBox.SelectionEnd = #link
-    end
-end)
-
--- Botões de idioma
-local langNames = {"Português", "English", "Español"}
-local langColors = {
-    Color3.fromRGB(0, 200, 0),
-    Color3.fromRGB(0, 150, 255),
-    Color3.fromRGB(255, 165, 0)
-}
-
-for i, name in ipairs(langNames) do
+-- ============================================
+-- BOTÕES DE IDIOMA (3)
+-- ============================================
+local function criarBotaoIdioma(texto, cor, posX, idioma)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.28, 0, 0, 30)
-    btn.Position = UDim2.new(0.02 + (i-1)*0.34, 0, 0.70, 0)
-    btn.BackgroundColor3 = langColors[i]
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Text = name
-    btn.Font = Enum.Font.GothamBold
-    btn.TextScaled = true
+    btn.Parent = frame
+    btn.Size = UDim2.new(0, 120, 0, 38)
+    btn.Position = UDim2.new(0, posX, 0, 170)
+    btn.BackgroundColor3 = cor
     btn.BorderSizePixel = 2
     btn.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    btn.Parent = mainFrame
+    btn.Text = texto
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 15
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Name = idioma .. "Btn"
 
     btn.MouseButton1Click:Connect(function()
-        updateLanguage(name)
-        -- Reseta o botão copiar para cinza se não estiver copiado
-        if not isCopied then
-            copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
-            copyButton.Text = translations[name].buttonCopy
-            copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-            linkTextBox.Visible = false
-            copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
+        local dados = TEXTOS[idioma]
+        if dados then
+            content.Text = dados.titulo .. "\n" .. dados.corpo
+            -- Atualiza o texto do botão copiar também
+            if not linkCopiado then
+                copyBtn.Text = dados.copiar
+            else
+                copyBtn.Text = dados.copiado
+            end
         end
     end)
+
+    return btn
 end
 
--- Inicializa com Português
-updateLanguage("Português")
+-- Português (Verde)
+local portBtn = criarBotaoIdioma("Português", Color3.fromRGB(0, 160, 0), 18, "portugues")
+
+-- English (Azul)
+local engBtn = criarBotaoIdioma("English", Color3.fromRGB(0, 120, 255), 152, "english")
+
+-- Español (Laranja)
+local espBtn = criarBotaoIdioma("Espanhol", Color3.fromRGB(255, 150, 0), 286, "espanhol")
+
+-- ============================================
+-- BOTÃO COPIAR LINK
+-- ============================================
+local linkCopiado = false
+local copyBtn = Instance.new("TextButton")
+copyBtn.Name = "CopyButton"
+copyBtn.Parent = frame
+copyBtn.Size = UDim2.new(0, 390, 0, 44)
+copyBtn.Position = UDim2.new(0.5, -195, 0, 225)
+copyBtn.BackgroundColor3 = Color3.fromRGB(140, 140, 140)  -- Cinza
+copyBtn.BorderSizePixel = 2
+copyBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+copyBtn.Text = TEXTOS.portugues.copiar
+copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyBtn.TextSize = 17
+copyBtn.Font = Enum.Font.SourceSansBold
+
+copyBtn.MouseButton1Click:Connect(function()
+    -- Copiar link
+    local sucesso = false
+    if setclipboard then
+        sucesso = pcall(function()
+            setclipboard(LINK_CANAL)
+        end)
+    end
+
+    if not sucesso then
+        -- Fallback: mostra no console e tenta via gui
+        print("Link: " .. LINK_CANAL)
+        -- Tenta usar o clipboard do jogo
+        if game:GetService("HttpService") then
+            pcall(function()
+                game:GetService("HttpService"):SetClipboard(LINK_CANAL)
+            end)
+        end
+    end
+
+    -- Atualiza estado e aparência
+    linkCopiado = true
+    copyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 0)  -- Verde
+    copyBtn.Text = TEXTOS.portugues.copiado
+
+    -- Notificação visual (opcional)
+    local notif = Instance.new("TextLabel")
+    notif.Parent = frame
+    notif.Size = UDim2.new(0, 200, 0, 30)
+    notif.Position = UDim2.new(0.5, -100, 0, 280)
+    notif.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    notif.BackgroundTransparency = 0.7
+    notif.BorderSizePixel = 0
+    notif.Text = "✅ Link copiado!"
+    notif.TextColor3 = Color3.fromRGB(0, 255, 100)
+    notif.TextSize = 16
+    notif.Font = Enum.Font.SourceSansBold
+    notif.TextWrapped = true
+    notif.TextXAlignment = Enum.TextXAlignment.Center
+    notif.Name = "Notification"
+
+    -- Remove a notificação após 2 segundos
+    task.delay(2.5, function()
+        if notif and notif.Parent then
+            notif:Destroy()
+        end
+    end)
+end)
+
+-- ============================================
+-- TECLA "M" PARA MOSTRAR/ESCONDER MENU
+-- ============================================
+local function onKeyPress(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.M then
+        frame.Visible = not frame.Visible
+    end
+end
+
+game:GetService("UserInputService").InputBegan:Connect(onKeyPress)
+
+-- ============================================
+-- DRAG PARA MOVER O MENU (opcional)
+-- ============================================
+local dragging = false
+local dragStart, startPos
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+    end
+end)
+
+frame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ============================================
+-- FIM DO SCRIPT
+-- ============================================
+print("✅ Menu Sor_UmPlayer carregado! Pressione 'M' para mostrar/esconder.")
