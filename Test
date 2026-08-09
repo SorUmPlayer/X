@@ -10,8 +10,8 @@ local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 --   MENU PRINCIPAL
 -- ======================
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 450, 0, 400) -- um pouco maior para o feedback
-menu.Position = UDim2.new(0.5, -225, 0.5, -200)
+menu.Size = UDim2.new(0, 450, 0, 380) -- um pouco mais alto para a mensagem extra
+menu.Position = UDim2.new(0.5, -225, 0.5, -190)
 menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
 menu.BorderSizePixel = 0
@@ -41,7 +41,7 @@ menu.InputChanged:Connect(function(input)
 end)
 
 -- ======================
---   MENSAGEM PRINCIPAL (TRADUZÍVEL)
+--   MENSAGEM PRINCIPAL
 -- ======================
 local mensagem = Instance.new("TextLabel")
 mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
@@ -96,11 +96,11 @@ for i, dados in ipairs(idiomas) do
 end
 
 -- ======================
---   BOTÃO "COPIAR LINK" + FEEDBACK
+--   BOTÃO "COPIAR LINK"
 -- ======================
 local copiarBtn = Instance.new("TextButton")
 copiarBtn.Size = UDim2.new(0.4, 0, 0.15, 0)
-copiarBtn.Position = UDim2.new(0.3, 0, 0.68, 0)
+copiarBtn.Position = UDim2.new(0.3, 0, 0.7, 0)
 copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
 copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 copiarBtn.TextScaled = true
@@ -108,18 +108,18 @@ copiarBtn.Text = "Copiar Link"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
--- Label de status (aparece abaixo do botão)
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.8, 0, 0.1, 0)
-statusLabel.Position = UDim2.new(0.1, 0, 0.85, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.TextScaled = true
-statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.Text = ""
-statusLabel.Parent = menu
+-- Label de feedback (aparece abaixo do botão)
+local feedback = Instance.new("TextLabel")
+feedback.Size = UDim2.new(0.8, 0, 0.1, 0)
+feedback.Position = UDim2.new(0.1, 0, 0.87, 0)
+feedback.BackgroundTransparency = 1
+feedback.TextScaled = true
+feedback.TextColor3 = Color3.fromRGB(255, 255, 0)
+feedback.Font = Enum.Font.GothamBold
+feedback.Text = ""
+feedback.Parent = menu
 
--- Função para copiar com segurança
+-- Função para copiar com segurança e feedback
 local function copiarLink()
     local clipboard = game:GetService("Clipboard")
     local sucesso, erro = pcall(function()
@@ -127,18 +127,17 @@ local function copiarLink()
     end)
     
     if sucesso then
-        statusLabel.Text = "Link copiado com sucesso!"
-        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-        copiarBtn.Text = "Copiado!"
+        feedback.Text = "✅ Link copiado! Cole onde quiser."
+        copiarBtn.Text = "Link copiado!"
         task.wait(2)
         copiarBtn.Text = "Copiar Link"
-        statusLabel.Text = ""
-    else
-        statusLabel.Text = "Erro ao copiar (teste no Player)"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-        warn("Erro ao copiar: ", erro)
         task.wait(3)
-        statusLabel.Text = ""
+        feedback.Text = ""
+    else
+        feedback.Text = "❌ Erro ao copiar. Tente novamente."
+        warn("Falha ao copiar: ", erro)
+        task.wait(3)
+        feedback.Text = ""
     end
 end
 
