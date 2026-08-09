@@ -7,10 +7,10 @@ gui.Parent = player.PlayerGui
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 
 -- ======================
---   MENU PRINCIPAL
+-- MENU
 -- ======================
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 450, 0, 380) -- um pouco mais alto para a mensagem extra
+menu.Size = UDim2.new(0, 450, 0, 380)
 menu.Position = UDim2.new(0.5, -225, 0.5, -190)
 menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
@@ -41,7 +41,7 @@ menu.InputChanged:Connect(function(input)
 end)
 
 -- ======================
---   MENSAGEM PRINCIPAL
+-- MENSAGEM PRINCIPAL
 -- ======================
 local mensagem = Instance.new("TextLabel")
 mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
@@ -54,7 +54,6 @@ mensagem.Font = Enum.Font.GothamBold
 mensagem.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link....."
 mensagem.Parent = menu
 
--- Traduções
 local traducoes = {
     PT = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link.....",
     EN = "Script has been updated....\nPlease enter the channel to get the new script...\nClick the button below to copy the link.....",
@@ -66,7 +65,7 @@ local function setLanguage(lang)
 end
 
 -- ======================
---   BOTÕES DE IDIOMA
+-- BOTÕES DE IDIOMA
 -- ======================
 local idiomas = {
     { texto = "Português", cor = Color3.fromRGB(0, 200, 0), lang = "PT" },
@@ -92,11 +91,12 @@ for i, dados in ipairs(idiomas) do
 
     btn.MouseButton1Click:Connect(function()
         setLanguage(dados.lang)
+        print("Idioma alterado para:", dados.lang)  -- depuração
     end)
 end
 
 -- ======================
---   BOTÃO "COPIAR LINK"
+-- BOTÃO COPIAR LINK
 -- ======================
 local copiarBtn = Instance.new("TextButton")
 copiarBtn.Size = UDim2.new(0.4, 0, 0.15, 0)
@@ -108,7 +108,7 @@ copiarBtn.Text = "Copiar Link"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
--- Label de feedback (aparece abaixo do botão)
+-- Feedback visual
 local feedback = Instance.new("TextLabel")
 feedback.Size = UDim2.new(0.8, 0, 0.1, 0)
 feedback.Position = UDim2.new(0.1, 0, 0.87, 0)
@@ -119,26 +119,33 @@ feedback.Font = Enum.Font.GothamBold
 feedback.Text = ""
 feedback.Parent = menu
 
--- Função para copiar com segurança e feedback
-local function copiarLink()
+copiarBtn.MouseButton1Click:Connect(function()
+    print("Botão Copiar Link clicado!")  -- verifique no Output
+
     local clipboard = game:GetService("Clipboard")
-    local sucesso, erro = pcall(function()
+    if not clipboard then
+        feedback.Text = "❌ Clipboard indisponível"
+        return
+    end
+
+    local success, err = pcall(function()
         clipboard:setText(link)
     end)
-    
-    if sucesso then
+
+    if success then
         feedback.Text = "✅ Link copiado! Cole onde quiser."
         copiarBtn.Text = "Link copiado!"
+        print("Link copiado:", link)
         task.wait(2)
         copiarBtn.Text = "Copiar Link"
         task.wait(3)
         feedback.Text = ""
     else
         feedback.Text = "❌ Erro ao copiar. Tente novamente."
-        warn("Falha ao copiar: ", erro)
+        warn("Erro:", err)
         task.wait(3)
         feedback.Text = ""
     end
-end
+end)
 
-copiarBtn.MouseButton1Click:Connect(copiarLink)
+print("Script carregado com sucesso.")
