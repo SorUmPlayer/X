@@ -10,14 +10,14 @@ local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 --   MENU PRINCIPAL
 -- ======================
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 450, 0, 360)
-menu.Position = UDim2.new(0.5, -225, 0.5, -180)
+menu.Size = UDim2.new(0, 450, 0, 400) -- um pouco maior para o feedback
+menu.Position = UDim2.new(0.5, -225, 0.5, -200)
 menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
 menu.BorderSizePixel = 0
 menu.Parent = gui
 
--- Arrastar menu
+-- Arrastar
 local dragging = false
 local dragStart, startPos
 menu.InputBegan:Connect(function(input)
@@ -41,10 +41,10 @@ menu.InputChanged:Connect(function(input)
 end)
 
 -- ======================
---   MENSAGEM TRADUZÍVEL
+--   MENSAGEM PRINCIPAL (TRADUZÍVEL)
 -- ======================
 local mensagem = Instance.new("TextLabel")
-mensagem.Size = UDim2.new(0.9, 0, 0.4, 0)
+mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
 mensagem.Position = UDim2.new(0.05, 0, 0.05, 0)
 mensagem.BackgroundTransparency = 1
 mensagem.TextScaled = true
@@ -74,7 +74,7 @@ local idiomas = {
     { texto = "Español", cor = Color3.fromRGB(255, 150, 0), lang = "ES" }
 }
 
-local btnY = 0.5
+local btnY = 0.45
 local btnWidth = 0.28
 local spacing = 0.03
 local startX = (1 - (btnWidth * 3 + spacing * 2)) / 2
@@ -96,11 +96,11 @@ for i, dados in ipairs(idiomas) do
 end
 
 -- ======================
---   BOTÃO "COPIAR LINK"
+--   BOTÃO "COPIAR LINK" + FEEDBACK
 -- ======================
 local copiarBtn = Instance.new("TextButton")
 copiarBtn.Size = UDim2.new(0.4, 0, 0.15, 0)
-copiarBtn.Position = UDim2.new(0.3, 0, 0.75, 0)
+copiarBtn.Position = UDim2.new(0.3, 0, 0.68, 0)
 copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
 copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 copiarBtn.TextScaled = true
@@ -108,20 +108,38 @@ copiarBtn.Text = "Copiar Link"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
+-- Label de status (aparece abaixo do botão)
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.8, 0, 0.1, 0)
+statusLabel.Position = UDim2.new(0.1, 0, 0.85, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextScaled = true
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Text = ""
+statusLabel.Parent = menu
+
 -- Função para copiar com segurança
 local function copiarLink()
     local clipboard = game:GetService("Clipboard")
     local sucesso, erro = pcall(function()
         clipboard:setText(link)
     end)
+    
     if sucesso then
-        copiarBtn.Text = "Link copiado!"
+        statusLabel.Text = "Link copiado com sucesso!"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        copiarBtn.Text = "Copiado!"
+        task.wait(2)
+        copiarBtn.Text = "Copiar Link"
+        statusLabel.Text = ""
     else
-        copiarBtn.Text = "Erro ao copiar!"
+        statusLabel.Text = "Erro ao copiar (teste no Player)"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
         warn("Erro ao copiar: ", erro)
+        task.wait(3)
+        statusLabel.Text = ""
     end
-    task.wait(2)
-    copiarBtn.Text = "Copiar Link"
 end
 
 copiarBtn.MouseButton1Click:Connect(copiarLink)
