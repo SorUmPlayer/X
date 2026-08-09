@@ -1,13 +1,31 @@
--- 1. Copiar link automaticamente após executar o script
+-- 1. Proteção no setclipboard (evita que o script quebre se o executor não suportar)
 local youtubeLink = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
-if setclipboard then
-    setclipboard(youtubeLink)
+pcall(function()
+    if setclipboard then
+        setclipboard(youtubeLink)
+    end
+end)
+
+-- 2. Carregando o WindUI com Link Alternativo de Segurança
+local success, WindUI = pcall(function()
+    -- Tenta o link principal
+    return loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+end)
+
+if not success or not WindUI then
+    print("Link principal do WindUI falhou. Tentando link alternativo...")
+    success, WindUI = pcall(function()
+        -- Tenta o link raw do GitHub caso a API Vercel esteja fora do ar
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesys/WindUI/main/macaw.lua"))()
+    end)
 end
 
--- 2. Carregando a biblioteca WindUI
-local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+if not success or not WindUI then
+    warn("Erro: O seu executor não conseguiu baixar o WindUI. Verifique a internet ou teste outro executor.")
+    return -- Para o script aqui para não gerar mais erros
+end
 
--- 3. Criando a Janela Principal (Menu)
+-- 3. Criando a Janela Principal
 local Window = WindUI:CreateWindow({
     Title = "Menu de Tradução",
     Icon = "lucide-globe",
@@ -20,17 +38,10 @@ local Window = WindUI:CreateWindow({
     HasOutline = true
 })
 
--- Ajustando o tema para: Menu Verde com Texto Branco
+-- Ajustando cores: Menu Verde com Texto Branco
 WindUI:SetTheme({
-    Accent = Color3.fromRGB(40, 200, 40), -- Verde
-    Text = Color3.fromRGB(255, 255, 255)  -- Branco
-})
-
--- Notificação inicial avisando que o link já foi copiado
-WindUI:Notify({
-    Title = "Sucesso!",
-    Content = "Link do YouTube copiado para a área de transferência ao iniciar.",
-    Duration = 5,
+    Accent = Color3.fromRGB(40, 200, 40),
+    Text = Color3.fromRGB(255, 255, 255)
 })
 
 -- 4. Criando a Aba e o Texto
@@ -46,9 +57,7 @@ local Message = MainTab:Paragraph({
 
 MainTab:Divider()
 
--- 5. Criando os 3 Botões de Tradução
-
--- Botão Verde (Português)
+-- 5. Botões de Tradução
 MainTab:Button({
     Title = "🟢 Português",
     Desc = "Mudar texto para Português",
@@ -60,7 +69,6 @@ MainTab:Button({
     end
 })
 
--- Botão Azul (English)
 MainTab:Button({
     Title = "🔵 English",
     Desc = "Change text to English",
@@ -72,7 +80,6 @@ MainTab:Button({
     end
 })
 
--- Botão Laranja (Espanhol)
 MainTab:Button({
     Title = "🟠 Espanhol",
     Desc = "Cambiar texto al Español",
@@ -91,13 +98,18 @@ MainTab:Button({
     Title = "🔗 Copiar link",
     Desc = "Copia o link do canal do YouTube",
     Callback = function()
-        if setclipboard then
-            setclipboard(youtubeLink)
-            WindUI:Notify({
-                Title = "Link Copiado!",
-                Content = "O link foi copiado para a sua área de transferência.",
-                Duration = 3,
-            })
-        end
+        pcall(function()
+            if setclipboard then
+                setclipboard(youtubeLink)
+                WindUI:Notify({
+                    Title = "Sucesso!",
+                    Content = "Link copiado para a área de transferência.",
+                    Duration = 3,
+                })
+            end
+        end)
     end
 })
+
+print("Script carregado com sucesso!")
+
