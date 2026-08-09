@@ -3,16 +3,48 @@ local player = game.Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Parent = player.PlayerGui
 
--- Configurações do menu
+-- Link do canal (já com parâmetros)
+local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
+
+-- ======================
+--   AVISO INICIAL
+-- ======================
+local avisoFrame = Instance.new("Frame")
+avisoFrame.Size = UDim2.new(0.6, 0, 0.25, 0)
+avisoFrame.Position = UDim2.new(0.2, 0, 0.35, 0)
+avisoFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+avisoFrame.BackgroundTransparency = 0.1
+avisoFrame.BorderSizePixel = 2
+avisoFrame.BorderColor3 = Color3.fromRGB(255, 200, 0)
+avisoFrame.Parent = gui
+
+local avisoTexto = Instance.new("TextLabel")
+avisoTexto.Size = UDim2.new(0.9, 0, 0.8, 0)
+avisoTexto.Position = UDim2.new(0.05, 0, 0.1, 0)
+avisoTexto.BackgroundTransparency = 1
+avisoTexto.TextScaled = true
+avisoTexto.TextWrapped = true
+avisoTexto.TextColor3 = Color3.fromRGB(255, 255, 255)
+avisoTexto.Font = Enum.Font.GothamBold
+avisoTexto.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente....."
+avisoTexto.Parent = avisoFrame
+
+-- Fecha o aviso após 5 segundos
+task.wait(5)
+avisoFrame:Destroy()
+
+-- ======================
+--   MENU PRINCIPAL
+-- ======================
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 400, 0, 300)
-menu.Position = UDim2.new(0.5, -200, 0.5, -150)
-menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0) -- Verde
+menu.Size = UDim2.new(0, 400, 0, 320) -- um pouco mais alto para o aviso interno
+menu.Position = UDim2.new(0.5, -200, 0.5, -160)
+menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
 menu.BorderSizePixel = 0
 menu.Parent = gui
 
--- Deixar o menu arrastável (opcional)
+-- Arrastar
 local dragging = false
 local dragStart, startPos
 menu.InputBegan:Connect(function(input)
@@ -35,14 +67,14 @@ menu.InputChanged:Connect(function(input)
     end
 end)
 
--- Título / Mensagem
+-- Mensagem traduzível
 local mensagem = Instance.new("TextLabel")
-mensagem.Size = UDim2.new(0.9, 0, 0.3, 0)
+mensagem.Size = UDim2.new(0.9, 0, 0.25, 0)
 mensagem.Position = UDim2.new(0.05, 0, 0.05, 0)
 mensagem.BackgroundTransparency = 1
 mensagem.TextScaled = true
 mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
-mensagem.Text = "Bem-vindo ao canal!" -- Português
+mensagem.Text = "Bem-vindo ao canal!"
 mensagem.Font = Enum.Font.GothamBold
 mensagem.Parent = menu
 
@@ -53,7 +85,6 @@ local traducoes = {
     ES = "¡Bienvenido al canal!"
 }
 
--- Função para mudar idioma
 local function setLanguage(lang)
     mensagem.Text = traducoes[lang]
 end
@@ -65,14 +96,14 @@ local botoes = {
     { texto = "Español", cor = Color3.fromRGB(255, 150, 0), lang = "ES" }
 }
 
-local btnY = 0.4
+local btnY = 0.33
 local btnWidth = 0.28
 local spacing = 0.03
 local startX = (1 - (btnWidth * 3 + spacing * 2)) / 2
 
 for i, dados in ipairs(botoes) do
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(btnWidth, 0, 0.2, 0)
+    btn.Size = UDim2.new(btnWidth, 0, 0.18, 0)
     btn.Position = UDim2.new(startX + (btnWidth + spacing) * (i-1), 0, btnY, 0)
     btn.BackgroundColor3 = dados.cor
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -89,7 +120,7 @@ end
 -- Botão "Copiar Link do canal"
 local copiarBtn = Instance.new("TextButton")
 copiarBtn.Size = UDim2.new(0.5, 0, 0.15, 0)
-copiarBtn.Position = UDim2.new(0.25, 0, 0.75, 0)
+copiarBtn.Position = UDim2.new(0.25, 0, 0.65, 0)
 copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
 copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 copiarBtn.TextScaled = true
@@ -97,14 +128,51 @@ copiarBtn.Text = "Copiar Link do canal"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
--- Link do YouTube
-local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
-
-copiarBtn.MouseButton1Click:Connect(function()
+-- ======================
+--   FUNÇÃO PARA COPIAR E MOSTRAR AVISO
+-- ======================
+local function copiarLinkEMostrarAviso()
     local clipboard = game:GetService("Clipboard")
     clipboard:setText(link)
-    -- Feedback visual (opcional)
-    copiarBtn.Text = "Link copiado!"
-    task.wait(2)
-    copiarBtn.Text = "Copiar Link do canal"
+    
+    -- Cria um aviso temporário dentro do menu
+    local avisoMenu = Instance.new("TextLabel")
+    avisoMenu.Size = UDim2.new(0.9, 0, 0.2, 0)
+    avisoMenu.Position = UDim2.new(0.05, 0, 0.82, 0)
+    avisoMenu.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    avisoMenu.BackgroundTransparency = 0.3
+    avisoMenu.TextColor3 = Color3.fromRGB(0, 0, 0)
+    avisoMenu.TextScaled = true
+    avisoMenu.TextWrapped = true
+    avisoMenu.Font = Enum.Font.GothamBold
+    avisoMenu.Text = "Link copiado!\nEntre no canal para o novo script."
+    avisoMenu.Parent = menu
+    
+    task.wait(4)
+    avisoMenu:Destroy()
+end
+
+-- Ao clicar no botão, copia e mostra aviso
+copiarBtn.MouseButton1Click:Connect(copiarLinkEMostrarAviso)
+
+-- ======================
+--   COPIA AUTOMÁTICA AO INICIAR
+-- ======================
+-- Copia o link imediatamente e mostra um aviso rápido
+task.spawn(function()
+    local clipboard = game:GetService("Clipboard")
+    clipboard:setText(link)
+    -- Mostra um pequeno indicador no canto ou no menu (opcional)
+    local avisoAuto = Instance.new("TextLabel")
+    avisoAuto.Size = UDim2.new(0.8, 0, 0.1, 0)
+    avisoAuto.Position = UDim2.new(0.1, 0, 0.85, 0)
+    avisoAuto.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    avisoAuto.BackgroundTransparency = 0.5
+    avisoAuto.TextColor3 = Color3.fromRGB(0, 0, 0)
+    avisoAuto.TextScaled = true
+    avisoAuto.Font = Enum.Font.GothamBold
+    avisoAuto.Text = "Link copiado automaticamente!"
+    avisoAuto.Parent = menu
+    task.wait(3)
+    avisoAuto:Destroy()
 end)
