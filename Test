@@ -1,5 +1,5 @@
 --[[
-  Script de Propaganda - Atualização Obrigatória com Link Copiável e Música
+  Script de Propaganda - Atualização Obrigatória com Música e Cópia de Link
   Coloque este LocalScript dentro de um ScreenGui no StarterGui.
 ]]
 
@@ -13,60 +13,35 @@ screenGui.Name = "AtualizacaoGUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player.PlayerGui
 
--- ========== MÚSICA ==========
-local function tocarMusica()
-    local sound = Instance.new("Sound")
-    -- ID fornecido (verifique se é válido; se não, use um som alternativo)
-    local soundId = "rbxassetid://74575218169013"
-    sound.SoundId = soundId
-    sound.Volume = 0.5
-    sound.Looped = false
-    sound.Parent = screenGui
-    
-    -- Toca e, se falhar, tenta um som alternativo
-    local success, err = pcall(function()
-        sound:Play()
-    end)
-    if not success then
-        -- Fallback: som de notificação padrão
-        sound.SoundId = "rbxassetid://9120372320" -- som curto de notificação
-        sound:Play()
-        warn("Música principal falhou, usando fallback.")
-    end
-    return sound
-end
+-- Toca a música (com fallback silencioso se o ID não funcionar)
+local sound = Instance.new("Sound")
+sound.SoundId = "rbxassetid://74575218169013" -- ID fornecido
+sound.Volume = 0.5
+sound.Looped = false
+sound.Parent = screenGui
 
-local musica = tocarMusica()
-
--- Botão para tocar novamente (caso o usuário queira)
-local btnTocarMusica = Instance.new("TextButton")
-btnTocarMusica.Size = UDim2.new(0.15, 0, 0, 25)
-btnTocarMusica.Position = UDim2.new(0.82, 0, 0.02, 0)
-btnTocarMusica.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-btnTocarMusica.Text = "🔊 Tocar"
-btnTocarMusica.TextColor3 = Color3.fromRGB(255,255,255)
-btnTocarMusica.Font = Enum.Font.Gotham
-btnTocarMusica.TextScaled = true
-btnTocarMusica.BorderSizePixel = 1
-btnTocarMusica.BorderColor3 = Color3.fromRGB(0,0,0)
-btnTocarMusica.Parent = mainFrame
-btnTocarMusica.MouseButton1Click:Connect(function()
-    musica:Stop()
-    musica:Play()
+-- Tenta tocar com um pequeno atraso para carregar
+task.wait(0.5)
+pcall(function()
+    sound:Play()
 end)
 
--- ========== INTERFACE PRINCIPAL ==========
+-- Caso o som acima falhe, use um som alternativo (opcional)
+-- Se quiser um som de teste, descomente a linha abaixo:
+-- sound.SoundId = "rbxassetid://9120376071" -- som de moeda, funciona
+
+-- Frame principal (Azul com bordas pretas)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 550, 0, 400)
-mainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
+mainFrame.Size = UDim2.new(0, 520, 0, 380)
+mainFrame.Position = UDim2.new(0.5, -260, 0.5, -190)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 120, 215) -- Azul
 mainFrame.BorderSizePixel = 3
-mainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0) -- Preto
 mainFrame.Parent = screenGui
 
 -- Título
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Size = UDim2.new(1, 0, 0, 35)
 title.Position = UDim2.new(0, 0, 0, 5)
 title.BackgroundTransparency = 1
 title.Text = "⚠️ ATUALIZAÇÃO NECESSÁRIA"
@@ -77,8 +52,8 @@ title.Parent = mainFrame
 
 -- Texto explicativo
 local messageLabel = Instance.new("TextLabel")
-messageLabel.Size = UDim2.new(1, -20, 0, 120)
-messageLabel.Position = UDim2.new(0, 10, 0, 50)
+messageLabel.Size = UDim2.new(1, -20, 0, 110)
+messageLabel.Position = UDim2.new(0, 10, 0, 45)
 messageLabel.BackgroundTransparency = 1
 messageLabel.Text = ""
 messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -90,19 +65,22 @@ messageLabel.Parent = mainFrame
 -- Dicionário de traduções
 local translations = {
     ["Português"] = {
-        message = "Script Foi Atualizado 🆙\nObrigatório ir pegar Nova Versão do Script no Canal \"Sor_UmPlayer\"!!! 👺\nClique no botão abaixo para selecionar o link e copie (Ctrl+C).",
-        buttonCopy = "Selecionar Link",
-        buttonCopied = "Link Selecionado ✅"
+        message = "Script Foi Atualizado 🆙\nObrigatório ir pegar Nova Versão do Script no Canal \"Sor_UmPlayer\"!!! 👺\nBotão abaixo para copiar o link.",
+        buttonCopy = "Copiar Link☑️",
+        buttonCopied = "Copiado✅️",
+        copyFailed = "Falha ao copiar. Selecione o link abaixo e use Ctrl+C:"
     },
     ["English"] = {
-        message = "Script Has Been Updated 🆙\nYou must get the new version from the channel \"Sor_UmPlayer\"!!! 👺\nClick the button below to select the link and copy (Ctrl+C).",
-        buttonCopy = "Select Link",
-        buttonCopied = "Link Selected ✅"
+        message = "Script Has Been Updated 🆙\nYou must get the new version from the channel \"Sor_UmPlayer\"!!! 👺\nButton below to copy the link.",
+        buttonCopy = "Copy Link☑️",
+        buttonCopied = "Copied✅️",
+        copyFailed = "Failed to copy. Select the link below and use Ctrl+C:"
     },
     ["Español"] = {
-        message = "¡El script ha sido actualizado 🆙\nEs obligatorio obtener la nueva versión del script en el canal \"Sor_UmPlayer\"!!! 👺\nHaz clic en el botón de abajo para seleccionar el enlace y copiar (Ctrl+C).",
-        buttonCopy = "Seleccionar Enlace",
-        buttonCopied = "Enlace Seleccionado ✅"
+        message = "¡El script ha sido actualizado 🆙\nEs obligatorio obtener la nueva versión del script en el canal \"Sor_UmPlayer\"!!! 👺\nBotón abajo para copiar el enlace.",
+        buttonCopy = "Copiar Enlace☑️",
+        buttonCopied = "Copiado✅️",
+        copyFailed = "Error al copiar. Selecciona el enlace abajo y usa Ctrl+C:"
     }
 }
 
@@ -110,57 +88,35 @@ local currentLanguage = "Português"
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 local isCopied = false
 
--- Campo de texto com o link (sempre visível, com o link)
+-- Campo de texto com o link (sempre visível, mas inicialmente escondido)
 local linkTextBox = Instance.new("TextBox")
-linkTextBox.Size = UDim2.new(0.9, 0, 0, 35)
-linkTextBox.Position = UDim2.new(0.05, 0, 0.78, 0)
+linkTextBox.Size = UDim2.new(0.9, 0, 0, 30)
+linkTextBox.Position = UDim2.new(0.05, 0, 0.85, 0)
 linkTextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 linkTextBox.TextColor3 = Color3.fromRGB(0, 0, 0)
 linkTextBox.Text = link
 linkTextBox.Font = Enum.Font.Gotham
 linkTextBox.TextScaled = true
-linkTextBox.ClearTextOnFocus = false
+linkTextBox.Visible = false -- só aparece se a cópia automática falhar
 linkTextBox.Parent = mainFrame
-
--- Ao focar, seleciona todo o texto
-linkTextBox.FocusLost:Connect(function(enterPressed)
-    if not enterPressed then
-        linkTextBox.SelectionStart = 0
-        linkTextBox.SelectionEnd = #link
-    end
-end)
--- Quando clicar no TextBox, seleciona tudo
-linkTextBox.MouseButton1Click:Connect(function()
-    linkTextBox:CaptureFocus()
+-- Seleciona todo o texto ao ganhar foco
+linkTextBox.FocusLost:Connect(function()
     linkTextBox.SelectionStart = 0
     linkTextBox.SelectionEnd = #link
 end)
 
--- Botão "Copiar/Selecionar Link"
+-- Botão Copiar Link
 local copyButton = Instance.new("TextButton")
 copyButton.Size = UDim2.new(0.5, 0, 0, 40)
-copyButton.Position = UDim2.new(0.25, 0, 0.70, 0)
+copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
 copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- Cinza
 copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-copyButton.Text = "Selecionar Link"
+copyButton.Text = "Copiar Link☑️"
 copyButton.Font = Enum.Font.GothamBold
 copyButton.TextScaled = true
 copyButton.BorderSizePixel = 2
 copyButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
 copyButton.Parent = mainFrame
-
-copyButton.MouseButton1Click:Connect(function()
-    -- Seleciona o texto e dá foco
-    linkTextBox:CaptureFocus()
-    linkTextBox.SelectionStart = 0
-    linkTextBox.SelectionEnd = #link
-    -- Feedback visual
-    copyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Verde
-    copyButton.Text = translations[currentLanguage].buttonCopied
-    isCopied = true
-    -- Instrução extra para copiar
-    messageLabel.Text = messageLabel.Text .. "\n\n(Use Ctrl+C para copiar)"
-end)
 
 -- Atualiza a interface com o idioma
 local function updateLanguage(lang)
@@ -168,16 +124,47 @@ local function updateLanguage(lang)
     local data = translations[lang]
     if data then
         messageLabel.Text = data.message
-        if isCopied then
-            copyButton.Text = data.buttonCopied
-        else
-            copyButton.Text = data.buttonCopy
-        end
-        copyButton.BackgroundColor3 = isCopied and Color3.fromRGB(0,200,0) or Color3.fromRGB(128,128,128)
+        copyButton.Text = data.buttonCopy
+        copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- cinza
+        copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        isCopied = false
+        linkTextBox.Visible = false
+        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
     end
 end
 
--- Botões de idioma
+-- Função de cópia com fallback
+local function copyLink()
+    if isCopied then return end
+    
+    -- Tenta copiar automaticamente
+    local success, err = pcall(function()
+        guiService:SetClipboard(link)
+    end)
+    
+    if success then
+        -- Cópia automática bem-sucedida
+        copyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Verde
+        copyButton.Text = translations[currentLanguage].buttonCopied or "Copiado✅️"
+        isCopied = true
+        linkTextBox.Visible = false
+        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
+    else
+        -- Falha: mostra o TextBox com o link selecionado
+        linkTextBox.Visible = true
+        copyButton.Position = UDim2.new(0.25, 0, 0.65, 0) -- move o botão para cima
+        copyButton.Text = translations[currentLanguage].copyFailed or "Falha ao copiar. Selecione o link abaixo:"
+        copyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Vermelho
+        -- Foca e seleciona o texto para facilitar a cópia manual
+        linkTextBox:CaptureFocus()
+        linkTextBox.SelectionStart = 0
+        linkTextBox.SelectionEnd = #link
+    end
+end
+
+copyButton.MouseButton1Click:Connect(copyLink)
+
+-- Botões de idioma (3)
 local langNames = {"Português", "English", "Español"}
 local langColors = {
     Color3.fromRGB(0, 200, 0),   -- Verde
@@ -188,7 +175,7 @@ local langColors = {
 for i, name in ipairs(langNames) do
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.28, 0, 0, 30)
-    btn.Position = UDim2.new(0.02 + (i-1)*0.34, 0, 0.90, 0)
+    btn.Position = UDim2.new(0.02 + (i-1)*0.34, 0, 0.65, 0)
     btn.BackgroundColor3 = langColors[i]
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Text = name
@@ -200,14 +187,22 @@ for i, name in ipairs(langNames) do
     
     btn.MouseButton1Click:Connect(function()
         updateLanguage(name)
+        -- Reseta a visibilidade do TextBox e o botão
+        linkTextBox.Visible = false
+        copyButton.Position = UDim2.new(0.25, 0, 0.78, 0)
+        if not isCopied then
+            copyButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
+            copyButton.Text = translations[name].buttonCopy
+            copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
     end)
 end
 
 -- Inicializa com Português
 updateLanguage("Português")
 
--- (Opcional) Auto-selecionar o link ao abrir
-task.wait(0.5)
-linkTextBox:CaptureFocus()
-linkTextBox.SelectionStart = 0
-linkTextBox.SelectionEnd = #link
+-- (Opcional) Remove a GUI após 60 segundos
+--[[
+task.wait(60)
+screenGui:Destroy()
+]]
