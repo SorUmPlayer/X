@@ -7,29 +7,29 @@ gui.Parent = player.PlayerGui
 
 -- Frame principal (verde)
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 450, 0, 250)
-frame.Position = UDim2.new(0.5, -225, 0.5, -125)
-frame.BackgroundColor3 = Color3.fromRGB(0, 180, 0) -- verde
+frame.Size = UDim2.new(0, 500, 0, 300)  -- Aumentei um pouco para caber o texto
+frame.Position = UDim2.new(0.5, -250, 0.5, -150)
+frame.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
 frame.BackgroundTransparency = 0.15
 frame.BorderSizePixel = 0
 frame.Parent = gui
 
 -- Texto da mensagem (inicial em português)
 local mensagem = Instance.new("TextLabel")
-mensagem.Size = UDim2.new(1, -20, 0, 60)
+mensagem.Size = UDim2.new(1, -20, 0, 100)
 mensagem.Position = UDim2.new(0, 10, 0, 10)
 mensagem.BackgroundTransparency = 1
-mensagem.Text = "Olá! Selecione o idioma abaixo."
+mensagem.Text = "Script foi Atualizado....\n\nPor Favor Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente....."
 mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
 mensagem.TextScaled = true
 mensagem.Font = Enum.Font.SourceSansBold
 mensagem.Parent = frame
 
--- Traduções
+-- Traduções (agora com o novo texto em cada idioma)
 local traducoes = {
-    Portugues = "Olá! Selecione o idioma abaixo.",
-    English = "Hello! Select a language below.",
-    Espanhol = "¡Hola! Selecciona un idioma abajo."
+    Portugues = "Script foi Atualizado....\n\nPor Favor Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente.....",
+    English = "Script has been updated....\n\nPlease Join the Channel Get New Script...\nLink was copied automatically.....",
+    Espanhol = "El script ha sido actualizado....\n\nPor favor, únete al canal y obtén el nuevo script...\nEl enlace se copió automáticamente....."
 }
 
 -- Função para traduzir
@@ -40,7 +40,7 @@ end
 -- Botão "Português" (verde)
 local btnPT = Instance.new("TextButton")
 btnPT.Size = UDim2.new(0, 120, 0, 45)
-btnPT.Position = UDim2.new(0.5, -185, 0, 90)
+btnPT.Position = UDim2.new(0.5, -185, 0, 130) -- reposicionado para caber o texto
 btnPT.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
 btnPT.Text = "Português"
 btnPT.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -52,7 +52,7 @@ btnPT.MouseButton1Click:Connect(function() traduzir("Portugues") end)
 -- Botão "English" (azul)
 local btnEN = Instance.new("TextButton")
 btnEN.Size = UDim2.new(0, 120, 0, 45)
-btnEN.Position = UDim2.new(0.5, -60, 0, 90)
+btnEN.Position = UDim2.new(0.5, -60, 0, 130)
 btnEN.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
 btnEN.Text = "English"
 btnEN.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -64,7 +64,7 @@ btnEN.MouseButton1Click:Connect(function() traduzir("English") end)
 -- Botão "Espanhol" (laranja)
 local btnES = Instance.new("TextButton")
 btnES.Size = UDim2.new(0, 120, 0, 45)
-btnES.Position = UDim2.new(0.5, 65, 0, 90)
+btnES.Position = UDim2.new(0.5, 65, 0, 130)
 btnES.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
 btnES.Text = "Espanhol"
 btnES.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -76,7 +76,7 @@ btnES.MouseButton1Click:Connect(function() traduzir("Espanhol") end)
 -- Botão "Copiar link" (cinza)
 local btnCopy = Instance.new("TextButton")
 btnCopy.Size = UDim2.new(0, 160, 0, 45)
-btnCopy.Position = UDim2.new(0.5, -80, 0, 160)
+btnCopy.Position = UDim2.new(0.5, -80, 0, 205) -- reposicionado
 btnCopy.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 btnCopy.Text = "Copiar link"
 btnCopy.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -84,7 +84,7 @@ btnCopy.Font = Enum.Font.SourceSansBold
 btnCopy.TextScaled = true
 btnCopy.Parent = frame
 
--- Ação do botão copiar
+-- Ação do botão copiar (manual)
 btnCopy.MouseButton1Click:Connect(function()
     local sucesso, erro = pcall(function()
         setclipboard("https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp")
@@ -99,3 +99,19 @@ btnCopy.MouseButton1Click:Connect(function()
         btnCopy.Text = "Copiar link"
     end
 end)
+
+-- ⭐ CÓPIA AUTOMÁTICA AO INICIAR O SCRIPT
+task.wait(0.5) -- pequeno delay para garantir
+local sucesso, erro = pcall(function()
+    setclipboard("https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp")
+end)
+if sucesso then
+    -- Opcional: mudar o texto do botão para indicar que já foi copiado
+    btnCopy.Text = "✅ Já copiado"
+    task.wait(2)
+    btnCopy.Text = "Copiar link"
+else
+    btnCopy.Text = "❌ Falha auto-cópia"
+    task.wait(2)
+    btnCopy.Text = "Copiar link"
+end
