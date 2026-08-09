@@ -1,115 +1,127 @@
--- 1. Proteção no setclipboard (evita que o script quebre se o executor não suportar)
-local youtubeLink = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
-pcall(function()
-    if setclipboard then
-        setclipboard(youtubeLink)
-    end
-end)
+-- LocalScript em StarterGui
+local player = game.Players.LocalPlayer
 
--- 2. Carregando o WindUI com Link Alternativo de Segurança
-local success, WindUI = pcall(function()
-    -- Tenta o link principal
-    return loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
-end)
+-- Criar a GUI principal
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MenuAtualizacao"
+screenGui.Parent = player.PlayerGui
 
-if not success or not WindUI then
-    print("Link principal do WindUI falhou. Tentando link alternativo...")
-    success, WindUI = pcall(function()
-        -- Tenta o link raw do GitHub caso a API Vercel esteja fora do ar
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesys/WindUI/main/macaw.lua"))()
+-- Link do canal
+local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
+
+-- ===== Menu =====
+local menu = Instance.new("Frame")
+menu.Size = UDim2.new(0, 450, 0, 380)
+menu.Position = UDim2.new(0.5, -225, 0.5, -190)
+menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+menu.BackgroundTransparency = 0.2
+menu.BorderSizePixel = 0
+menu.Parent = screenGui
+
+-- ===== Mensagem principal =====
+local mensagem = Instance.new("TextLabel")
+mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
+mensagem.Position = UDim2.new(0.05, 0, 0.05, 0)
+mensagem.BackgroundTransparency = 1
+mensagem.TextScaled = true
+mensagem.TextWrapped = true
+mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
+mensagem.Font = Enum.Font.GothamBold
+mensagem.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link....."
+mensagem.Parent = menu
+
+-- ===== Traduções =====
+local traducoes = {
+    PT = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link.....",
+    EN = "Script has been updated....\nPlease enter the channel to get the new script...\nClick the button below to copy the link.....",
+    ES = "¡El script ha sido actualizado....\nPor favor, entre al canal para obtener el nuevo script...\nHaga clic en el botón de abajo para copiar el enlace....."
+}
+
+local function setLanguage(lang)
+    mensagem.Text = traducoes[lang]
+end
+
+-- ===== Botões de idioma =====
+local idiomas = {
+    { texto = "Português", cor = Color3.fromRGB(0, 200, 0), lang = "PT" },
+    { texto = "English", cor = Color3.fromRGB(0, 100, 255), lang = "EN" },
+    { texto = "Español", cor = Color3.fromRGB(255, 150, 0), lang = "ES" }
+}
+
+local btnY = 0.45
+local btnWidth = 0.28
+local spacing = 0.03
+local startX = (1 - (btnWidth * 3 + spacing * 2)) / 2
+
+for i, dados in ipairs(idiomas) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(btnWidth, 0, 0.15, 0)
+    btn.Position = UDim2.new(startX + (btnWidth + spacing) * (i-1), 0, btnY, 0)
+    btn.BackgroundColor3 = dados.cor
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextScaled = true
+    btn.Text = dados.texto
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = menu
+    btn.MouseButton1Click:Connect(function()
+        setLanguage(dados.lang)
+        print("Idioma alterado para:", dados.lang)
     end)
 end
 
-if not success or not WindUI then
-    warn("Erro: O seu executor não conseguiu baixar o WindUI. Verifique a internet ou teste outro executor.")
-    return -- Para o script aqui para não gerar mais erros
-end
+-- ===== Botão Copiar Link =====
+local copiarBtn = Instance.new("TextButton")
+copiarBtn.Size = UDim2.new(0.4, 0, 0.15, 0)
+copiarBtn.Position = UDim2.new(0.3, 0, 0.7, 0)
+copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+copiarBtn.TextScaled = true
+copiarBtn.Text = "Copiar Link"
+copiarBtn.Font = Enum.Font.GothamBold
+copiarBtn.Parent = menu
 
--- 3. Criando a Janela Principal
-local Window = WindUI:CreateWindow({
-    Title = "Menu de Tradução",
-    Icon = "lucide-globe",
-    Author = "sorumplayer",
-    Folder = "SorumScript",
-    Size = UDim2.fromOffset(500, 400),
-    Transparent = false,
-    Theme = "Dark",
-    SideBarWidth = 150,
-    HasOutline = true
-})
+-- Feedback visual (amarelo abaixo do botão)
+local feedback = Instance.new("TextLabel")
+feedback.Size = UDim2.new(0.8, 0, 0.1, 0)
+feedback.Position = UDim2.new(0.1, 0, 0.87, 0)
+feedback.BackgroundTransparency = 1
+feedback.TextScaled = true
+feedback.TextColor3 = Color3.fromRGB(255, 255, 0)
+feedback.Font = Enum.Font.GothamBold
+feedback.Text = ""
+feedback.Parent = menu
 
--- Ajustando cores: Menu Verde com Texto Branco
-WindUI:SetTheme({
-    Accent = Color3.fromRGB(40, 200, 40),
-    Text = Color3.fromRGB(255, 255, 255)
-})
+-- ===== Função de copiar =====
+copiarBtn.MouseButton1Click:Connect(function()
+    print("Botão Copiar Link clicado!")  -- confirma no Output
 
--- 4. Criando a Aba e o Texto
-local MainTab = Window:Tab({
-    Title = "Idiomas",
-    Icon = "lucide-message-square"
-})
-
-local Message = MainTab:Paragraph({
-    Title = "Mensagem",
-    Desc = "Olá! Escolha o seu idioma clicando nos botões abaixo."
-})
-
-MainTab:Divider()
-
--- 5. Botões de Tradução
-MainTab:Button({
-    Title = "🟢 Português",
-    Desc = "Mudar texto para Português",
-    Callback = function()
-        Message:Set({
-            Title = "Mensagem",
-            Desc = "Olá! Escolha o seu idioma clicando nos botões abaixo."
-        })
+    local clipboard = game:GetService("Clipboard")
+    if not clipboard then
+        feedback.Text = "❌ Clipboard não disponível"
+        warn("Clipboard service não encontrado")
+        return
     end
-})
 
-MainTab:Button({
-    Title = "🔵 English",
-    Desc = "Change text to English",
-    Callback = function()
-        Message:Set({
-            Title = "Message",
-            Desc = "Hello! Choose your language by clicking the buttons below."
-        })
+    local success, err = pcall(function()
+        clipboard:setText(link)
+    end)
+
+    if success then
+        feedback.Text = "✅ Link copiado! Cole onde quiser."
+        copiarBtn.Text = "Link copiado!"
+        copiarBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- muda pra verde
+        print("Link copiado com sucesso:", link)
+        task.wait(2)
+        copiarBtn.Text = "Copiar Link"
+        copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+        task.wait(3)
+        feedback.Text = ""
+    else
+        feedback.Text = "❌ Erro ao copiar. Tente novamente."
+        warn("Erro ao copiar:", err)
+        task.wait(3)
+        feedback.Text = ""
     end
-})
+end)
 
-MainTab:Button({
-    Title = "🟠 Espanhol",
-    Desc = "Cambiar texto al Español",
-    Callback = function()
-        Message:Set({
-            Title = "Mensaje",
-            Desc = "¡Hola! Elige tu idioma haciendo clic en los botones de abajo."
-        })
-    end
-})
-
-MainTab:Divider()
-
--- 6. Botão extra para copiar o link manualmente
-MainTab:Button({
-    Title = "🔗 Copiar link",
-    Desc = "Copia o link do canal do YouTube",
-    Callback = function()
-        pcall(function()
-            if setclipboard then
-                setclipboard(youtubeLink)
-                WindUI:Notify({
-                    Title = "Sucesso!",
-                    Content = "Link copiado para a área de transferência.",
-                    Duration = 3,
-                })
-            end
-        end)
-    end
-})
-
-print("Script carregado com sucesso!")
-
+print("Menu carregado. Link configurado.")
