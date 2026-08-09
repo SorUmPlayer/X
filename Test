@@ -1,60 +1,138 @@
--- LocalScript em StarterGui
-local player = game.Players.LocalPlayer
-local gui = Instance.new("ScreenGui")
-gui.Parent = player.PlayerGui
+import tkinter as tk
+from tkinter import messagebox
 
--- Link do canal
-local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
+# Textos traduzidos
+TEXTS = {
+    "pt": {
+        "title": "Script Foi Atualizado 🆙\nObrigatório ir pegar Nova Versão do Script no Canal \"Sor_UmPlayer\"!!! 👺",
+        "copy_button": "Copiar Link☑️",
+        "copied": "Copiado✅️"
+    },
+    "en": {
+        "title": "Script has been updated 🆙\nYou must get the new version of the Script on the Channel \"Sor_UmPlayer\"!!! 👺",
+        "copy_button": "Copy Link☑️",
+        "copied": "Copied✅️"
+    },
+    "es": {
+        "title": "El script ha sido actualizado 🆙\nEs obligatorio obtener la nueva versión del Script en el Canal \"Sor_UmPlayer\"!!! 👺",
+        "copy_button": "Copiar Enlace☑️",
+        "copied": "Copiado✅️"
+    }
+}
 
--- Menu verde
-local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 400, 0, 250)
-menu.Position = UDim2.new(0.5, -200, 0.5, -125)
-menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-menu.BackgroundTransparency = 0.2
-menu.BorderSizePixel = 0
-menu.Parent = gui
+LINK = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 
--- Mensagem
-local mensagem = Instance.new("TextLabel")
-mensagem.Size = UDim2.new(0.9, 0, 0.35, 0)
-mensagem.Position = UDim2.new(0.05, 0, 0.05, 0)
-mensagem.BackgroundTransparency = 1
-mensagem.TextScaled = true
-mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
-mensagem.Font = Enum.Font.GothamBold
-mensagem.Text = "Script Atualizado!\nClique no botão abaixo para copiar o link do canal."
-mensagem.Parent = menu
+class UpdateNotifier:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Atualização do Script")
+        self.root.geometry("500x300")
+        self.root.resizable(False, False)
 
--- Botão Copiar
-local copiarBtn = Instance.new("TextButton")
-copiarBtn.Size = UDim2.new(0.4, 0, 0.2, 0)
-copiarBtn.Position = UDim2.new(0.3, 0, 0.5, 0)
-copiarBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
-copiarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-copiarBtn.TextScaled = true
-copiarBtn.Text = "Copiar Link"
-copiarBtn.Font = Enum.Font.GothamBold
-copiarBtn.Parent = menu
+        # Frame de idioma (azul)
+        self.lang_frame = tk.Frame(root, bg="#2196F3", padx=20, pady=20)
+        self.lang_frame.pack(fill=tk.BOTH, expand=True)
 
--- Ação de copiar
-copiarBtn.MouseButton1Click:Connect(function()
-    local clipboard = game:GetService("Clipboard")
-    if not clipboard then
-        copiarBtn.Text = "Erro!"
-        return
-    end
+        tk.Label(
+            self.lang_frame,
+            text="Idioma?",
+            font=("Arial", 16, "bold"),
+            bg="#2196F3",
+            fg="white"
+        ).pack(pady=10)
 
-    local success, err = pcall(function()
-        clipboard:setText(link)
-    end)
+        # Botões de idioma
+        btn_pt = tk.Button(
+            self.lang_frame,
+            text="Português",
+            bg="#4CAF50",  # verde
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            command=lambda: self.choose_language("pt")
+        )
+        btn_pt.pack(pady=5)
 
-    if success then
-        copiarBtn.Text = "Link Copiado✅️"
-        copiarBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- verde
-        print("Link copiado:", link)
-    else
-        copiarBtn.Text = "Falha!"
-        warn("Erro:", err)
-    end
-end)
+        btn_en = tk.Button(
+            self.lang_frame,
+            text="English",
+            bg="#1E88E5",  # azul
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            command=lambda: self.choose_language("en")
+        )
+        btn_en.pack(pady=5)
+
+        btn_es = tk.Button(
+            self.lang_frame,
+            text="Español",
+            bg="#FF9800",  # laranja
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            command=lambda: self.choose_language("es")
+        )
+        btn_es.pack(pady=5)
+
+        # Frame de anúncio (verde com borda preta) - inicialmente escondido
+        self.announce_frame = tk.Frame(
+            root,
+            bg="#4CAF50",
+            highlightbackground="black",
+            highlightcolor="black",
+            highlightthickness=3,
+            padx=20,
+            pady=20
+        )
+
+        self.msg_label = tk.Label(
+            self.announce_frame,
+            wraplength=400,
+            justify="center",
+            font=("Arial", 14),
+            bg="#4CAF50",
+            fg="white"
+        )
+        self.msg_label.pack(pady=10)
+
+        self.copy_btn = tk.Button(
+            self.announce_frame,
+            text="Copiar Link☑️",
+            bg="gray",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            command=self.copy_link
+        )
+        self.copy_btn.pack(pady=15)
+
+    def choose_language(self, lang):
+        # Mostra o frame de anúncio e esconde o de idioma
+        self.lang_frame.pack_forget()
+        self.announce_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Atualiza o texto
+        texts = TEXTS[lang]
+        self.msg_label.config(text=texts["title"])
+        self.copy_btn.config(text=texts["copy_button"])
+        self.current_lang = lang
+
+    def copy_link(self):
+        # Copia o link para a área de transferência
+        self.root.clipboard_clear()
+        self.root.clipboard_append(LINK)
+        self.root.update()  # mantém o clipboard
+
+        # Muda o botão para verde e texto "Copiado✅️"
+        texts = TEXTS[self.current_lang]
+        self.copy_btn.config(
+            bg="#4CAF50",
+            text=texts["copied"],
+            state=tk.DISABLED  # opcional: desabilita após copiar
+        )
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = UpdateNotifier(root)
+    root.mainloop()
