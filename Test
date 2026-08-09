@@ -4,21 +4,20 @@ local player = game.Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Parent = player.PlayerGui
 
--- Link do canal (copiado automaticamente)
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 
 -- ======================
 --   MENU PRINCIPAL
 -- ======================
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 450, 0, 360)  -- tamanho ajustado
+menu.Size = UDim2.new(0, 450, 0, 360)
 menu.Position = UDim2.new(0.5, -225, 0.5, -180)
-menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)  -- verde
+menu.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 menu.BackgroundTransparency = 0.2
 menu.BorderSizePixel = 0
 menu.Parent = gui
 
--- Arrastar o menu
+-- Arrastar menu
 local dragging = false
 local dragStart, startPos
 menu.InputBegan:Connect(function(input)
@@ -52,14 +51,14 @@ mensagem.TextScaled = true
 mensagem.TextWrapped = true
 mensagem.TextColor3 = Color3.fromRGB(255, 255, 255)
 mensagem.Font = Enum.Font.GothamBold
-mensagem.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente....."
+mensagem.Text = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link....."
 mensagem.Parent = menu
 
--- Traduções (a mesma mensagem em 3 idiomas)
+-- Traduções
 local traducoes = {
-    PT = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente.....",
-    EN = "Script has been updated....\nPlease enter the channel to get the new script...\nLink has been copied automatically.....",
-    ES = "¡El script ha sido actualizado....\nPor favor, entre al canal para obtener el nuevo script...\nEl enlace ha sido copiado automáticamente....."
+    PT = "Script foi Atualizado....\nPor Favor Entre no Canal Pegue Novo Script...\nClick no Botão abaixo Pra copiar Link.....",
+    EN = "Script has been updated....\nPlease enter the channel to get the new script...\nClick the button below to copy the link.....",
+    ES = "¡El script ha sido actualizado....\nPor favor, entre al canal para obtener el nuevo script...\nHaga clic en el botón de abajo para copiar el enlace....."
 }
 
 local function setLanguage(lang)
@@ -75,7 +74,7 @@ local idiomas = {
     { texto = "Español", cor = Color3.fromRGB(255, 150, 0), lang = "ES" }
 }
 
-local btnY = 0.5          -- posição vertical dos botões
+local btnY = 0.5
 local btnWidth = 0.28
 local spacing = 0.03
 local startX = (1 - (btnWidth * 3 + spacing * 2)) / 2
@@ -109,19 +108,20 @@ copiarBtn.Text = "Copiar Link"
 copiarBtn.Font = Enum.Font.GothamBold
 copiarBtn.Parent = menu
 
-copiarBtn.MouseButton1Click:Connect(function()
+-- Função para copiar com segurança
+local function copiarLink()
     local clipboard = game:GetService("Clipboard")
-    clipboard:setText(link)
-    copiarBtn.Text = "Link copiado!"
+    local sucesso, erro = pcall(function()
+        clipboard:setText(link)
+    end)
+    if sucesso then
+        copiarBtn.Text = "Link copiado!"
+    else
+        copiarBtn.Text = "Erro ao copiar!"
+        warn("Erro ao copiar: ", erro)
+    end
     task.wait(2)
     copiarBtn.Text = "Copiar Link"
-end)
+end
 
--- ======================
---   COPIA AUTOMÁTICA AO INICIAR
--- ======================
-task.spawn(function()
-    local clipboard = game:GetService("Clipboard")
-    clipboard:setText(link)
-    -- A mensagem já avisa que o link foi copiado automaticamente
-end)
+copiarBtn.MouseButton1Click:Connect(copiarLink)
