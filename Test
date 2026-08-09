@@ -1,4 +1,7 @@
--- Cria a interface
+-- =====================================================
+-- Menu Verde com Tradução + Música + Cópia de Link
+-- =====================================================
+
 local player = game.Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "MenuTraducao"
@@ -6,13 +9,13 @@ gui.Parent = player.PlayerGui
 
 -- Frame principal (verde)
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 400, 0, 300)
-frame.Position = UDim2.new(0.5, -200, 0.5, -150)
-frame.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- verde
+frame.Size = UDim2.new(0, 450, 0, 380)  -- Aumentei a altura para caber o aviso
+frame.Position = UDim2.new(0.5, -225, 0.5, -190)
+frame.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
 frame.BorderSizePixel = 0
 frame.Parent = gui
 
--- Título / Mensagem
+-- Título / Mensagem (a que será traduzida)
 local mensagem = Instance.new("TextLabel")
 mensagem.Size = UDim2.new(1, -20, 0, 50)
 mensagem.Position = UDim2.new(0, 10, 0, 10)
@@ -44,14 +47,12 @@ local function criarBotao(texto, cor, posY)
     return btn
 end
 
--- Botão Português (verde)
-local btnPt = criarBotao("Português", Color3.fromRGB(0, 180, 0), 90)
--- Botão English (azul)
-local btnEn = criarBotao("English", Color3.fromRGB(0, 100, 255), 150)
--- Botão Español (laranja)
-local btnEs = criarBotao("Espanhol", Color3.fromRGB(255, 140, 0), 210)
+-- Botões
+local btnPt = criarBotao("Português", Color3.fromRGB(0, 180, 0), 80)
+local btnEn = criarBotao("English", Color3.fromRGB(0, 100, 255), 140)
+local btnEs = criarBotao("Espanhol", Color3.fromRGB(255, 140, 0), 200)
 
--- Eventos de clique
+-- Eventos de clique para traduzir
 btnPt.MouseButton1Click:Connect(function()
     mensagem.Text = traducoes.Portugues
 end)
@@ -62,19 +63,20 @@ btnEs.MouseButton1Click:Connect(function()
     mensagem.Text = traducoes.Espanhol
 end)
 
--- Mensagem de aviso sobre atualização (inicialmente oculta)
+-- ========== AVISO (agora com tamanho maior e visível) ==========
 local aviso = Instance.new("TextLabel")
-aviso.Size = UDim2.new(1, -20, 0, 40)
-aviso.Position = UDim2.new(0, 10, 0, 260)
+aviso.Size = UDim2.new(1, -20, 0, 80)          -- Altura 80 para caber 3 linhas
+aviso.Position = UDim2.new(0, 10, 0, 270)      -- Posicionado abaixo dos botões
 aviso.BackgroundTransparency = 1
-aviso.Text = "Script foi Atualizando.... Por Favo Entre no Canal Pegue Novo Script... Link foi copiado Automaticamente....."
-aviso.TextColor3 = Color3.new(1, 1, 0) -- amarelo
+aviso.Text = "Script foi Atualizando....\nPor Favo Entre no Canal Pegue Novo Script...\nLink foi copiado Automaticamente....."
+aviso.TextColor3 = Color3.new(1, 1, 0)         -- Amarelo
 aviso.TextScaled = true
 aviso.Font = Enum.Font.SourceSans
-aviso.Visible = false
+aviso.TextWrapped = true                       -- Quebra linha automaticamente
+aviso.Visible = false                          -- Começa oculto, será mostrado após copiar
 aviso.Parent = frame
 
--- Copiar link para a área de transferência
+-- ========== COPIAR LINK PARA ÁREA DE TRANSFERÊNCIA ==========
 local link = "https://youtube.com/@sorumplayer?si=iLitOk-G9jOO-0bp"
 local sucesso, erro = pcall(function()
     game:GetService("UserInputService"):SetClipboard(link)
@@ -84,9 +86,19 @@ if sucesso then
     aviso.Visible = true
 else
     warn("Erro ao copiar link: " .. tostring(erro))
-    -- Caso não funcione, exibe o link na tela
+    -- Exibe o link manualmente caso a cópia falhe
     aviso.Text = "Link: " .. link .. "\nCopie manualmente."
     aviso.Visible = true
 end
 
--- (Opcional) Fechar menu após alguns segundos? Não pedido, então mantém aberto.
+-- ========== MÚSICA ==========
+-- Toca ao abrir o menu (ID fornecido)
+local som = Instance.new("Sound")
+som.SoundId = "rbxassetid://74575218169013"   -- ID da música
+som.Volume = 0.5
+som.Looped = false
+som.Parent = gui                              -- Coloca no GUI para tocar localmente
+som:Play()
+
+-- (Opcional) Se quiser que a música pare ao fechar o menu, você pode adicionar um botão de fechar,
+-- mas não foi pedido, então deixamos assim.
