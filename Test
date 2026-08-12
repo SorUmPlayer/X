@@ -1,146 +1,82 @@
---[[
-  Script Personalizado - WindUI Interface (Simulação)
-  Funcionalidades:
-  - Aba "Farm": Teleporte (inserir nome do NPC), Config (Scannear, Dropdown com vida, Copiar nome), Pasta (Dropdown localizações, Copiar pasta)
-  - Scannear: Lista todos os NPCs próximos (distância < 50 studs) com barra de vida
-  - Selecionar NPC: Destaca o NPC (verde) via Chams (muda cor do material ou usa Highlight)
-  - Copiar nome e pasta para o clipboard
-  - Teleporte: move o jogador para a posição do NPC (se existir)
---]]
-
+-- Script simplificado com interface funcional
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
-local RunService = game:GetService("RunService")
 local Clipboard = game:GetService("Clipboard")
 
--- Criar a interface principal
+-- Criar UI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FarmUI"
-ScreenGui.Parent = LocalPlayer.PlayerGui
+ScreenGui.Parent = LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
 
--- Frame principal
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 400, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BackgroundTransparency = 0.2
+MainFrame.Size = UDim2.new(0, 400, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
--- Título (opcional)
+-- Título
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "Farm Interface"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextColor3 = Color3.new(1,1,1)
 Title.TextSize = 20
 Title.Font = Enum.Font.SourceSansBold
 Title.Parent = MainFrame
 
--- Sistema de abas (botões)
-local TabButtons = {}
-local TabContents = {}
+-- Função para criar seções
+local function CreateSection(parent, title, y)
+    local sec = Instance.new("Frame")
+    sec.Size = UDim2.new(1, -10, 0, 80)
+    sec.Position = UDim2.new(0, 5, 0, y)
+    sec.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    sec.BackgroundTransparency = 0.3
+    sec.BorderSizePixel = 0
+    sec.Parent = parent
 
-local function CreateTab(name, parent)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.33, 0, 0, 30)
-    btn.Position = UDim2.new(0, 0, 30, 0) -- será ajustado depois
-    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 16
-    btn.Font = Enum.Font.SourceSans
-    btn.BorderSizePixel = 0
-    btn.Parent = parent
-
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, 0, 1, -60)
-    content.Position = UDim2.new(0, 0, 0, 60)
-    content.BackgroundTransparency = 1
-    content.Visible = false
-    content.Parent = parent
-
-    return btn, content
-end
-
--- Criar abas: Farm, Config, Pasta (mas na descrição as categorias estão dentro de "Farm"? Vou interpretar que a aba Farm contém todas essas categorias, ou talvez sejam abas separadas? O pedido diz "Aba 'Farm' Categoria (Teleporte) ..." então parece que tudo está dentro da aba Farm. Porém ele menciona "Categoria" como se fossem seções. Vou criar uma única aba chamada "Farm" com essas seções.
-
--- Vou criar uma única aba, mas para fins de exemplo, crio a aba Farm com tudo.
-
-local FarmBtn, FarmContent = CreateTab("Farm", MainFrame)
-FarmBtn.Position = UDim2.new(0.335, 0, 30, 0) -- centralizado
-FarmBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-FarmBtn.Text = "Farm"
-FarmBtn.Parent = MainFrame
-
--- Agora criar as seções dentro de FarmContent
-local function CreateSection(parent, title, yPos)
-    local section = Instance.new("Frame")
-    section.Size = UDim2.new(1, -10, 0, 80)
-    section.Position = UDim2.new(0, 5, 0, yPos)
-    section.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    section.BackgroundTransparency = 0.5
-    section.BorderSizePixel = 0
-    section.Parent = parent
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.TextColor3 = Color3.fromRGB(200, 200, 200)
-    label.TextSize = 14
-    label.Font = Enum.Font.SourceSansBold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = section
-
-    return section
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1,0,0,20)
+    lbl.Position = UDim2.new(0,0,0,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = title
+    lbl.TextColor3 = Color3.new(0.8,0.8,0.8)
+    lbl.TextSize = 14
+    lbl.Font = Enum.Font.SourceSansBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = sec
+    return sec
 end
 
 -- Seção Teleporte
-local TeleportSection = CreateSection(FarmContent, "Teleporte", 5)
+local teleSec = CreateSection(MainFrame, "Teleporte", 35)
+local nomeBox = Instance.new("TextBox")
+nomeBox.Size = UDim2.new(0, 150, 0, 25)
+nomeBox.Position = UDim2.new(0, 70, 0, 22)
+nomeBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+nomeBox.TextColor3 = Color3.new(1,1,1)
+nomeBox.TextSize = 14
+nomeBox.PlaceholderText = "Nome do NPC"
+nomeBox.Text = ""
+nomeBox.Parent = teleSec
 
-local TeleportLabel = Instance.new("TextLabel")
-TeleportLabel.Size = UDim2.new(0, 60, 0, 20)
-TeleportLabel.Position = UDim2.new(0, 5, 0, 25)
-TeleportLabel.BackgroundTransparency = 1
-TeleportLabel.Text = "Nome NPC:"
-TeleportLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TeleportLabel.TextSize = 14
-TeleportLabel.Parent = TeleportSection
-
-local TeleportTextBox = Instance.new("TextBox")
-TeleportTextBox.Size = UDim2.new(0, 150, 0, 20)
-TeleportTextBox.Position = UDim2.new(0, 70, 0, 25)
-TeleportTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-TeleportTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-TeleportTextBox.TextSize = 14
-TeleportTextBox.Font = Enum.Font.SourceSans
-TeleportTextBox.PlaceholderText = "Digite o nome"
-TeleportTextBox.Text = ""
-TeleportTextBox.Parent = TeleportSection
-
-local TeleportBtn = Instance.new("TextButton")
-TeleportBtn.Size = UDim2.new(0, 80, 0, 25)
-TeleportBtn.Position = UDim2.new(0, 230, 0, 22)
-TeleportBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-TeleportBtn.Text = "Teleportar"
-TeleportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-TeleportBtn.TextSize = 14
-TeleportBtn.Font = Enum.Font.SourceSans
-TeleportBtn.BorderSizePixel = 0
-TeleportBtn.Parent = TeleportSection
-
-TeleportBtn.MouseButton1Click:Connect(function()
-    local name = TeleportTextBox.Text
+local teleBtn = Instance.new("TextButton")
+teleBtn.Size = UDim2.new(0, 100, 0, 25)
+teleBtn.Position = UDim2.new(0, 230, 0, 22)
+teleBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+teleBtn.Text = "Teleportar"
+teleBtn.TextColor3 = Color3.new(1,1,1)
+teleBtn.TextSize = 14
+teleBtn.Parent = teleSec
+teleBtn.MouseButton1Click:Connect(function()
+    local name = nomeBox.Text
     if name == "" then return end
     for _, npc in pairs(workspace:GetDescendants()) do
         if npc:IsA("Model") and npc.Name == name and npc:FindFirstChild("Humanoid") then
             local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-            if hrp then
-                LocalPlayer.Character:SetPrimaryPartCFrame(hrp.CFrame + Vector3.new(0, 2, 0))
+            if hrp and LocalPlayer.Character then
+                LocalPlayer.Character:SetPrimaryPartCFrame(hrp.CFrame + Vector3.new(0,2,0))
                 break
             end
         end
@@ -148,305 +84,210 @@ TeleportBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Seção Config
-local ConfigSection = CreateSection(FarmContent, "Config", 95)
+local configSec = CreateSection(MainFrame, "Config", 125)
+local scanBtn = Instance.new("TextButton")
+scanBtn.Size = UDim2.new(0, 100, 0, 25)
+scanBtn.Position = UDim2.new(0, 5, 0, 22)
+scanBtn.BackgroundColor3 = Color3.fromRGB(0,100,200)
+scanBtn.Text = "Scannear"
+scanBtn.TextColor3 = Color3.new(1,1,1)
+scanBtn.TextSize = 14
+scanBtn.Parent = configSec
 
--- Botão Scannear
-local ScanBtn = Instance.new("TextButton")
-ScanBtn.Size = UDim2.new(0, 100, 0, 25)
-ScanBtn.Position = UDim2.new(0, 5, 0, 25)
-ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-ScanBtn.Text = "Scannear"
-ScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScanBtn.TextSize = 14
-ScanBtn.Font = Enum.Font.SourceSans
-ScanBtn.BorderSizePixel = 0
-ScanBtn.Parent = ConfigSection
+-- Dropdown (simples com lista)
+local selectedNPC = nil
+local npcList = {}
+local dropBtn = Instance.new("TextButton")
+dropBtn.Size = UDim2.new(0, 180, 0, 25)
+dropBtn.Position = UDim2.new(0, 110, 0, 22)
+dropBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+dropBtn.Text = "Nenhum"
+dropBtn.TextColor3 = Color3.new(1,1,1)
+dropBtn.TextSize = 14
+dropBtn.Parent = configSec
 
--- Dropdown para NPCs (usarei um TextButton que abre um menu, mas simplificarei com um Dropdown de verdade? Vou usar um TextButton que exibe uma lista, mas para simplicidade, vou criar um TextBox que mostra o selecionado e um ScrollingFrame com botões. Como é um script exemplo, farei com um Dropdown usando um TextButton e um Frame que aparece/desaparece.
+local dropFrame = Instance.new("Frame")
+dropFrame.Size = UDim2.new(0, 180, 0, 100)
+dropFrame.Position = UDim2.new(0, 110, 0, 47)
+dropFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+dropFrame.Visible = false
+dropFrame.Parent = configSec
 
-local DropdownFrame = Instance.new("Frame")
-DropdownFrame.Size = UDim2.new(0, 200, 0, 100)
-DropdownFrame.Position = UDim2.new(0, 110, 0, 25)
-DropdownFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-DropdownFrame.BackgroundTransparency = 0
-DropdownFrame.BorderSizePixel = 1
-DropdownFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
-DropdownFrame.Visible = false
-DropdownFrame.Parent = ConfigSection
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1,0,1,0)
+scroll.BackgroundTransparency = 1
+scroll.CanvasSize = UDim2.new(0,0,0,0)
+scroll.Parent = dropFrame
 
-local DropdownList = Instance.new("ScrollingFrame")
-DropdownList.Size = UDim2.new(1, 0, 1, 0)
-DropdownList.Position = UDim2.new(0, 0, 0, 0)
-DropdownList.BackgroundTransparency = 1
-DropdownList.BorderSizePixel = 0
-DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
-DropdownList.ScrollBarThickness = 8
-DropdownList.Parent = DropdownFrame
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0,2)
+layout.Parent = scroll
 
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Padding = UDim.new(0, 2)
-UIListLayout.Parent = DropdownList
+dropBtn.MouseButton1Click:Connect(function()
+    dropFrame.Visible = not dropFrame.Visible
+end)
 
--- Botão que mostra o NPC selecionado
-local SelectedNPCLabel = Instance.new("TextButton")
-SelectedNPCLabel.Size = UDim2.new(0, 200, 0, 25)
-SelectedNPCLabel.Position = UDim2.new(0, 110, 0, 25)
-SelectedNPCLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-SelectedNPCLabel.Text = "Nenhum selecionado"
-SelectedNPCLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-SelectedNPCLabel.TextSize = 14
-SelectedNPCLabel.Font = Enum.Font.SourceSans
-SelectedNPCLabel.BorderSizePixel = 1
-SelectedNPCLabel.BorderColor3 = Color3.fromRGB(80, 80, 80)
-SelectedNPCLabel.Parent = ConfigSection
-
-local function ToggleDropdown()
-    DropdownFrame.Visible = not DropdownFrame.Visible
-    if DropdownFrame.Visible then
-        -- Atualizar lista ao abrir (opcional)
+-- Função para popular dropdown
+local function PopulateDropdown(npcs)
+    for _, child in pairs(scroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
     end
+    for _, npc in pairs(npcs) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,0,0,25)
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        local humanoid = npc:FindFirstChild("Humanoid")
+        local hp = humanoid and math.floor(humanoid.Health) or "?"
+        btn.Text = npc.Name .. " (HP: " .. hp .. ")"
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextSize = 13
+        btn.Parent = scroll
+        btn.MouseButton1Click:Connect(function()
+            selectedNPC = npc
+            dropBtn.Text = npc.Name .. " (HP: " .. hp .. ")"
+            dropFrame.Visible = false
+            -- Highlight verde
+            for _, h in pairs(workspace:GetDescendants()) do
+                if h:IsA("Highlight") and h.Name == "FarmHL" then h:Destroy() end
+            end
+            local hl = Instance.new("Highlight")
+            hl.Name = "FarmHL"
+            hl.Adornee = npc
+            hl.FillColor = Color3.fromRGB(0,255,0)
+            hl.FillTransparency = 0.5
+            hl.Parent = npc
+        end)
+    end
+    scroll.CanvasSize = UDim2.new(0,0,0, #npcs * 27)
 end
 
-SelectedNPCLabel.MouseButton1Click:Connect(ToggleDropdown)
-
--- Variável para armazenar NPC selecionado
-local SelectedNPC = nil
-local NPCList = {} -- tabela com NPCs
-
--- Função para criar item no dropdown
-local function CreateDropdownItem(npc, name, health)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 25)
-    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    btn.Text = name .. " (HP: " .. math.floor(health) .. ")"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 14
-    btn.Font = Enum.Font.SourceSans
-    btn.BorderSizePixel = 1
-    btn.BorderColor3 = Color3.fromRGB(80, 80, 80)
-    btn.Parent = DropdownList
-
-    btn.MouseButton1Click:Connect(function()
-        SelectedNPC = npc
-        SelectedNPCLabel.Text = name .. " (HP: " .. math.floor(health) .. ")"
-        DropdownFrame.Visible = false
-        -- Destacar NPC (Chams)
-        HighlightNPC(npc)
-    end)
-    return btn
-end
-
--- Função para destacar NPC (verde)
-local function HighlightNPC(npc)
-    -- Remover highlight anterior
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Highlight") and obj.Name == "FarmHighlight" then
-            obj:Destroy()
-        end
-    end
-    if not npc then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "FarmHighlight"
-    highlight.Adornee = npc
-    highlight.FillColor = Color3.fromRGB(0, 255, 0)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.OutlineTransparency = 0.5
-    highlight.Parent = npc
-end
-
--- Função de Scannear
-local function ScanNPCs()
-    -- Limpar lista
-    for _, child in pairs(DropdownList:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-    NPCList = {}
-    local character = LocalPlayer.Character
-    if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
+scanBtn.MouseButton1Click:Connect(function()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
-    local distThreshold = 50 -- raio de busca
-
-    for _, npc in pairs(workspace:GetDescendants()) do
-        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") then
-            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-            if hrp then
-                local dist = (hrp.Position - root.Position).Magnitude
-                if dist <= distThreshold then
-                    local humanoid = npc:FindFirstChild("Humanoid")
-                    if humanoid then
-                        local health = humanoid.Health
-                        local maxHealth = humanoid.MaxHealth
-                        local healthPercent = health / maxHealth * 100
-                        -- Criar item no dropdown
-                        local item = CreateDropdownItem(npc, npc.Name, health)
-                        table.insert(NPCList, npc)
-                    end
-                end
+    npcList = {}
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+            local hrp = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
+            if hrp and (hrp.Position - root.Position).Magnitude <= 50 then
+                table.insert(npcList, obj)
             end
         end
     end
-    -- Atualizar canvas size
-    local count = #DropdownList:GetChildren()
-    DropdownList.CanvasSize = UDim2.new(0, 0, 0, count * 27)
-end
-
-ScanBtn.MouseButton1Click:Connect(function()
-    ScanNPCs()
-    -- Opcional: fechar dropdown
-    DropdownFrame.Visible = false
+    PopulateDropdown(npcList)
 end)
 
--- Botão Copiar Nome
-local CopyNameBtn = Instance.new("TextButton")
-CopyNameBtn.Size = UDim2.new(0, 120, 0, 25)
-CopyNameBtn.Position = UDim2.new(0, 320, 0, 25)
-CopyNameBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-CopyNameBtn.Text = "Copiar Nome"
-CopyNameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyNameBtn.TextSize = 14
-CopyNameBtn.Font = Enum.Font.SourceSans
-CopyNameBtn.BorderSizePixel = 0
-CopyNameBtn.Parent = ConfigSection
-
-CopyNameBtn.MouseButton1Click:Connect(function()
-    if SelectedNPC then
-        Clipboard:SetAsync(SelectedNPC.Name)
-        print("Nome copiado: " .. SelectedNPC.Name)
-    else
-        print("Nenhum NPC selecionado")
+-- Copiar nome
+local copyNameBtn = Instance.new("TextButton")
+copyNameBtn.Size = UDim2.new(0, 100, 0, 25)
+copyNameBtn.Position = UDim2.new(0, 295, 0, 22)
+copyNameBtn.BackgroundColor3 = Color3.fromRGB(200,100,0)
+copyNameBtn.Text = "Copiar Nome"
+copyNameBtn.TextColor3 = Color3.new(1,1,1)
+copyNameBtn.TextSize = 14
+copyNameBtn.Parent = configSec
+copyNameBtn.MouseButton1Click:Connect(function()
+    if selectedNPC then
+        Clipboard:SetAsync(selectedNPC.Name)
+        print("Nome copiado: " .. selectedNPC.Name)
     end
 end)
 
 -- Seção Pasta
-local PastaSection = CreateSection(FarmContent, "Pasta", 185)
+local pastaSec = CreateSection(MainFrame, "Pasta", 215)
+local pastaDropBtn = Instance.new("TextButton")
+pastaDropBtn.Size = UDim2.new(0, 180, 0, 25)
+pastaDropBtn.Position = UDim2.new(0, 5, 0, 22)
+pastaDropBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+pastaDropBtn.Text = "Selecione"
+pastaDropBtn.TextColor3 = Color3.new(1,1,1)
+pastaDropBtn.TextSize = 14
+pastaDropBtn.Parent = pastaSec
 
--- Dropdown para localizações (usaremos o mesmo sistema do dropdown anterior, mas com caminhos)
-local PastaDropdownFrame = Instance.new("Frame")
-PastaDropdownFrame.Size = UDim2.new(0, 200, 0, 100)
-PastaDropdownFrame.Position = UDim2.new(0, 5, 0, 25)
-PastaDropdownFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-PastaDropdownFrame.BackgroundTransparency = 0
-PastaDropdownFrame.BorderSizePixel = 1
-PastaDropdownFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
-PastaDropdownFrame.Visible = false
-PastaDropdownFrame.Parent = PastaSection
+local pastaDropFrame = Instance.new("Frame")
+pastaDropFrame.Size = UDim2.new(0, 180, 0, 100)
+pastaDropFrame.Position = UDim2.new(0, 5, 0, 47)
+pastaDropFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+pastaDropFrame.Visible = false
+pastaDropFrame.Parent = pastaSec
 
-local PastaDropdownList = Instance.new("ScrollingFrame")
-PastaDropdownList.Size = UDim2.new(1, 0, 1, 0)
-PastaDropdownList.Position = UDim2.new(0, 0, 0, 0)
-PastaDropdownList.BackgroundTransparency = 1
-PastaDropdownList.BorderSizePixel = 0
-PastaDropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
-PastaDropdownList.ScrollBarThickness = 8
-PastaDropdownList.Parent = PastaDropdownFrame
+local pastaScroll = Instance.new("ScrollingFrame")
+pastaScroll.Size = UDim2.new(1,0,1,0)
+pastaScroll.BackgroundTransparency = 1
+pastaScroll.CanvasSize = UDim2.new(0,0,0,0)
+pastaScroll.Parent = pastaDropFrame
 
-local PastaUIListLayout = Instance.new("UIListLayout")
-PastaUIListLayout.Padding = UDim.new(0, 2)
-PastaUIListLayout.Parent = PastaDropdownList
+local pastaLayout = Instance.new("UIListLayout")
+pastaLayout.Padding = UDim.new(0,2)
+pastaLayout.Parent = pastaScroll
 
--- Botão que mostra a pasta selecionada (caminho)
-local SelectedPastaLabel = Instance.new("TextButton")
-SelectedPastaLabel.Size = UDim2.new(0, 200, 0, 25)
-SelectedPastaLabel.Position = UDim2.new(0, 5, 0, 25)
-SelectedPastaLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-SelectedPastaLabel.Text = "Nenhuma pasta"
-SelectedPastaLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-SelectedPastaLabel.TextSize = 14
-SelectedPastaLabel.Font = Enum.Font.SourceSans
-SelectedPastaLabel.BorderSizePixel = 1
-SelectedPastaLabel.BorderColor3 = Color3.fromRGB(80, 80, 80)
-SelectedPastaLabel.Parent = PastaSection
+local selectedPasta = ""
 
-local function TogglePastaDropdown()
-    PastaDropdownFrame.Visible = not PastaDropdownFrame.Visible
-end
-
-SelectedPastaLabel.MouseButton1Click:Connect(TogglePastaDropdown)
-
--- Variável para pasta selecionada
-local SelectedPastaPath = ""
-
--- Função para criar item no dropdown de pastas (baseado nos NPCs escaneados)
-local function CreatePastaItem(npc)
-    local path = "workspace." .. npc:GetFullName():gsub(" ", ".") -- caminho aproximado
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 25)
-    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    btn.Text = npc.Name
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 14
-    btn.Font = Enum.Font.SourceSans
-    btn.BorderSizePixel = 1
-    btn.BorderColor3 = Color3.fromRGB(80, 80, 80)
-    btn.Parent = PastaDropdownList
-
-    btn.MouseButton1Click:Connect(function()
-        SelectedPastaPath = path
-        SelectedPastaLabel.Text = path
-        PastaDropdownFrame.Visible = false
-        -- Destacar NPC (verde) também
-        HighlightNPC(npc)
-    end)
-    return btn
-end
-
--- Quando escanear, também preencher o dropdown de pastas
-local oldScan = ScanBtn.MouseButton1Click
-ScanBtn.MouseButton1Click:Connect(function()
-    -- Limpar lista de pastas
-    for _, child in pairs(PastaDropdownList:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-    -- Popular com os NPCs escaneados
-    for _, npc in pairs(NPCList) do
-        CreatePastaItem(npc)
-    end
-    -- Atualizar canvas
-    local count = #PastaDropdownList:GetChildren()
-    PastaDropdownList.CanvasSize = UDim2.new(0, 0, 0, count * 27)
+pastaDropBtn.MouseButton1Click:Connect(function()
+    pastaDropFrame.Visible = not pastaDropFrame.Visible
 end)
 
--- Botão Copiar Pasta
-local CopyPastaBtn = Instance.new("TextButton")
-CopyPastaBtn.Size = UDim2.new(0, 120, 0, 25)
-CopyPastaBtn.Position = UDim2.new(0, 220, 0, 25)
-CopyPastaBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-CopyPastaBtn.Text = "Copiar Pasta"
-CopyPastaBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyPastaBtn.TextSize = 14
-CopyPastaBtn.Font = Enum.Font.SourceSans
-CopyPastaBtn.BorderSizePixel = 0
-CopyPastaBtn.Parent = PastaSection
+-- Popular pasta dropdown (usando os NPCs escaneados)
+local function PopulatePasta(npcs)
+    for _, child in pairs(pastaScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    for _, npc in pairs(npcs) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,0,0,25)
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        btn.Text = npc.Name
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextSize = 13
+        btn.Parent = pastaScroll
+        btn.MouseButton1Click:Connect(function()
+            local path = "workspace." .. npc:GetFullName():gsub(" ", ".")
+            selectedPasta = path
+            pastaDropBtn.Text = path
+            pastaDropFrame.Visible = false
+            -- Highlight também
+            for _, h in pairs(workspace:GetDescendants()) do
+                if h:IsA("Highlight") and h.Name == "FarmHL" then h:Destroy() end
+            end
+            local hl = Instance.new("Highlight")
+            hl.Name = "FarmHL"
+            hl.Adornee = npc
+            hl.FillColor = Color3.fromRGB(0,255,0)
+            hl.FillTransparency = 0.5
+            hl.Parent = npc
+        end)
+    end
+    pastaScroll.CanvasSize = UDim2.new(0,0,0, #npcs * 27)
+end
 
-CopyPastaBtn.MouseButton1Click:Connect(function()
-    if SelectedPastaPath ~= "" then
-        Clipboard:SetAsync(SelectedPastaPath)
-        print("Pasta copiada: " .. SelectedPastaPath)
-    else
-        print("Nenhuma pasta selecionada")
+-- Atualizar pasta quando escanear
+local oldScan2 = scanBtn.MouseButton1Click
+scanBtn.MouseButton1Click:Connect(function()
+    -- já atualiza npcList no scan anterior, então só popular
+    PopulatePasta(npcList)
+end)
+
+-- Copiar pasta
+local copyPastaBtn = Instance.new("TextButton")
+copyPastaBtn.Size = UDim2.new(0, 100, 0, 25)
+copyPastaBtn.Position = UDim2.new(0, 190, 0, 22)
+copyPastaBtn.BackgroundColor3 = Color3.fromRGB(200,100,0)
+copyPastaBtn.Text = "Copiar Pasta"
+copyPastaBtn.TextColor3 = Color3.new(1,1,1)
+copyPastaBtn.TextSize = 14
+copyPastaBtn.Parent = pastaSec
+copyPastaBtn.MouseButton1Click:Connect(function()
+    if selectedPasta ~= "" then
+        Clipboard:SetAsync(selectedPasta)
+        print("Pasta copiada: " .. selectedPasta)
     end
 end)
 
--- Ajustar posições e visibilidade inicial
-FarmContent.Visible = true
-MainFrame.Visible = true
+-- Fechar dropdowns clicando fora
+MainFrame.MouseButton1Down:Connect(function()
+    dropFrame.Visible = false
+    pastaDropFrame.Visible = false
+end)
 
--- Fechar dropdowns ao clicar fora
-local function CloseDropdowns()
-    DropdownFrame.Visible = false
-    PastaDropdownFrame.Visible = false
-end
-
-MainFrame.MouseButton1Down:Connect(CloseDropdowns)
-
--- Atualizar vida dos NPCs no dropdown periodicamente (opcional)
--- Pode adicionar um loop para atualizar as barras de vida, mas simplificamos.
-
-print("FarmUI carregado!")
+print("FarmUI carregada com sucesso!")
