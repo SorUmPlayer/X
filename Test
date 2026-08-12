@@ -1,38 +1,68 @@
--- Carregar a interface WindUI
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- ============================================================
+-- CARREGAMENTO DA BIBLIOTECA WINDUI
+-- ============================================================
+local WindUI
+local success, err = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
 
--- Criar a janela principal
-local Window = WindUI:CreateWindow({
-    Title = "🌟 Sor_UmPlayer HUB 🌟",
-    Icon = "Hi",
-    Author = "made by Sor_Gostoso",
-    Folder = "CloudHub",
-    Size = UDim2.fromOffset(460, 260),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    Background = "",
-    BackgroundImageTransparency = 0.42,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
+if not success then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Erro",
+        Text = "Falha ao carregar WindUI: " .. tostring(err),
+        Duration = 5
+    })
+    return
+end
 
--- Serviços
+-- ============================================================
+-- SERVIÇOS E VARIÁVEIS GLOBAIS
+-- ============================================================
 local Players = game:GetService("Players")
-local Clipboard = game:GetService("Clipboard")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Variáveis globais
-local npcTable = {}          -- Tabela com todos os NPCs escaneados: { [path] = {npc, name, path, health} }
-local selectedNPC = nil      -- NPC atualmente selecionado (objeto)
-local highlightInstance = nil -- Instância de Highlight aplicada
+local npcTable = {}      -- { [path] = {npc, name, path, health} }
+local selectedNPC = nil
+local highlightInstance = nil
 
--- Função para escanear NPCs no Workspace
-local function scanNPCs()
+-- ============================================================
+-- FUNÇÕES AUXILIARES
+-- ============================================================
+
+-- Obtém o caminho completo de um objeto no Workspace (ex: "workspace.Enemy.Boss")
+local function getPath(obj)
+    local full = workspace:GetFullName(obj) -- retorna "Workspace.Enemy.Boss"
+    return full:gsub(" ", ".") -- substitui espaços por ponto (por segurança)
+end
+
+-- Copia texto para o clipboard (funciona em muitos executors)
+local function copyToClipboard(text)
+    local success, err = pcall(function()
+        if setclipboard then
+            setclipboard(text)
+        elseif Clipboard then
+            Clipboard:SetAsync(text)
+        else
+            error("Nenhum método de clipboard disponível")
+        end
+    end)
+    if not success then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Erro ao copiar",
+            Text = tostring(err),
+            Duration = 3
+        })
+    end
+end
+
+-- ============================================================
+-- ESCANEAMENTO DE NPCS
+-- ============================================================
+
+function scanNPCs()
     npcTable = {}
     local npcList = {}
 
@@ -40,45 +70,33 @@ local function scanNPCs()
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
             local humanoid = obj.Humanoid
             if humanoid.Health > 0 then
-                local path = getPath(obj) -- função para obter o caminho
-                local name = obj.Name
-                local health = humanoid.Health
-                local maxHealth = humanoid.MaxHealth
-                local healthPercent = math.floor((health / maxHealth) * 100)
+                local path = getPath(obj)
+                local healthPercent = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
                 npcTable[path] = {
                     npc = obj,
-                    name = name,
+                    name = obj.Name,
                     path = path,
                     health = healthPercent
                 }
-                table.insert(npcList, {path = path, display = name .. " (HP: " .. healthPercent .. "%)"})
+                table.insert(npcList, {
+                    path = path,
+                    display = obj.Name .. " (HP: " .. healthPercent .. "%)"
+                })
             end
         end
     end
 
-    -- Atualizar os dropdowns
+    -- Atualiza os dropdowns
     updateDropdowns(npcList)
+    return #npcList
 end
 
--- Função auxiliar para obter o caminho completo de um objeto
-local function getPath(obj)
-    local path = ""
-    local current = obj
-    while current ~= workspace do
-        if current.Parent then
-            path = current.Name .. "." .. path
-            current = current.Parent
-        else
-            break
-        end
-    end
-    path = "workspace." .. path
-    return path:sub(1, #path - 1) -- remove último ponto
-end
+-- ============================================================
+-- ATUALIZA DROPDOWNS
+-- ============================================================
 
--- Função para atualizar ambos os dropdowns
 function updateDropdowns(npcList)
-    -- Preparar itens para dropdown de Config (nome + HP)
+    -- Prepara listas
     local configItems = {}
     local pastaItems = {}
     for _, info in ipairs(npcList) do
@@ -86,15 +104,16 @@ function updateDropdowns(npcList)
         table.insert(pastaItems, info.path)
     end
 
-    -- Atualizar dropdown de Config
+    -- Atualiza dropdown da Config (pelo nome + HP)
     if configDropdown then
+        -- Limpa e recarrega
         configDropdown:SetItems(configItems)
         if #configItems > 0 then
             configDropdown:SetSelectedIndex(1)
         end
     end
 
-    -- Atualizar dropdown de Pasta
+    -- Atualiza dropdown da Pasta (pelo caminho)
     if pastaDropdown then
         pastaDropdown:SetItems(pastaItems)
         if #pastaItems > 0 then
@@ -103,36 +122,46 @@ function updateDropdowns(npcList)
     end
 end
 
--- Função para selecionar um NPC pelo caminho
+-- ============================================================
+-- DESTAQUE DO NPC (CHAMS VERDE)
+-- ============================================================
+
+function highlightNPC(npc)
+    if highlightInstance then
+        highlightInstance:Destroy()
+        highlightInstance = nil
+    end
+    if npc and npc:FindFirstChild("HumanoidRootPart") then
+        highlightInstance = Instance.new("Highlight")
+        highlightInstance.FillColor = Color3.new(0, 1, 0)
+        highlightInstance.FillTransparency = 0.5
+        highlightInstance.OutlineColor = Color3.new(0, 1, 0)
+        highlightInstance.OutlineTransparency = 0.2
+        highlightInstance.Adornee = npc
+        highlightInstance.Parent = npc
+        return true
+    end
+    return false
+end
+
+-- ============================================================
+-- SELECIONA NPC POR CAMINHO
+-- ============================================================
+
 function selectNPCByPath(path)
-    if npcTable[path] then
-        selectedNPC = npcTable[path].npc
+    local data = npcTable[path]
+    if data then
+        selectedNPC = data.npc
         highlightNPC(selectedNPC)
         return true
     end
     return false
 end
 
--- Função para destacar o NPC (chams verde)
-function highlightNPC(npc)
-    -- Remover highlight anterior
-    if highlightInstance then
-        highlightInstance:Destroy()
-        highlightInstance = nil
-    end
+-- ============================================================
+-- TELEPORTE PARA NPC POR NOME
+-- ============================================================
 
-    if npc and npc:FindFirstChild("HumanoidRootPart") then
-        highlightInstance = Instance.new("Highlight")
-        highlightInstance.FillColor = Color3.new(0, 1, 0) -- verde
-        highlightInstance.FillTransparency = 0.5
-        highlightInstance.OutlineColor = Color3.new(0, 1, 0)
-        highlightInstance.OutlineTransparency = 0.2
-        highlightInstance.Adornee = npc
-        highlightInstance.Parent = npc
-    end
-end
-
--- Função para teleportar até um NPC pelo nome
 function teleportToNPC(npcName)
     for path, data in pairs(npcTable) do
         if data.name:lower() == npcName:lower() then
@@ -149,30 +178,43 @@ function teleportToNPC(npcName)
     return false
 end
 
--- ===================== Criação da Interface =====================
+-- ============================================================
+-- CRIAÇÃO DA INTERFACE
+-- ============================================================
 
--- Aba Farm
+local Window = WindUI:CreateWindow({
+    Title = "🌟 Sor_UmPlayer HUB 🌟",
+    Icon = "Hi",
+    Author = "made by Sor_Gostoso",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(460, 260),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    Background = "",
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+})
+
+-- =============== ABA FARM ===============
 local farmTab = Window:CreateTab({
     Title = "Farm",
     Icon = "🌾"
 })
 
--- Categoria Teleporte
 local teleportCategory = farmTab:CreateCategory({
     Title = "Teleporte"
 })
 
--- Campo de texto para nome do NPC
 local npcNameBox = teleportCategory:CreateTextbox({
     Title = "Escreva nome do NPC",
     Placeholder = "Ex: Boss",
     Default = "",
-    Callback = function(text)
-        -- Não faz nada automaticamente, apenas armazena
-    end
+    Callback = function(text) end
 })
 
--- Botão de Teleportar
 teleportCategory:CreateButton({
     Title = "Teleportar",
     Icon = "🚀",
@@ -180,7 +222,6 @@ teleportCategory:CreateButton({
         local name = npcNameBox:GetValue()
         if name and name ~= "" then
             if teleportToNPC(name) then
-                -- Notificação de sucesso
                 game:GetService("StarterGui"):SetCore("SendNotification", {
                     Title = "Teleporte",
                     Text = "Teleportado para " .. name,
@@ -203,41 +244,39 @@ teleportCategory:CreateButton({
     end
 })
 
--- Aba Config
+-- =============== ABA CONFIG ===============
 local configTab = Window:CreateTab({
     Title = "Config",
     Icon = "⚙️"
 })
 
--- Categoria Config
 local configCategory = configTab:CreateCategory({
     Title = "Config"
 })
 
--- Botão Scannear
 configCategory:CreateButton({
     Title = "Scannear",
     Icon = "🔍",
     Callback = function()
-        scanNPCs()
+        local count = scanNPCs()
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Scan",
-            Text = "NPCs escaneados: " .. #npcTable,
+            Text = "NPCs encontrados: " .. count,
             Duration = 3
         })
     end
 })
 
--- Dropdown para NPCs próximos (com barra de vida)
+-- Dropdown que mostra nome + HP
 local configDropdown = configCategory:CreateDropdown({
     Title = "Todos NPC próximo de mim",
-    Items = {}, -- será preenchido pelo scan
+    Items = {}, -- preenchido pelo scan
     DefaultIndex = 1,
     Callback = function(item, index)
-        -- O item é a string exibida (ex: "Boss (HP: 80%)")
-        -- Precisamos extrair o caminho a partir do display
+        -- item é a string exibida (ex: "Boss (HP: 80%)")
         for path, data in pairs(npcTable) do
-            if data.name .. " (HP: " .. data.health .. "%)" == item then
+            local display = data.name .. " (HP: " .. data.health .. "%)"
+            if display == item then
                 selectNPCByPath(path)
                 break
             end
@@ -245,17 +284,15 @@ local configDropdown = configCategory:CreateDropdown({
     end
 })
 
--- Botão copiar nome do NPC
 configCategory:CreateButton({
     Title = "Copiar apenas nome do NPC",
     Icon = "📋",
     Callback = function()
         if selectedNPC then
-            local name = selectedNPC.Name
-            Clipboard:SetAsync(name)
+            copyToClipboard(selectedNPC.Name)
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "Copiado",
-                Text = "Nome copiado: " .. name,
+                Text = "Nome: " .. selectedNPC.Name,
                 Duration = 2
             })
         else
@@ -268,18 +305,17 @@ configCategory:CreateButton({
     end
 })
 
--- Categoria Pasta
+-- =============== PASTA ===============
 local pastaCategory = configTab:CreateCategory({
     Title = "Pasta"
 })
 
--- Dropdown para localização da pasta do NPC
 local pastaDropdown = pastaCategory:CreateDropdown({
     Title = "Localização da pasta do NPC",
-    Items = {}, -- preenchido pelo scan
+    Items = {},
     DefaultIndex = 1,
     Callback = function(item, index)
-        -- O item é o caminho (ex: "workspace.Enemy.Boss")
+        -- item é o caminho completo (ex: "Workspace.Enemy.Boss")
         if selectNPCByPath(item) then
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "Selecionado",
@@ -290,7 +326,6 @@ local pastaDropdown = pastaCategory:CreateDropdown({
     end
 })
 
--- Botão copiar Pasta (caminho completo)
 pastaCategory:CreateButton({
     Title = "Copiar Pasta",
     Icon = "📂",
@@ -304,10 +339,10 @@ pastaCategory:CreateButton({
                 end
             end
             if path ~= "" then
-                Clipboard:SetAsync(path)
+                copyToClipboard(path)
                 game:GetService("StarterGui"):SetCore("SendNotification", {
                     Title = "Copiado",
-                    Text = "Caminho copiado: " .. path,
+                    Text = "Caminho: " .. path,
                     Duration = 3
                 })
             else
@@ -326,6 +361,10 @@ pastaCategory:CreateButton({
         end
     end
 })
+
+-- ============================================================
+-- INICIALIZAÇÃO
+-- ============================================================
 
 -- Escaneia automaticamente ao iniciar
 scanNPCs()
