@@ -1,2218 +1,452 @@
--- =============================================
--- SCRIPT COMPLETO (Project Sor - Parte 1) - CORRIGIDO 2
--- =============================================
--- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
-local players = game:GetService("Players")
-local coreGui = game:GetService("CoreGui")
-local lighting = game:GetService("Lighting")
-local tweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+--[[
+  Script Personalizado - WindUI Interface (Simulação)
+  Funcionalidades:
+  - Aba "Farm": Teleporte (inserir nome do NPC), Config (Scannear, Dropdown com vida, Copiar nome), Pasta (Dropdown localizações, Copiar pasta)
+  - Scannear: Lista todos os NPCs próximos (distância < 50 studs) com barra de vida
+  - Selecionar NPC: Destaca o NPC (verde) via Chams (muda cor do material ou usa Highlight)
+  - Copiar nome e pasta para o clipboard
+  - Teleporte: move o jogador para a posição do NPC (se existir)
+--]]
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local StarterGui = game:GetService("StarterGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
-local TextChatService = game:GetService("TextChatService")
-local SoundService = game:GetService("SoundService")
-local Workspace = game:GetService("Workspace")
-local ProximityPromptService = game:GetService("ProximityPromptService")
+local Clipboard = game:GetService("Clipboard")
 
-local LocalPlayer = players.LocalPlayer
-local estaTeleportando = false
+-- Criar a interface principal
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FarmUI"
+ScreenGui.Parent = LocalPlayer.PlayerGui
 
--- =============================================
--- CONFIGURAÇÕES PERSISTENTES
--- =============================================
-local CONFIG_FILE = "SorOminiX_Persistent_Config.json"
+-- Frame principal
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 400, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
 
-local function LoadConfig()
-    if not isfile then return {} end
-    if isfile(CONFIG_FILE) then
-        local success, data = pcall(function()
-            return HttpService:JSONDecode(readfile(CONFIG_FILE))
-        end)
-        if success and type(data) == "table" then
-            return data
-        end
-    end
-    return {}
+-- Título (opcional)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Farm Interface"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 20
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+-- Sistema de abas (botões)
+local TabButtons = {}
+local TabContents = {}
+
+local function CreateTab(name, parent)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.33, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 30, 0) -- será ajustado depois
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 16
+    btn.Font = Enum.Font.SourceSans
+    btn.BorderSizePixel = 0
+    btn.Parent = parent
+
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, 0, 1, -60)
+    content.Position = UDim2.new(0, 0, 0, 60)
+    content.BackgroundTransparency = 1
+    content.Visible = false
+    content.Parent = parent
+
+    return btn, content
 end
 
-local function SaveConfigToFile(configTable)
-    if not writefile then return end
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(configTable)
-    end)
-    if success then
-        pcall(function() writefile(CONFIG_FILE, json) end)
-    end
+-- Criar abas: Farm, Config, Pasta (mas na descrição as categorias estão dentro de "Farm"? Vou interpretar que a aba Farm contém todas essas categorias, ou talvez sejam abas separadas? O pedido diz "Aba 'Farm' Categoria (Teleporte) ..." então parece que tudo está dentro da aba Farm. Porém ele menciona "Categoria" como se fossem seções. Vou criar uma única aba chamada "Farm" com essas seções.
+
+-- Vou criar uma única aba, mas para fins de exemplo, crio a aba Farm com tudo.
+
+local FarmBtn, FarmContent = CreateTab("Farm", MainFrame)
+FarmBtn.Position = UDim2.new(0.335, 0, 30, 0) -- centralizado
+FarmBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+FarmBtn.Text = "Farm"
+FarmBtn.Parent = MainFrame
+
+-- Agora criar as seções dentro de FarmContent
+local function CreateSection(parent, title, yPos)
+    local section = Instance.new("Frame")
+    section.Size = UDim2.new(1, -10, 0, 80)
+    section.Position = UDim2.new(0, 5, 0, yPos)
+    section.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    section.BackgroundTransparency = 0.5
+    section.BorderSizePixel = 0
+    section.Parent = parent
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = title
+    label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    label.TextSize = 14
+    label.Font = Enum.Font.SourceSansBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = section
+
+    return section
 end
 
-local Config = {
-    RaidEnabled = false,
-    ShotSpeedIndex = 1,
-    NpcDistance = 2,
-    Language = "Português",
-    RemoverIntro = false,
-    AntiAFK = false,
-    BossDistance = 2,
-    BossShotMultiplier = 1,
-    BossShip = false,
-    BossKraken = false,
-    BossTransDimensional = false,
-    BossRajo = false,
-    BossAhPuch = false,
-    BossAddwaitya = false,
-    AlienSlots = {
-        "heatblast",
-        "wildmutt",
-        "diamond",
-        "xrl8",
-        "fourarms"
-    },
-    MostrarBotoes = true,
-    MusicasSalvas = {
-        { nome = "Bem 10", id = "92524084286516" }
-    },
-    MusicaAtual = "Bem 10",
-    TocarMusica = false,
-    RaidInfinity1Enabled = false
-}
-local savedConfig = LoadConfig()
-for k, v in pairs(savedConfig) do
-    if k == "AlienSlots" and type(v) == "table" then
-        for i = 1, 5 do
-            if v[i] then Config.AlienSlots[i] = v[i] end
-        end
-    elseif k == "MusicasSalvas" and type(v) == "table" then
-        Config.MusicasSalvas = v
-    else
-        Config[k] = v
-    end
-end
+-- Seção Teleporte
+local TeleportSection = CreateSection(FarmContent, "Teleporte", 5)
 
-local function SaveConfig()
-    SaveConfigToFile(Config)
-end
+local TeleportLabel = Instance.new("TextLabel")
+TeleportLabel.Size = UDim2.new(0, 60, 0, 20)
+TeleportLabel.Position = UDim2.new(0, 5, 0, 25)
+TeleportLabel.BackgroundTransparency = 1
+TeleportLabel.Text = "Nome NPC:"
+TeleportLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportLabel.TextSize = 14
+TeleportLabel.Parent = TeleportSection
 
--- =============================================
--- SISTEMA DE MÚSICA
--- =============================================
-local soundObject = nil
-local currentSoundId = nil
+local TeleportTextBox = Instance.new("TextBox")
+TeleportTextBox.Size = UDim2.new(0, 150, 0, 20)
+TeleportTextBox.Position = UDim2.new(0, 70, 0, 25)
+TeleportTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+TeleportTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportTextBox.TextSize = 14
+TeleportTextBox.Font = Enum.Font.SourceSans
+TeleportTextBox.PlaceholderText = "Digite o nome"
+TeleportTextBox.Text = ""
+TeleportTextBox.Parent = TeleportSection
 
-local function tocarMusica(id)
-    if not id or id == "" then return end
-    if soundObject then
-        soundObject:Stop()
-        soundObject:Destroy()
-        soundObject = nil
-    end
-    soundObject = Instance.new("Sound")
-    soundObject.SoundId = "rbxassetid://" .. tostring(id)
-    soundObject.Looped = true
-    soundObject.Volume = 0.5
-    soundObject.Parent = SoundService
-    soundObject:Play()
-    currentSoundId = id
-    print("[Música] Tocando: " .. id)
-end
+local TeleportBtn = Instance.new("TextButton")
+TeleportBtn.Size = UDim2.new(0, 80, 0, 25)
+TeleportBtn.Position = UDim2.new(0, 230, 0, 22)
+TeleportBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+TeleportBtn.Text = "Teleportar"
+TeleportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportBtn.TextSize = 14
+TeleportBtn.Font = Enum.Font.SourceSans
+TeleportBtn.BorderSizePixel = 0
+TeleportBtn.Parent = TeleportSection
 
-local function pararMusica()
-    if soundObject then
-        soundObject:Stop()
-        soundObject:Destroy()
-        soundObject = nil
-        currentSoundId = nil
-        print("[Música] Parada")
-    end
-end
-
--- =============================================
--- INTRO (SPLASH)
--- =============================================
-if not Config.RemoverIntro then
-    pcall(function()
-        local blur = Instance.new("BlurEffect")
-        blur.Name = "UIBlurEffect"
-        blur.Size = 0
-        blur.Enabled = true
-        blur.Parent = lighting
-
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "OverlayGui"
-        screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        local success = pcall(function()
-            screenGui.Parent = coreGui
-        end)
-        if not success then
-            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-        end
-
-        local img = Instance.new("ImageLabel")
-        img.Name = "DisplayImage"
-        img.BackgroundTransparency = 1
-        img.Image = "rbxassetid://135710581431595"
-        img.AnchorPoint = Vector2.new(0.5, 0.5)
-        img.Position = UDim2.new(0.5, 0, 0.45, 0)
-        img.Size = UDim2.new(0, 400, 0, 400)
-        img.ImageTransparency = 1
-        img.ZIndex = 10
-        img.Parent = screenGui
-
-        task.wait(5)
-
-        local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
-        tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
-
-        task.wait(1.5)
-        local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-        local pulseTween = tweenService:Create(img, pulseInfo, {Size = UDim2.new(0, 440, 0, 440)})
-        pulseTween:Play()
-
-        task.wait(8)
-
-        pulseTween:Cancel()
-        tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
-        tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
-
-        task.wait(1.5)
-        screenGui:Destroy()
-        blur:Destroy()
-    end)
-end
-
--- =============================================
--- DICIONÁRIO DE IDIOMAS (mantido)
--- =============================================
-local Idiomas = {
-    ["Português"] = {
-        TabMain = "Raid & Teleportes",
-        TabBoss = "Boss",
-        TabTeleport = "Teleporte",
-        TabShop = "Shop",
-        TabClasses = "Classes",
-        TabDimensao23 = "23",
-        TabExtra = "Extra",
-        TabConfig = "Configurações",
-        SecRaid = "Raid",
-        ToggleRaid = "Toggle Auto Raid",
-        DescRaid = "Ativa o ataque e o teleporte em loop",
-        ChatMulti = "Multiplicador de Tiro",
-        DescMulti = "Número de tiros por ciclo (Ex: 9)",
-        PlaceMulti = "Digite um número...",
-        Distancia = "Distância",
-        DescDist = "Distância acima dos NPCs (Studs) - 0 a 20",
-        SecTp = "Tp Raids",
-        SecSegundoMundo = "🌍 Segundo Mundo",
-        BtnHokestar = "Hokestar",
-        DescHokestar = "Teleporta para o NPC Hokestar",
-        SecBossConfig = "Boss Config",
-        DescBossDist = "Distância acima do Boss (0 a 20)",
-        DescBossMulti = "Multiplicador de tiros para Boss",
-        SecBoss = "Boss",
-        ToggleShip = "Ship",
-        ToggleKraken = "Kraken",
-        ToggleTrans = "Trans Dimensional",
-        ToggleRajo = "Rajo",
-        ToggleAhPuch = "Ah Puch Totem",
-        ToggleAddwaitya = "Addwaitya",
-        SecNovaDimensao = "🌐 Nova Dimensão",
-        BtnCarregar23 = "23",
-        DescCarregar23 = "Carrega o script da Dimensão 23",
-        SecTerra = "🌍 Terra",
-        SecLua = "🌙 Lua",
-        SecFogoFrio = "🔥❄️ Fogo & Frio",
-        SecEstacaoAcademia = "🏫 Estação especial academia",
-        SecMarte = "🔴 Marte",
-        SecAlienX = "👽 AlienX",
-        SecGalvanPrime = "🪐 Galvan Prime",
-        BtnParker = "Parker",
-        BtnPredioBilly = "Prédio do Billy",
-        BtnMansao = "Mansão",
-        BtnFloresta = "Floresta",
-        BtnColiseu = "Coliseu",
-        BtnYggasill = "Yggasill",
-        BtnLedgerDomain = "LedgerDomain",
-        BtnCentroLua = "Centro da Lua",
-        BtnCentroFogoFrio = "Centro",
-        BtnAcademia = "Academia",
-        BtnArenaMarte = "Arena",
-        BtnCubo = "Cubo",
-        BtnBBAlienX = "BB AlienX",
-        BtnAlienXDNA = "AlienX DNA",
-        BtnPredioGalvan = "Prédio",
-        BtnCidadeBaixo = "Cidade de Baixo",
-        DescCidadeBaixo = "Teleporta para a Cidade de Baixo",
-        SecConcessionaria = "🚗 Concessionária",
-        BtnKevin = "Kevin",
-        DescKevin = "Teleporta para o Kevin",
-        SecDojo = "⚔️ Dojo",
-        BtnLojaEspada = "Loja Espada/Redefinir Time",
-        DescLojaEspada = "Teleporta para a Loja de Espadas",
-        SecHoverBoards = "🛹 HoverBoards/Naves",
-        BtnVendedorHover = "Vendedor HoverBoards Ilegal",
-        DescVendedorHover = "Teleporta para o vendedor ilegal",
-        BtnTetrax = "Tetrax",
-        DescTetrax = "Teleporta para o Tetrax",
-        BtnBASTZIN22 = "BASTZIN22",
-        DescBASTZIN22 = "Teleporta para o BASTZIN22",
-        SecEstiloLuta = "🥊 Estilo de luta",
-        BtnFistrick = "Fistrick",
-        DescFistrick = "Teleporta para o Fistrick",
-        SecLojaCelular = "📱 Loja de Celular",
-        BtnPakmar = "Pakmar",
-        DescPakmar = "Teleporta para o Pakmar",
-        SecSementes = "🌱 Sementes 23",
-        BtnRostoArdente = "Rosto Ardente",
-        DescRostoArdente = "Teleporta para Rosto Ardente",
-        SecEspadaMontaria = "⚔️ Espada/Montaria",
-        BtnMergulhador = "Mergulhador",
-        DescMergulhador = "Teleporta para o Mergulhador",
-        SecClasses = "⚡ Classes",
-        BtnPrototipo = "Protótipo",
-        DescPrototipo = "Teleporta para o Protótipo",
-        BtnPrototipo10k = "Protótipo 10k/Recalibrado",
-        DescPrototipo10k = "Teleporta para Protótipo 10k/Recalibrado",
-        BtnOsmosiano = "Osmosiano",
-        DescOsmosiano = "Teleporta para o Osmosiano",
-        BtnOsmosianoMaster = "Osmosiano Masterizado",
-        DescOsmosianoMaster = "Teleporta para Osmosiano Masterizado",
-        SecRaidInfinity1 = "🔥 Raid Infinity 1",
-        ToggleRaidInfinity1 = "Auto Raid Infinity 1",
-        DescRaidInfinity1 = "Farm automático da Raid Infinity 1",
-        SecExtra = "🎵 Música",
-        DropMusica = "Selecionar Música",
-        ToggleMusica = "Tocar Música",
-        BtnSalvarMusica = "Salva Música",
-        BtnDeletarMusica = "Deleta Música",
-        TituloSalvarMusica = "Salvar Música",
-        LabelID = "ID da Música",
-        LabelNome = "Nome da Música",
-        BtnAplicar = "Aplicar",
-        TituloDeletarMusica = "Deletar Música",
-        DropDeletar = "Selecionar Música para deletar",
-        BtnDeletar = "🗑️ Deletar",
-        NotifMusicaSalva = "Música salva: ",
-        NotifMusicaDeletada = "Música deletada: ",
-        ErroPreencherCampos = "Preencha todos os campos!",
-        ErroSelecionarMusica = "Selecione uma música válida para deletar.",
-        ErroHokestarNaoEncontrado = "NPC Hokestar não encontrado!",
-        SecConfig = "Config",
-        DropIdioma = "Idiomas",
-        DescIdioma = "Altere o idioma do Script",
-        BtnReset = "Reset Config",
-        DescReset = "Reseta os toggles e idioma",
-        ToggleIntro = "Remover Intro",
-        DescIntro = "Desativa a introdução ao iniciar o script",
-        ToggleAFK = "Anti‑AFK",
-        DescAFK = "Envia clique a cada 60s para não ser desconectado",
-        SecServer = "Servidor",
-        DescRejoin = "Entra novamente no mesmo servidor",
-        DescHop = "Teleporta pro servidor antigo",
-        DescSmall = "Teleporta pra servidor criado recentemente",
-        NotifTitle = "Configuração Resetada",
-        NotifDesc = "Raid desativada e idioma resetado.",
-        BtnManualSave = "💾 Salvar Configurações",
-        DescManualSave = "Salva todas as opções manualmente"
-    },
-    -- (espanhol e inglês mantidos, omitidos para brevidade)
-}
-
--- =============================================
--- SISTEMA DE COMBATE (REMOTES)
--- =============================================
-local RS = pcall(function()
-    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
-    if remotes then
-        return remotes:FindFirstChild("upgrade")
-    end
-end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
-
-local function Laser()
-    if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
-end
-local function GunArm()
-    if RS and RS.GunArm then pcall(function() RS.GunArm:InvokeServer() end) end
-end
-local function Armature()
-    if RS and RS.Armature then pcall(function() RS.Armature:InvokeServer() end) end
-end
-
-local function ArmFire(targetRoot)
-    if not RS or not RS.ArmFire then return end
-    local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    if root then
-        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
-        pcall(function()
-            RS.ArmFire:InvokeServer(targetPosition)
-        end)
-    end
-end
-
--- =============================================
--- LÓGICA DE ALVO E TELEPORTE
--- =============================================
-local function getLocalCharacter()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    return char, root
-end
-
-local function getClosestNPC()
-    local _, myRoot = getLocalCharacter()
-    if not myRoot then return nil end
-
-    local enemysFolder = Workspace:FindFirstChild("Enemys")
-    if not enemysFolder then return nil end
-
-    local closestNPC = nil
-    local shortestDistance = math.huge
-
-    for _, enemyFolder in ipairs(enemysFolder:GetChildren()) do
-        local npcCharacter = enemyFolder:FindFirstChild("Character")
-        if npcCharacter and npcCharacter:IsA("Model") then
-            local npcRoot = npcCharacter:FindFirstChild("HumanoidRootPart")
-            local npcHumanoid = npcCharacter:FindFirstChildOfClass("Humanoid")
-            if npcRoot and npcHumanoid and npcHumanoid.Health > 0 then
-                local distance = (myRoot.Position - npcRoot.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestNPC = npcRoot
-                end
-            end
-        end
-    end
-    return closestNPC
-end
-
-local function ExecutarTeleporte(cframe)
-    if estaTeleportando then return end
-    estaTeleportando = true
-    pcall(function()
-        if LocalPlayer.Character then
-            LocalPlayer.Character:PivotTo(cframe)
-        end
-    end)
-    task.wait(0.1)
-    estaTeleportando = false
-end
-
-local function MudarServidor(ordem)
-    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. ordem .. "&limit=100"
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    if success and result and result.data then
-        for _, server in ipairs(result.data) do
-            if type(server) == "table" and server.id ~= game.JobId then
-                if server.playing > 0 and server.playing < server.maxPlayers then
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                    return
-                end
-            end
-        end
-    end
-end
-
--- =============================================
--- LOOP DA RAID (NPC comum)
--- =============================================
-local raidRunning = false
-local raidConnection = nil
-
-local function startRaidLoop()
-    if raidConnection then return end
-    raidRunning = true
-    raidConnection = RunService.Heartbeat:Connect(function()
-        if not Config.RaidEnabled then
-            raidRunning = false
-            if raidConnection then
-                raidConnection:Disconnect()
-                raidConnection = nil
-            end
-            return
-        end
-
-        local _, myRoot = getLocalCharacter()
-        local targetNPC = getClosestNPC()
-        if not myRoot or not targetNPC then return end
-
-        myRoot.CFrame = targetNPC.CFrame * CFrame.new(0, Config.NpcDistance, 0)
-
-        local multiplier = math.floor(tonumber(Config.ShotSpeedIndex) or 1)
-        if multiplier < 1 then multiplier = 1 end
-
-        for i = 1, multiplier do
-            if not Config.RaidEnabled then break end
-            Laser()
-            GunArm()
-            ArmFire(targetNPC)
-            Armature()
-            task.wait(0.05)
-        end
-    end)
-end
-
-if Config.RaidEnabled then
-    task.spawn(startRaidLoop)
-end
-
--- =============================================
--- LOOP DOS BOSSES (REESCRITO - IGUAL À RAID)
--- =============================================
-local bossRunning = false
-local bossConnection = nil
-
-local function getActiveBossTarget()
-    local enemys = Workspace:FindFirstChild("Enemys")
-    if not enemys then return nil end
-
-    -- Lista de bosses com seus caminhos e partes
-    local bossList = {
-        { key = "BossShip", folder = "Ship [ Ferris Wheel Form ]", charName = "Character", partNames = {"Ship", "HumanoidRootPart", "Torso"} },
-        { key = "BossKraken", folder = "Kraken", charName = "Character", partNames = {"Kraken", "HumanoidRootPart", "Torso"} },
-        { key = "BossTransDimensional", folder = "Trans Dimensional Monster", charName = "Character", partNames = {"Boss", "HumanoidRootPart", "Torso"} },
-        { key = "BossRajo", folder = "Rojo", charName = "Character", partNames = {"Rojo", "HumanoidRootPart", "Torso"} },
-        { key = "BossAhPuch", folder = "Ah Puch Totem", charName = "Character", partNames = {"HumanoidRootPart", "Torso"} },
-        { key = "BossAddwaitya", folder = "Addwaitya", charName = "Character", partNames = {"Addwaitya", "HumanoidRootPart", "Torso"} },
-    }
-
-    for _, boss in ipairs(bossList) do
-        if Config[boss.key] then
-            local folder = enemys:FindFirstChild(boss.folder)
-            if folder then
-                local char = folder:FindFirstChild(boss.charName)
-                if char and char:IsA("Model") then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        -- Tenta cada parte na ordem
-                        for _, partName in ipairs(boss.partNames) do
-                            local part = char:FindFirstChild(partName)
-                            if part and part:IsA("BasePart") then
-                                return part
-                            end
-                        end
-                        -- Se nenhuma parte específica, pega qualquer BasePart
-                        for _, child in ipairs(char:GetChildren()) do
-                            if child:IsA("BasePart") then
-                                return child
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function startBossLoop()
-    if bossConnection then return end
-    bossRunning = true
-    bossConnection = RunService.Heartbeat:Connect(function()
-        if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya) then
-            bossRunning = false
-            if bossConnection then
-                bossConnection:Disconnect()
-                bossConnection = nil
-            end
-            return
-        end
-
-        local targetPart = getActiveBossTarget()
-        if not targetPart then
-            if not bossConnection._lastPrint or tick() - bossConnection._lastPrint > 5 then
-                print("[Boss] Nenhum boss alvo vivo encontrado.")
-                bossConnection._lastPrint = tick()
-            end
-            return
-        end
-
-        local _, myRoot = getLocalCharacter()
-        if not myRoot then return end
-
-        -- Gruda no boss exatamente como na Raid
-        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
-
-        local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-        if multiplier < 1 then multiplier = 1 end
-
-        for i = 1, multiplier do
-            if not (Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya) then break end
-            Laser()
-            GunArm()
-            ArmFire(targetPart)
-            Armature()
-            task.wait(0.05)
-        end
-    end)
-end
-
-if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya then
-    task.spawn(startBossLoop)
-end
-
--- =============================================
--- LOOP RAID INFINITY 1 (mantido)
--- =============================================
-local raidInfinity1Running = false
-local raidInfinity1Connection = nil
-local spawnPos = CFrame.new(430, -137, 95)
-local raidInfinity1State = "IDLE"
-local milkyaPartRef = nil
-
-local function noclipearSpikes()
-    local spikes = Workspace:FindFirstChild("World")
-    if spikes then
-        spikes = spikes:FindFirstChild("PowerAnimations")
-        if spikes then
-            spikes = spikes:FindFirstChild("Spike")
-            if spikes then
-                for _, spike in ipairs(spikes:GetChildren()) do
-                    if spike:IsA("BasePart") then
-                        spike.CanCollide = false
-                    end
-                end
-                print("[RaidInfinity1] Spikes desativados para colisão.")
-            end
-        end
-    end
-end
-
-local function teleportarEGrudar(cframeDestino, velocidade, manterGrudado)
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    
-    for _, v in ipairs(root:GetChildren()) do
-        if v:IsA("BodyVelocity") then
-            v:Destroy()
-        end
-    end
-    
-    local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    bv.Velocity = Vector3.zero
-    bv.Parent = root
-    
-    local direction = (cframeDestino.Position - root.Position).Unit
-    bv.Velocity = direction * velocidade
-    
-    local timeout = 0
-    while (root.Position - cframeDestino.Position).Magnitude > 5 and timeout < 2 do
-        task.wait(0.05)
-        timeout = timeout + 0.05
-    end
-    root.CFrame = cframeDestino
-    bv:Destroy()
-    
-    if manterGrudado then
-        local grudarCon = RunService.Heartbeat:Connect(function()
-            if not Config.RaidInfinity1Enabled then
-                grudarCon:Disconnect()
-                return
-            end
-            if root and root.Parent then
-                root.CFrame = cframeDestino
-            else
-                grudarCon:Disconnect()
-            end
-        end)
-        return grudarCon
-    end
-    return nil
-end
-
-local autoCollectConnection = nil
-local function iniciarAutoColeta()
-    if autoCollectConnection then return end
-    autoCollectConnection = ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
-        if not Config.RaidInfinity1Enabled then return end
-        local parent = prompt.Parent
-        local isMilkya = false
-        while parent do
-            if parent.Name == "Milkya_Temple" then
-                isMilkya = true
+TeleportBtn.MouseButton1Click:Connect(function()
+    local name = TeleportTextBox.Text
+    if name == "" then return end
+    for _, npc in pairs(workspace:GetDescendants()) do
+        if npc:IsA("Model") and npc.Name == name and npc:FindFirstChild("Humanoid") then
+            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+            if hrp then
+                LocalPlayer.Character:SetPrimaryPartCFrame(hrp.CFrame + Vector3.new(0, 2, 0))
                 break
             end
-            parent = parent.Parent
-        end
-        if isMilkya then
-            prompt.HoldDuration = 0
-            pcall(function()
-                prompt:InputHoldBegin(LocalPlayer)
-                task.wait(0.1)
-                prompt:InputHoldEnd(LocalPlayer)
-                print("[RaidInfinity1] Prompt coletado automaticamente!")
-            end)
-        end
-    end)
-    print("[RaidInfinity1] Auto coleta ativada.")
-end
-
-local function pararAutoColeta()
-    if autoCollectConnection then
-        autoCollectConnection:Disconnect()
-        autoCollectConnection = nil
-        print("[RaidInfinity1] Auto coleta desativada.")
-    end
-end
-
-local function startRaidInfinity1Loop()
-    if raidInfinity1Connection then return end
-    raidInfinity1Running = true
-    raidInfinity1State = "IDLE"
-    iniciarAutoColeta()
-    
-    raidInfinity1Connection = RunService.Heartbeat:Connect(function()
-        if not Config.RaidInfinity1Enabled then
-            raidInfinity1Running = false
-            if raidInfinity1Connection then
-                raidInfinity1Connection:Disconnect()
-                raidInfinity1Connection = nil
-            end
-            pararAutoColeta()
-            raidInfinity1State = "IDLE"
-            return
-        end
-
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-
-        if raidInfinity1State == "IDLE" then
-            ExecutarTeleporte(spawnPos)
-            task.wait(0.5)
-            raidInfinity1State = "WAITING_SPAWN"
-            return
-        end
-
-        local salamander = Workspace:FindFirstChild("Enemys")
-        if salamander then
-            salamander = salamander:FindFirstChild("Double Fire Salamander")
-            if salamander then
-                salamander = salamander:FindFirstChild("Character")
-            end
-        end
-
-        local salamanderAlive = false
-        local targetPart = nil
-
-        if salamander and salamander:IsA("Model") then
-            local hum = salamander:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                salamanderAlive = true
-                targetPart = salamander:FindFirstChild("HumanoidRootPart") or salamander:FindFirstChild("Torso")
-            end
-        end
-
-        if salamanderAlive and targetPart then
-            raidInfinity1State = "FIGHTING"
-            root.CFrame = targetPart.CFrame * CFrame.new(0, Config.BossDistance, 0)
-            local multiplier = math.floor(tonumber(Config.BossShotMultiplier) or 1)
-            if multiplier < 1 then multiplier = 1 end
-
-            for i = 1, multiplier do
-                if not Config.RaidInfinity1Enabled then break end
-                Laser()
-                GunArm()
-                ArmFire(targetPart)
-                Armature()
-                task.wait(0.05)
-            end
-            return
-        end
-
-        if raidInfinity1State == "FIGHTING" or raidInfinity1State == "WAITING_SPAWN" then
-            raidInfinity1State = "TELEPORTING"
-            print("[RaidInfinity1] Salamander morto. Iniciando teleporte...")
-            
-            local milkya = Workspace:FindFirstChild("World")
-            if milkya then
-                milkya = milkya:FindFirstChild("Map")
-                if milkya then
-                    milkya = milkya:FindFirstChild("Milkya_Temple")
-                    if milkya then
-                        milkya = milkya:FindFirstChild("Map_Part")
-                    end
-                end
-            end
-
-            if milkya and milkya:IsA("BasePart") then
-                milkyaPartRef = milkya
-                teleportarEGrudar(milkya.CFrame, 350, true)
-                task.wait(0.5)
-                raidInfinity1State = "COLLECTING"
-                print("[RaidInfinity1] Grudado no Map_Part.")
-                
-                local prompt = milkya:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then
-                    pcall(function()
-                        prompt.HoldDuration = 0
-                        prompt:InputHoldBegin(LocalPlayer)
-                        task.wait(0.1)
-                        prompt:InputHoldEnd(LocalPlayer)
-                        print("[RaidInfinity1] Prompt coletado imediatamente!")
-                    end)
-                else
-                    for _, child in ipairs(milkya:GetChildren()) do
-                        if child:IsA("ProximityPrompt") then
-                            pcall(function()
-                                child.HoldDuration = 0
-                                child:InputHoldBegin(LocalPlayer)
-                                task.wait(0.1)
-                                child:InputHoldEnd(LocalPlayer)
-                                print("[RaidInfinity1] Prompt coletado imediatamente!")
-                            end)
-                            break
-                        end
-                    end
-                end
-            else
-                print("[RaidInfinity1] Milkya_Temple.Map_Part não encontrado.")
-                raidInfinity1State = "IDLE"
-                task.wait(2)
-            end
-            return
-        end
-
-        if raidInfinity1State == "COLLECTING" then
-            if milkyaPartRef and root then
-                if (root.Position - milkyaPartRef.Position).Magnitude > 5 then
-                    root.CFrame = milkyaPartRef.CFrame * CFrame.new(0, 2, 0)
-                end
-            end
-        end
-
-        if raidInfinity1State ~= "IDLE" and raidInfinity1State ~= "FIGHTING" and raidInfinity1State ~= "WAITING_SPAWN" and raidInfinity1State ~= "TELEPORTING" and raidInfinity1State ~= "COLLECTING" then
-            raidInfinity1State = "IDLE"
-        end
-    end)
-end
-
-if Config.RaidInfinity1Enabled then
-    task.spawn(startRaidInfinity1Loop)
-    noclipearSpikes()
-end
-
--- =============================================
--- ANTI‑AFK
--- =============================================
-local antiAFKRunning = false
-local antiAFKConnection = nil
-
-local function startAntiAFK()
-    if antiAFKConnection then return end
-    antiAFKRunning = true
-    antiAFKConnection = task.spawn(function()
-        while antiAFKRunning and Config.AntiAFK do
-            task.wait(60)
-            if not Config.AntiAFK then break end
-            pcall(function()
-                local viewport = workspace.CurrentCamera.ViewportSize
-                local center = Vector2.new(viewport.X/2, viewport.Y/2)
-                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
-                task.wait(0.05)
-                VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
-            end)
-        end
-        antiAFKConnection = nil
-    end)
-end
-
-if Config.AntiAFK then
-    task.spawn(startAntiAFK)
-end
-
--- =============================================
--- SISTEMA DE TRANSFORMAÇÃO (OMNITRIX)
--- =============================================
-local alienMorphRemote = nil
-pcall(function()
-    alienMorphRemote = ReplicatedStorage:FindFirstChild("RemoteFunctions")
-        and ReplicatedStorage.RemoteFunctions:FindFirstChild("Character")
-        and ReplicatedStorage.RemoteFunctions.Character:FindFirstChild("Morph")
-        and ReplicatedStorage.RemoteFunctions.Character.Morph:FindFirstChild("AlienMorph")
-end)
-
-local function transformarAlien(nomeAlien)
-    if not nomeAlien or nomeAlien == "" then return end
-    if not alienMorphRemote then
-        print("[Omnitrix] Remote não encontrado!")
-        return
-    end
-    pcall(function()
-        alienMorphRemote:InvokeServer(tostring(nomeAlien), 0.3)
-        print("[Omnitrix] Transformado em: " .. tostring(nomeAlien))
-    end)
-end
-
--- =============================================
--- MONITOR DE CHAT
--- =============================================
-local function setupChatListener()
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        TextChatService.MessageReceived:Connect(function(message)
-            if message.TextSource then
-                local player = players:GetPlayerByUserId(message.TextSource.UserId)
-                if player == LocalPlayer then
-                    local texto = message.Text
-                    if texto and texto ~= "" then
-                        transformarAlien(texto)
-                    end
-                end
-            end
-        end)
-    else
-        local sayMsg = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
-        if sayMsg then
-            sayMsg.OnClientEvent:Connect(function(message, speaker)
-                if speaker == LocalPlayer.Name then
-                    transformarAlien(message)
-                end
-            end)
-        end
-    end
-end
-setupChatListener()
-
--- =============================================
--- BOTÕES FLUTUANTES (1-5)
--- =============================================
-local botoesGui = nil
-local botoesVisiveis = Config.MostrarBotoes
-
-local function criarBotoes()
-    if botoesGui then
-        botoesGui.Enabled = botoesVisiveis
-        return
-    end
-
-    botoesGui = Instance.new("ScreenGui")
-    botoesGui.Name = "BotoesOmnitrix"
-    botoesGui.ResetOnSpawn = false
-    botoesGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    botoesGui.Parent = coreGui
-
-    local frame = Instance.new("Frame")
-    frame.Name = "BotoesFrame"
-    frame.Size = UDim2.new(0, 350, 0, 50)
-    frame.Position = UDim2.new(0.5, -175, 0, 10)
-    frame.BackgroundTransparency = 1
-    frame.Parent = botoesGui
-
-    for i = 1, 5 do
-        local btn = Instance.new("TextButton")
-        btn.Name = "Btn" .. i
-        btn.Size = UDim2.new(0, 55, 0, 40)
-        btn.Position = UDim2.new(0, 10 + (i-1) * 65, 0, 5)
-        btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        btn.BackgroundTransparency = 0.3
-        btn.Text = tostring(i)
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 20
-        btn.Font = Enum.Font.GothamBold
-        btn.BorderSizePixel = 0
-        btn.Parent = frame
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = btn
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 0, 0)
-        stroke.Thickness = 2
-        stroke.Transparency = 0.5
-        stroke.Parent = btn
-
-        btn.MouseButton1Click:Connect(function()
-            local nome = Config.AlienSlots[i] or ""
-            if nome ~= "" then
-                transformarAlien(nome)
-            else
-                print("[Omnitrix] Slot " .. i .. " vazio.")
-            end
-        end)
-
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundTransparency = 0.1
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundTransparency = 0.3
-        end)
-    end
-
-    botoesGui.Enabled = botoesVisiveis
-end
-
--- =============================================
--- APLICATIVO "S" (dentro do celular)
--- =============================================
-local omnitrixMenu = nil
-local isOmnitrixOpen = false
-local appS = nil
-local appCriado = false
-
-local function criarMenu()
-    if omnitrixMenu then
-        omnitrixMenu.Enabled = true
-        isOmnitrixOpen = true
-        return
-    end
-
-    local menuGui = Instance.new("ScreenGui")
-    menuGui.Name = "OmnitrixMenu"
-    menuGui.ResetOnSpawn = false
-    menuGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    menuGui.Parent = coreGui
-
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 430, 0, 380)
-    mainFrame.Position = UDim2.new(0.5, -215, 0.5, -190)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mainFrame.BackgroundTransparency = 0.05
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = menuGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 16)
-    corner.Parent = mainFrame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(200, 50, 50)
-    stroke.Thickness = 2
-    stroke.Parent = mainFrame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "🔢 Configurar Aliens\nTeclas: G=1  H=2  J=3  K=4  L=5"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 15
-    title.Font = Enum.Font.GothamBold
-    title.TextWrapped = true
-    title.Parent = mainFrame
-
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 35, 0, 35)
-    closeBtn.Position = UDim2.new(1, -45, 0, 5)
-    closeBtn.BackgroundTransparency = 1
-    closeBtn.Text = "✕"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-    closeBtn.TextSize = 22
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = mainFrame
-    closeBtn.MouseButton1Click:Connect(function()
-        menuGui.Enabled = false
-        isOmnitrixOpen = false
-    end)
-
-    local teclas = {"G", "H", "J", "K", "L"}
-
-    for i = 1, 5 do
-        local yPos = 55 + (i - 1) * 55
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 60, 0, 30)
-        label.Position = UDim2.new(0, 10, 0, yPos)
-        label.BackgroundTransparency = 1
-        label.Text = tostring(i) .. ". " .. teclas[i]
-        label.TextColor3 = Color3.fromRGB(255, 200, 100)
-        label.TextSize = 16
-        label.Font = Enum.Font.GothamBold
-        label.Parent = mainFrame
-
-        local textBox = Instance.new("TextBox")
-        textBox.Size = UDim2.new(0, 240, 0, 30)
-        textBox.Position = UDim2.new(0, 75, 0, yPos)
-        textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textBox.TextSize = 14
-        textBox.Font = Enum.Font.Gotham
-        textBox.PlaceholderText = Config.AlienSlots[i] or "heatblast"
-        textBox.Text = Config.AlienSlots[i] or "heatblast"
-        textBox.Parent = mainFrame
-
-        local boxCorner = Instance.new("UICorner")
-        boxCorner.CornerRadius = UDim.new(0, 6)
-        boxCorner.Parent = textBox
-
-        textBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                local valor = textBox.Text
-                if valor ~= "" then
-                    Config.AlienSlots[i] = valor
-                    SaveConfig()
-                    textBox.PlaceholderText = valor
-                    print("[Omnitrix] Slot " .. i .. " (" .. teclas[i] .. ") salvo: " .. valor)
-                else
-                    textBox.Text = Config.AlienSlots[i] or "heatblast"
-                end
-            end
-        end)
-    end
-
-    local toggleRow = Instance.new("Frame")
-    toggleRow.Size = UDim2.new(1, 0, 0, 40)
-    toggleRow.Position = UDim2.new(0, 0, 1, -45)
-    toggleRow.BackgroundTransparency = 1
-    toggleRow.Parent = mainFrame
-
-    local toggleLabel = Instance.new("TextLabel")
-    toggleLabel.Size = UDim2.new(0, 200, 0, 30)
-    toggleLabel.Position = UDim2.new(0, 10, 0, 5)
-    toggleLabel.BackgroundTransparency = 1
-    toggleLabel.Text = "Mostrar botões na tela"
-    toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    toggleLabel.TextSize = 14
-    toggleLabel.Font = Enum.Font.Gotham
-    toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    toggleLabel.Parent = toggleRow
-
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0, 40, 0, 30)
-    toggleBtn.Position = UDim2.new(1, -50, 0, 5)
-    toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-    toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
-    toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleBtn.TextSize = 14
-    toggleBtn.Font = Enum.Font.GothamBold
-    toggleBtn.Parent = toggleRow
-
-    local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 6)
-    toggleCorner.Parent = toggleBtn
-
-    toggleBtn.MouseButton1Click:Connect(function()
-        Config.MostrarBotoes = not Config.MostrarBotoes
-        botoesVisiveis = Config.MostrarBotoes
-        if botoesGui then
-            botoesGui.Enabled = botoesVisiveis
-        end
-        toggleBtn.BackgroundColor3 = Config.MostrarBotoes and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
-        toggleBtn.Text = Config.MostrarBotoes and "ON" or "OFF"
-        SaveConfig()
-    end)
-
-    omnitrixMenu = menuGui
-    isOmnitrixOpen = true
-end
-
-local function toggleOmnitrixMenu()
-    if omnitrixMenu and omnitrixMenu.Enabled == true then
-        omnitrixMenu.Enabled = false
-        isOmnitrixOpen = false
-    else
-        criarMenu()
-    end
-end
-
--- =============================================
--- INJETAR APLICATIVO "S" DENTRO DO CELULAR
--- =============================================
-local function criarAppS()
-    if appCriado then
-        if appS then
-            appS.Visible = true
-        end
-        return
-    end
-
-    local appsFolder = LocalPlayer:FindFirstChild("PlayerGui")
-        and LocalPlayer.PlayerGui:FindFirstChild("HUD")
-        and LocalPlayer.PlayerGui.HUD:FindFirstChild("Cellphone")
-        and LocalPlayer.PlayerGui.HUD.Cellphone:FindFirstChild("Interface")
-        and LocalPlayer.PlayerGui.HUD.Cellphone.Interface:FindFirstChild("Apps")
-
-    if appsFolder then
-        local appFrame = Instance.new("Frame")
-        appFrame.Name = "App_Omnitrix"
-        appFrame.Size = UDim2.new(0, 60, 0, 60)
-        appFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
-        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        appFrame.BackgroundTransparency = 0
-        appFrame.BorderSizePixel = 0
-        appFrame.Parent = appsFolder
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = appFrame
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 0, 0)
-        stroke.Thickness = 2
-        stroke.Parent = appFrame
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "S"
-        label.TextColor3 = Color3.fromRGB(255, 0, 0)
-        label.TextSize = 36
-        label.Font = Enum.Font.GothamBold
-        label.Parent = appFrame
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, 0, 0, 20)
-        nameLabel.Position = UDim2.new(0, 0, 1, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = "Omnitrix"
-        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        nameLabel.TextSize = 11
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.Parent = appFrame
-
-        appFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                toggleOmnitrixMenu()
-            end
-        end)
-
-        appS = appFrame
-        appCriado = true
-        print("[Omnitrix] Aplicativo 'S' adicionado ao celular.")
-    else
-        local iconGui = Instance.new("ScreenGui")
-        iconGui.Name = "OmnitrixApp"
-        iconGui.ResetOnSpawn = false
-        iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        iconGui.Parent = coreGui
-
-        local appFrame = Instance.new("Frame")
-        appFrame.Size = UDim2.new(0, 60, 0, 60)
-        appFrame.Position = UDim2.new(0.85, 0, 0.5, -30)
-        appFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        appFrame.BackgroundTransparency = 0
-        appFrame.BorderSizePixel = 0
-        appFrame.Parent = iconGui
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = appFrame
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 0, 0)
-        stroke.Thickness = 2
-        stroke.Parent = appFrame
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "S"
-        label.TextColor3 = Color3.fromRGB(255, 0, 0)
-        label.TextSize = 36
-        label.Font = Enum.Font.GothamBold
-        label.Parent = appFrame
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, 0, 0, 20)
-        nameLabel.Position = UDim2.new(0, 0, 1, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = "Omnitrix"
-        nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        nameLabel.TextSize = 11
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.Parent = appFrame
-
-        appFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                toggleOmnitrixMenu()
-            end
-        end)
-
-        appS = appFrame
-        appCriado = true
-        print("[Omnitrix] Aplicativo 'S' criado (fallback).")
-    end
-end
-
-criarAppS()
-criarBotoes()
-
--- =============================================
--- LEITOR DE TECLAS (G H J K L)
--- =============================================
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    local slotNumero = nil
-    if input.KeyCode == Enum.KeyCode.G then slotNumero = 1 end
-    if input.KeyCode == Enum.KeyCode.H then slotNumero = 2 end
-    if input.KeyCode == Enum.KeyCode.J then slotNumero = 3 end
-    if input.KeyCode == Enum.KeyCode.K then slotNumero = 4 end
-    if input.KeyCode == Enum.KeyCode.L then slotNumero = 5 end
-
-    if slotNumero then
-        local alienNome = Config.AlienSlots[slotNumero] or ""
-        if alienNome ~= "" then
-            transformarAlien(alienNome)
-        else
-            print("[Omnitrix] Slot " .. slotNumero .. " vazio.")
         end
     end
 end)
 
--- =============================================
--- MENU – WINDUI (com aba "23")
--- =============================================
-local oldWindow = nil
+-- Seção Config
+local ConfigSection = CreateSection(FarmContent, "Config", 95)
 
-local function CriarMenu()
-    if oldWindow then
-        pcall(function() oldWindow:Destroy() end)
-        oldWindow = nil
+-- Botão Scannear
+local ScanBtn = Instance.new("TextButton")
+ScanBtn.Size = UDim2.new(0, 100, 0, 25)
+ScanBtn.Position = UDim2.new(0, 5, 0, 25)
+ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+ScanBtn.Text = "Scannear"
+ScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanBtn.TextSize = 14
+ScanBtn.Font = Enum.Font.SourceSans
+ScanBtn.BorderSizePixel = 0
+ScanBtn.Parent = ConfigSection
+
+-- Dropdown para NPCs (usarei um TextButton que abre um menu, mas simplificarei com um Dropdown de verdade? Vou usar um TextButton que exibe uma lista, mas para simplicidade, vou criar um TextBox que mostra o selecionado e um ScrollingFrame com botões. Como é um script exemplo, farei com um Dropdown usando um TextButton e um Frame que aparece/desaparece.
+
+local DropdownFrame = Instance.new("Frame")
+DropdownFrame.Size = UDim2.new(0, 200, 0, 100)
+DropdownFrame.Position = UDim2.new(0, 110, 0, 25)
+DropdownFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+DropdownFrame.BackgroundTransparency = 0
+DropdownFrame.BorderSizePixel = 1
+DropdownFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
+DropdownFrame.Visible = false
+DropdownFrame.Parent = ConfigSection
+
+local DropdownList = Instance.new("ScrollingFrame")
+DropdownList.Size = UDim2.new(1, 0, 1, 0)
+DropdownList.Position = UDim2.new(0, 0, 0, 0)
+DropdownList.BackgroundTransparency = 1
+DropdownList.BorderSizePixel = 0
+DropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+DropdownList.ScrollBarThickness = 8
+DropdownList.Parent = DropdownFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 2)
+UIListLayout.Parent = DropdownList
+
+-- Botão que mostra o NPC selecionado
+local SelectedNPCLabel = Instance.new("TextButton")
+SelectedNPCLabel.Size = UDim2.new(0, 200, 0, 25)
+SelectedNPCLabel.Position = UDim2.new(0, 110, 0, 25)
+SelectedNPCLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SelectedNPCLabel.Text = "Nenhum selecionado"
+SelectedNPCLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SelectedNPCLabel.TextSize = 14
+SelectedNPCLabel.Font = Enum.Font.SourceSans
+SelectedNPCLabel.BorderSizePixel = 1
+SelectedNPCLabel.BorderColor3 = Color3.fromRGB(80, 80, 80)
+SelectedNPCLabel.Parent = ConfigSection
+
+local function ToggleDropdown()
+    DropdownFrame.Visible = not DropdownFrame.Visible
+    if DropdownFrame.Visible then
+        -- Atualizar lista ao abrir (opcional)
     end
-
-    local lang = Idiomas[Config.Language] or Idiomas["Português"]
-
-    local WindUI
-    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        WindUI = result
-    else
-        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-        success, result = pcall(function()
-            return loadstring(game:HttpGet(fallbackUrl))()
-        end)
-        if success and result then
-            WindUI = result
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Não foi possível carregar a WindUI.",
-                Duration = 5
-            })
-            return
-        end
-    end
-
-    local Window = WindUI:CreateWindow({
-        Title = "Project Sor",
-        Icon = "rbxassetid://135710581431595",
-        Author = "Noob Must Die",
-        Folder = "Project Sor - Noob Must Die",
-        Size = UDim2.fromOffset(460, 320),
-        Transparent = false,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 200,
-        BackgroundImageTransparency = 0.42,
-        HideSearchBar = true,
-        ScrollBarEnabled = false,
-        User = {
-            Enabled = true,
-            Anonymous = false,
-            Callback = function() print("clicked") end,
-        },
-    })
-    oldWindow = Window
-    Window:SetIconSize(60)
-
-    Window:EditOpenButton({
-        Title = "Project Sor",
-        Icon = "",
-        CornerRadius = UDim.new(0, 16),
-        StrokeThickness = 2,
-        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
-        OnlyMobile = false,
-        Enabled = true,
-        Draggable = false
-    })
-
-    -- Abas
-    local TabMain = Window:Tab({ Title = lang.TabMain, Icon = "rbxassetid://135710581431595" })
-    local TabBoss = Window:Tab({ Title = lang.TabBoss, Icon = "rbxassetid://135710581431595" })
-    local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
-    local TabShop = Window:Tab({ Title = lang.TabShop, Icon = "rbxassetid://135710581431595" })
-    local TabClasses = Window:Tab({ Title = lang.TabClasses, Icon = "rbxassetid://135710581431595" })
-    local TabD23 = Window:Tab({ Title = lang.TabDimensao23, Icon = "rbxassetid://135710581431595" })
-    local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
-    local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
-
-    -- ====== ABA MAIN (igual) ======
-    TabMain:Section({ Title = lang.SecRaid })
-    TabMain:Toggle({
-        Title = lang.ToggleRaid,
-        Desc = lang.DescRaid,
-        Value = Config.RaidEnabled,
-        Callback = function(value)
-            Config.RaidEnabled = value
-            SaveConfig()
-            if value then
-                task.spawn(startRaidLoop)
-            else
-                if raidConnection then
-                    raidConnection:Disconnect()
-                    raidConnection = nil
-                end
-            end
-        end
-    })
-    TabMain:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescMulti,
-        Value = tostring(Config.ShotSpeedIndex),
-        Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.ShotSpeedIndex = numero
-                SaveConfig()
-            else
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "Digite um número válido!",
-                    Duration = 2
-                })
-            end
-        end
-    })
-    TabMain:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescDist,
-        Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.NpcDistance },
-        Callback = function(value)
-            Config.NpcDistance = math.floor(value)
-            SaveConfig()
-        end
-    })
-
-    TabMain:Section({ Title = lang.SecTp })
-    TabMain:Button({ Title = "Camper (+0)", Desc = "XP +1", Callback = function() ExecutarTeleporte(CFrame.new(-648, 8, -3322)) end })
-    TabMain:Button({ Title = "Primary Instinct (+0)", Desc = "XP +4", Callback = function() ExecutarTeleporte(CFrame.new(349, 9, -944)) end })
-    TabMain:Button({ Title = "The Forest Of Terror (+150)", Desc = "XP +5.50", Callback = function() ExecutarTeleporte(CFrame.new(5126, -454, -3279)) end })
-    TabMain:Button({ Title = "Cracking Up Laughing (+250)", Desc = "XP +6 (Hammers)", Callback = function() ExecutarTeleporte(CFrame.new(8908, 88, -11458)) end })
-    TabMain:Button({ Title = "The Big Beetle (+150)", Desc = "XP +5 (Royal Gilded Axe)", Callback = function() ExecutarTeleporte(CFrame.new(4340, -32, -6216)) end })
-    TabMain:Button({ Title = "Vilgax Attack (+500)", Desc = "XP +7 (Quantum Inversor 3%)", Callback = function() ExecutarTeleporte(CFrame.new(-19887, 3550, -16091)) end })
-    TabMain:Button({ Title = "On Our Honor! (+800)", Desc = "XP +6 (Eternal Ring 4%)", Callback = function() ExecutarTeleporte(CFrame.new(2508, 300, -7042)) end })
-    TabMain:Button({ Title = "Temple of the Sun (+1000)", Desc = "XP +12.50 (Ekchuaj Sword 100%)", Callback = function() ExecutarTeleporte(CFrame.new(6284, 7, -7843)) end })
-    TabMain:Button({ Title = "Infinity 1 (+2500)", Desc = "XP +17.80 (Pets)", Callback = function() ExecutarTeleporte(CFrame.new(-927, 25, 92757)) end })
-    TabMain:Button({ Title = "Malware (+3500)", Desc = "XP +32 (Malware DNA 3%)", Callback = function() ExecutarTeleporte(CFrame.new(89439, 127, -75263)) end })
-    TabMain:Button({ Title = "The Revenge (+5000)", Desc = "XP +40 (Energy Crystal / Flame Sword)", Callback = function() ExecutarTeleporte(CFrame.new(-6264, 111, 2205)) end })
-    TabMain:Button({ Title = "Turnaround (+5500)", Desc = "XP +45", Callback = function() ExecutarTeleporte(CFrame.new(18265, 4136, 9041)) end })
-
-    -- Raid Infinity 1
-    TabMain:Section({ Title = lang.SecRaidInfinity1 })
-    TabMain:Toggle({
-        Title = lang.ToggleRaidInfinity1,
-        Desc = lang.DescRaidInfinity1,
-        Value = Config.RaidInfinity1Enabled,
-        Callback = function(value)
-            Config.RaidInfinity1Enabled = value
-            SaveConfig()
-            if value then
-                task.spawn(startRaidInfinity1Loop)
-                noclipearSpikes()
-            else
-                if raidInfinity1Connection then
-                    raidInfinity1Connection:Disconnect()
-                    raidInfinity1Connection = nil
-                end
-                pararAutoColeta()
-                raidInfinity1State = "IDLE"
-            end
-        end
-    })
-
-    -- ====== ABA BOSS (CORRIGIDA) ======
-    TabBoss:Section({ Title = lang.SecBossConfig })
-    TabBoss:Slider({
-        Title = lang.Distancia,
-        Desc = lang.DescBossDist,
-        Step = 1,
-        Value = { Min = 0, Max = 20, Default = Config.BossDistance },
-        Callback = function(value)
-            Config.BossDistance = math.floor(value)
-            SaveConfig()
-        end
-    })
-    TabBoss:Input({
-        Title = lang.ChatMulti,
-        Desc = lang.DescBossMulti,
-        Value = tostring(Config.BossShotMultiplier),
-        Placeholder = lang.PlaceMulti,
-        Callback = function(text)
-            local numero = tonumber(text)
-            if numero and numero > 0 then
-                Config.BossShotMultiplier = numero
-                SaveConfig()
-            else
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "Digite um número válido!",
-                    Duration = 2
-                })
-            end
-        end
-    })
-
-    TabBoss:Section({ Title = lang.SecBoss })
-    TabBoss:Toggle({
-        Title = lang.ToggleShip,
-        Value = Config.BossShip,
-        Callback = function(value)
-            Config.BossShip = value
-            SaveConfig()
-            if value or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleKraken,
-        Value = Config.BossKraken,
-        Callback = function(value)
-            Config.BossKraken = value
-            SaveConfig()
-            if Config.BossShip or value or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleTrans,
-        Value = Config.BossTransDimensional,
-        Callback = function(value)
-            Config.BossTransDimensional = value
-            SaveConfig()
-            if Config.BossShip or Config.BossKraken or value or Config.BossRajo or Config.BossAhPuch or Config.BossAddwaitya then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleRajo,
-        Value = Config.BossRajo,
-        Callback = function(value)
-            Config.BossRajo = value
-            SaveConfig()
-            if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or value or Config.BossAhPuch or Config.BossAddwaitya then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleAhPuch,
-        Value = Config.BossAhPuch,
-        Callback = function(value)
-            Config.BossAhPuch = value
-            SaveConfig()
-            if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or value or Config.BossAddwaitya then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-    TabBoss:Toggle({
-        Title = lang.ToggleAddwaitya,
-        Value = Config.BossAddwaitya,
-        Callback = function(value)
-            Config.BossAddwaitya = value
-            SaveConfig()
-            if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config.BossRajo or Config.BossAhPuch or value then
-                task.spawn(startBossLoop)
-            else
-                if bossConnection then
-                    bossConnection:Disconnect()
-                    bossConnection = nil
-                end
-            end
-        end
-    })
-
-    -- ====== ABA TELEPORTE (igual) ======
-    TabTeleport:Section({ Title = lang.SecTerra })
-    TabTeleport:Button({ Title = lang.BtnParker, Callback = function() ExecutarTeleporte(CFrame.new(295, 7, -73)) end })
-    TabTeleport:Button({ Title = lang.BtnPredioBilly, Callback = function() ExecutarTeleporte(CFrame.new(715, 8, -79)) end })
-    TabTeleport:Button({ Title = lang.BtnMansao, Callback = function() ExecutarTeleporte(CFrame.new(668, 131, -1374)) end })
-    TabTeleport:Button({ Title = lang.BtnFloresta, Callback = function() ExecutarTeleporte(CFrame.new(84, 7, -3524)) end })
-    TabTeleport:Button({ Title = lang.BtnColiseu, Callback = function() ExecutarTeleporte(CFrame.new(-1124, 8, -6871)) end })
-    TabTeleport:Button({ Title = lang.BtnYggasill, Callback = function() ExecutarTeleporte(CFrame.new(-8206, -368, -12277)) end })
-    TabTeleport:Button({ Title = lang.BtnLedgerDomain, Callback = function() ExecutarTeleporte(CFrame.new(913, -2514, -1566)) end })
-    TabTeleport:Button({ Title = lang.BtnCidadeBaixo, Desc = lang.DescCidadeBaixo, Callback = function() ExecutarTeleporte(CFrame.new(4694, -465, -38)) end })
-
-    TabTeleport:Section({ Title = lang.SecLua })
-    TabTeleport:Button({ Title = lang.BtnCentroLua, Callback = function() ExecutarTeleporte(CFrame.new(-1426, 8, 49003)) end })
-
-    TabTeleport:Section({ Title = lang.SecFogoFrio })
-    TabTeleport:Button({ Title = lang.BtnCentroFogoFrio, Callback = function() ExecutarTeleporte(CFrame.new(-916, 25, 91948)) end })
-
-    TabTeleport:Section({ Title = lang.SecEstacaoAcademia })
-    TabTeleport:Button({ Title = lang.BtnAcademia, Callback = function() ExecutarTeleporte(CFrame.new(72994, 1933, -3128)) end })
-
-    TabTeleport:Section({ Title = lang.SecMarte })
-    TabTeleport:Button({ Title = lang.BtnArenaMarte, Callback = function() ExecutarTeleporte(CFrame.new(64779, 30, 65676)) end })
-
-    TabTeleport:Section({ Title = lang.SecAlienX })
-    TabTeleport:Button({ Title = lang.BtnCubo, Callback = function() ExecutarTeleporte(CFrame.new(78944, 2547, -3139)) end })
-    TabTeleport:Button({ Title = lang.BtnBBAlienX, Callback = function() ExecutarTeleporte(CFrame.new(1143, 1930, 300137)) end })
-    TabTeleport:Button({ Title = lang.BtnAlienXDNA, Callback = function() ExecutarTeleporte(CFrame.new(188, 1496, 300251)) end })
-
-    TabTeleport:Section({ Title = lang.SecGalvanPrime })
-    TabTeleport:Button({ Title = lang.BtnPredioGalvan, Callback = function() ExecutarTeleporte(CFrame.new(80324, -56, -79417)) end })
-
-    TabTeleport:Section({ Title = lang.SecSegundoMundo })
-    TabTeleport:Button({
-        Title = lang.BtnHokestar,
-        Desc = lang.DescHokestar,
-        Callback = function()
-            local found = false
-            local npcsFolder = Workspace:FindFirstChild("NPCS")
-            if npcsFolder then
-                local hokestarFolder = npcsFolder:FindFirstChild("Hokestar")
-                if hokestarFolder then
-                    local char = hokestarFolder:FindFirstChild("Character")
-                    if char and char:IsA("Model") then
-                        local parts = char:GetDescendants()
-                        for _, part in ipairs(parts) do
-                            if part:IsA("BasePart") then
-                                ExecutarTeleporte(part.CFrame)
-                                found = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-            if not found then
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = lang.ErroHokestarNaoEncontrado,
-                    Duration = 3
-                })
-            end
-        end
-    })
-
-    -- ====== ABA SHOP ======
-    TabShop:Section({ Title = lang.SecConcessionaria })
-    TabShop:Button({ Title = lang.BtnKevin, Callback = function() ExecutarTeleporte(CFrame.new(-241, 15, 466)) end })
-    TabShop:Section({ Title = lang.SecDojo })
-    TabShop:Button({ Title = lang.BtnLojaEspada, Callback = function() ExecutarTeleporte(CFrame.new(-41, 82, 2029)) end })
-    TabShop:Section({ Title = lang.SecHoverBoards })
-    TabShop:Button({ Title = lang.BtnVendedorHover, Callback = function() ExecutarTeleporte(CFrame.new(1314, 7, -2232)) end })
-    TabShop:Button({ Title = lang.BtnTetrax, Callback = function() ExecutarTeleporte(CFrame.new(6923, 10, -1923)) end })
-    TabShop:Button({ Title = lang.BtnBASTZIN22, Callback = function() ExecutarTeleporte(CFrame.new(-6574, 10, -8939)) end })
-    TabShop:Section({ Title = lang.SecEstiloLuta })
-    TabShop:Button({ Title = lang.BtnFistrick, Callback = function() ExecutarTeleporte(CFrame.new(5419, -466, -572)) end })
-    TabShop:Section({ Title = lang.SecLojaCelular })
-    TabShop:Button({ Title = lang.BtnPakmar, Callback = function() ExecutarTeleporte(CFrame.new(5318, -466, -228)) end })
-    TabShop:Section({ Title = lang.SecSementes })
-    TabShop:Button({ Title = lang.BtnRostoArdente, Callback = function() ExecutarTeleporte(CFrame.new(-7998, 790, -12414)) end })
-    TabShop:Section({ Title = lang.SecEspadaMontaria })
-    TabShop:Button({ Title = lang.BtnMergulhador, Callback = function() ExecutarTeleporte(CFrame.new(5321, -466, -283)) end })
-
-    -- ====== ABA CLASSES ======
-    TabClasses:Section({ Title = lang.SecClasses })
-    TabClasses:Button({ Title = lang.BtnPrototipo, Callback = function() ExecutarTeleporte(CFrame.new(-363, -44, -4330)) end })
-    TabClasses:Button({ Title = lang.BtnPrototipo10k, Callback = function() ExecutarTeleporte(CFrame.new(2255, 35287, 51610)) end })
-    TabClasses:Button({ Title = lang.BtnOsmosiano, Callback = function() ExecutarTeleporte(CFrame.new(281, -112, -272)) end })
-    TabClasses:Button({ Title = lang.BtnOsmosianoMaster, Callback = function() ExecutarTeleporte(CFrame.new(2201, 35288, 51615)) end })
-
-    -- ====== ABA "23" (NOVA - CORRIGIDA) ======
-    TabD23:Section({ Title = lang.SecNovaDimensao })
-    TabD23:Button({
-        Title = lang.BtnCarregar23,
-        Desc = lang.DescCarregar23,
-        Callback = function()
-            pcall(function()
-                local url = "https://raw.githubusercontent.com/SorUmPlayer/SorOminiX/refs/heads/main/23"
-                local success, result = pcall(function()
-                    return game:HttpGet(url)
-                end)
-                if success then
-                    local func, err = loadstring(result)
-                    if func then
-                        func()
-                        StarterGui:SetCore("SendNotification", {
-                            Title = "Dimensão 23",
-                            Text = "Script carregado com sucesso!",
-                            Duration = 3
-                        })
-                    else
-                        StarterGui:SetCore("SendNotification", {
-                            Title = "Erro",
-                            Text = "Falha ao compilar o script: " .. tostring(err),
-                            Duration = 5
-                        })
-                    end
-                else
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "Erro",
-                        Text = "Falha ao baixar o script: " .. tostring(result),
-                        Duration = 5
-                    })
-                end
-            end)
-        end
-    })
-
-    -- ====== ABA EXTRA ======
-    local dropdownMusica = nil
-    local toggleMusicaRef = nil
-
-    TabExtra:Section({ Title = lang.SecExtra })
-
-    local nomesMusicas = {}
-    for _, musica in ipairs(Config.MusicasSalvas) do
-        table.insert(nomesMusicas, musica.nome)
-    end
-
-    dropdownMusica = TabExtra:Dropdown({
-        Title = lang.DropMusica,
-        Values = nomesMusicas,
-        Value = Config.MusicaAtual or "Bem 10",
-        Callback = function(value)
-            Config.MusicaAtual = value
-            SaveConfig()
-            if Config.TocarMusica then
-                local musicaEncontrada = nil
-                for _, m in ipairs(Config.MusicasSalvas) do
-                    if m.nome == value then
-                        musicaEncontrada = m
-                        break
-                    end
-                end
-                if musicaEncontrada then
-                    pararMusica()
-                    tocarMusica(musicaEncontrada.id)
-                end
-            end
-        end
-    })
-
-    toggleMusicaRef = TabExtra:Toggle({
-        Title = lang.ToggleMusica,
-        Value = Config.TocarMusica,
-        Callback = function(value)
-            Config.TocarMusica = value
-            SaveConfig()
-            if value then
-                local musicaSelecionada = Config.MusicaAtual or "Bem 10"
-                local musicaEncontrada = nil
-                for _, m in ipairs(Config.MusicasSalvas) do
-                    if m.nome == musicaSelecionada then
-                        musicaEncontrada = m
-                        break
-                    end
-                end
-                if musicaEncontrada then
-                    tocarMusica(musicaEncontrada.id)
-                elseif Config.MusicasSalvas[1] then
-                    tocarMusica(Config.MusicasSalvas[1].id)
-                end
-            else
-                pararMusica()
-            end
-        end
-    })
-
-    TabExtra:Button({
-        Title = lang.BtnSalvarMusica,
-        Callback = function()
-            local saveGui = Instance.new("ScreenGui")
-            saveGui.Name = "SalvarMusicaGui"
-            saveGui.ResetOnSpawn = false
-            saveGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            saveGui.Parent = coreGui
-
-            local mainFrame = Instance.new("Frame")
-            mainFrame.Size = UDim2.new(0, 400, 0, 250)
-            mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
-            mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-            mainFrame.BackgroundTransparency = 0.05
-            mainFrame.BorderSizePixel = 0
-            mainFrame.Parent = saveGui
-
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 16)
-            corner.Parent = mainFrame
-
-            local stroke = Instance.new("UIStroke")
-            stroke.Color = Color3.fromRGB(200, 50, 50)
-            stroke.Thickness = 2
-            stroke.Parent = mainFrame
-
-            local titleLabel = Instance.new("TextLabel")
-            titleLabel.Size = UDim2.new(1, 0, 0, 40)
-            titleLabel.Position = UDim2.new(0, 0, 0, 0)
-            titleLabel.BackgroundTransparency = 1
-            titleLabel.Text = lang.TituloSalvarMusica
-            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            titleLabel.TextSize = 18
-            titleLabel.Font = Enum.Font.GothamBold
-            titleLabel.Parent = mainFrame
-
-            local closeBtn = Instance.new("TextButton")
-            closeBtn.Size = UDim2.new(0, 35, 0, 35)
-            closeBtn.Position = UDim2.new(1, -45, 0, 5)
-            closeBtn.BackgroundTransparency = 1
-            closeBtn.Text = "✕"
-            closeBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-            closeBtn.TextSize = 22
-            closeBtn.Font = Enum.Font.GothamBold
-            closeBtn.Parent = mainFrame
-            closeBtn.MouseButton1Click:Connect(function()
-                saveGui:Destroy()
-            end)
-
-            local idLabel = Instance.new("TextLabel")
-            idLabel.Size = UDim2.new(0, 80, 0, 30)
-            idLabel.Position = UDim2.new(0, 15, 0, 50)
-            idLabel.BackgroundTransparency = 1
-            idLabel.Text = lang.LabelID .. ":"
-            idLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-            idLabel.TextSize = 14
-            idLabel.Font = Enum.Font.Gotham
-            idLabel.Parent = mainFrame
-
-            local idBox = Instance.new("TextBox")
-            idBox.Size = UDim2.new(0, 280, 0, 30)
-            idBox.Position = UDim2.new(0, 100, 0, 50)
-            idBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-            idBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            idBox.TextSize = 14
-            idBox.Font = Enum.Font.Gotham
-            idBox.PlaceholderText = "Ex: 92524084286516"
-            idBox.Text = ""
-            idBox.Parent = mainFrame
-
-            local idBoxCorner = Instance.new("UICorner")
-            idBoxCorner.CornerRadius = UDim.new(0, 6)
-            idBoxCorner.Parent = idBox
-
-            local nomeLabel = Instance.new("TextLabel")
-            nomeLabel.Size = UDim2.new(0, 80, 0, 30)
-            nomeLabel.Position = UDim2.new(0, 15, 0, 95)
-            nomeLabel.BackgroundTransparency = 1
-            nomeLabel.Text = lang.LabelNome .. ":"
-            nomeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-            nomeLabel.TextSize = 14
-            nomeLabel.Font = Enum.Font.Gotham
-            nomeLabel.Parent = mainFrame
-
-            local nomeBox = Instance.new("TextBox")
-            nomeBox.Size = UDim2.new(0, 280, 0, 30)
-            nomeBox.Position = UDim2.new(0, 100, 0, 95)
-            nomeBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-            nomeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-            nomeBox.TextSize = 14
-            nomeBox.Font = Enum.Font.Gotham
-            nomeBox.PlaceholderText = "Ex: Bem 10"
-            nomeBox.Text = ""
-            nomeBox.Parent = mainFrame
-
-            local nomeBoxCorner = Instance.new("UICorner")
-            nomeBoxCorner.CornerRadius = UDim.new(0, 6)
-            nomeBoxCorner.Parent = nomeBox
-
-            local aplicarBtn = Instance.new("TextButton")
-            aplicarBtn.Size = UDim2.new(0, 120, 0, 40)
-            aplicarBtn.Position = UDim2.new(0.5, -60, 1, -55)
-            aplicarBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-            aplicarBtn.Text = lang.BtnAplicar
-            aplicarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            aplicarBtn.TextSize = 16
-            aplicarBtn.Font = Enum.Font.GothamBold
-            aplicarBtn.Parent = mainFrame
-
-            local aplicarCorner = Instance.new("UICorner")
-            aplicarCorner.CornerRadius = UDim.new(0, 8)
-            aplicarCorner.Parent = aplicarBtn
-
-            aplicarBtn.MouseButton1Click:Connect(function()
-                local id = idBox.Text
-                local nome = nomeBox.Text
-                if id ~= "" and nome ~= "" then
-                    table.insert(Config.MusicasSalvas, { nome = nome, id = id })
-                    Config.MusicaAtual = nome
-                    SaveConfig()
-                    local novosNomes = {}
-                    for _, m in ipairs(Config.MusicasSalvas) do
-                        table.insert(novosNomes, m.nome)
-                    end
-                    dropdownMusica:Refresh(novosNomes, true)
-                    dropdownMusica:SetValue(nome)
-                    if Config.TocarMusica then
-                        pararMusica()
-                        tocarMusica(id)
-                    end
-                    saveGui:Destroy()
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "Música",
-                        Text = lang.NotifMusicaSalva .. nome,
-                        Duration = 2
-                    })
-                else
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "Erro",
-                        Text = lang.ErroPreencherCampos,
-                        Duration = 2
-                    })
-                end
-            end)
-        end
-    })
-
-    TabExtra:Button({
-        Title = lang.BtnDeletarMusica,
-        Callback = function()
-            local deleteGui = Instance.new("ScreenGui")
-            deleteGui.Name = "DeletarMusicaGui"
-            deleteGui.ResetOnSpawn = false
-            deleteGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            deleteGui.Parent = coreGui
-
-            local mainFrame = Instance.new("Frame")
-            mainFrame.Size = UDim2.new(0, 400, 0, 200)
-            mainFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-            mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            mainFrame.BackgroundTransparency = 0
-            mainFrame.BorderSizePixel = 0
-            mainFrame.Parent = deleteGui
-
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 12)
-            corner.Parent = mainFrame
-
-            local stroke = Instance.new("UIStroke")
-            stroke.Thickness = 3
-            stroke.Color = Color3.fromRGB(255, 0, 0)
-            stroke.Parent = mainFrame
-
-            local titleLabel = Instance.new("TextLabel")
-            titleLabel.Size = UDim2.new(1, 0, 0, 40)
-            titleLabel.Position = UDim2.new(0, 0, 0, 0)
-            titleLabel.BackgroundTransparency = 1
-            titleLabel.Text = lang.TituloDeletarMusica
-            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            titleLabel.TextSize = 20
-            titleLabel.Font = Enum.Font.GothamBold
-            titleLabel.Parent = mainFrame
-
-            local closeBtn = Instance.new("TextButton")
-            closeBtn.Size = UDim2.new(0, 35, 0, 35)
-            closeBtn.Position = UDim2.new(1, -45, 0, 5)
-            closeBtn.BackgroundTransparency = 1
-            closeBtn.Text = "✕"
-            closeBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-            closeBtn.TextSize = 22
-            closeBtn.Font = Enum.Font.GothamBold
-            closeBtn.Parent = mainFrame
-            closeBtn.MouseButton1Click:Connect(function()
-                deleteGui:Destroy()
-                if strokeLoop then
-                    strokeLoop:Disconnect()
-                    strokeLoop = nil
-                end
-            end)
-
-            local nomes = {}
-            for _, m in ipairs(Config.MusicasSalvas) do
-                table.insert(nomes, m.nome)
-            end
-            if #nomes == 0 then
-                table.insert(nomes, "Nenhuma música salva")
-            end
-            local selectedMusic = nomes[1] or "Nenhuma"
-
-            local dropBtn = Instance.new("TextButton")
-            dropBtn.Size = UDim2.new(0, 200, 0, 30)
-            dropBtn.Position = UDim2.new(0, 180, 0, 55)
-            dropBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-            dropBtn.Text = selectedMusic
-            dropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            dropBtn.TextSize = 14
-            dropBtn.Font = Enum.Font.Gotham
-            dropBtn.Parent = mainFrame
-
-            local dropCorner = Instance.new("UICorner")
-            dropCorner.CornerRadius = UDim.new(0, 6)
-            dropCorner.Parent = dropBtn
-
-            local dropList = Instance.new("ScrollingFrame")
-            dropList.Size = UDim2.new(0, 200, 0, 100)
-            dropList.Position = UDim2.new(0, 180, 0, 85)
-            dropList.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-            dropList.BorderSizePixel = 0
-            dropList.ScrollBarThickness = 8
-            dropList.CanvasSize = UDim2.new(0, 0, 0, #nomes * 30)
-            dropList.Visible = false
-            dropList.Parent = mainFrame
-
-            local listCorner = Instance.new("UICorner")
-            listCorner.CornerRadius = UDim.new(0, 6)
-            listCorner.Parent = dropList
-
-            local listStroke = Instance.new("UIStroke")
-            listStroke.Color = Color3.fromRGB(200, 50, 50)
-            listStroke.Thickness = 1
-            listStroke.Parent = dropList
-
-            local buttons = {}
-            for i, nome in ipairs(nomes) do
-                local btn = Instance.new("TextButton")
-                btn.Size = UDim2.new(1, 0, 0, 30)
-                btn.Position = UDim2.new(0, 0, 0, (i-1)*30)
-                btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-                btn.Text = nome
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                btn.TextSize = 14
-                btn.Font = Enum.Font.Gotham
-                btn.Parent = dropList
-
-                local btnCorner = Instance.new("UICorner")
-                btnCorner.CornerRadius = UDim.new(0, 4)
-                btnCorner.Parent = btn
-
-                btn.MouseButton1Click:Connect(function()
-                    selectedMusic = nome
-                    dropBtn.Text = nome
-                    dropList.Visible = false
-                end)
-                table.insert(buttons, btn)
-            end
-
-            dropBtn.MouseButton1Click:Connect(function()
-                dropList.Visible = not dropList.Visible
-            end)
-
-            local deleteBtn = Instance.new("TextButton")
-            deleteBtn.Size = UDim2.new(0, 150, 0, 40)
-            deleteBtn.Position = UDim2.new(0.5, -75, 1, -55)
-            deleteBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-            deleteBtn.Text = lang.BtnDeletar
-            deleteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            deleteBtn.TextSize = 16
-            deleteBtn.Font = Enum.Font.GothamBold
-            deleteBtn.Parent = mainFrame
-
-            local deleteCorner = Instance.new("UICorner")
-            deleteCorner.CornerRadius = UDim.new(0, 8)
-            deleteCorner.Parent = deleteBtn
-
-            deleteBtn.MouseButton1Click:Connect(function()
-                if selectedMusic and selectedMusic ~= "Nenhuma música salva" and selectedMusic ~= "Nenhuma" then
-                    local index = nil
-                    for i, m in ipairs(Config.MusicasSalvas) do
-                        if m.nome == selectedMusic then
-                            index = i
-                            break
-                        end
-                    end
-                    if index then
-                        table.remove(Config.MusicasSalvas, index)
-                        SaveConfig()
-                        local novosNomes = {}
-                        for _, m in ipairs(Config.MusicasSalvas) do
-                            table.insert(novosNomes, m.nome)
-                        end
-                        dropdownMusica:Refresh(novosNomes, true)
-                        if #novosNomes > 0 then
-                            dropdownMusica:SetValue(novosNomes[1])
-                            Config.MusicaAtual = novosNomes[1]
-                            if Config.TocarMusica then
-                                pararMusica()
-                                tocarMusica(Config.MusicasSalvas[1].id)
-                            end
-                        else
-                            Config.MusicaAtual = ""
-                            Config.TocarMusica = false
-                            pararMusica()
-                        end
-                        SaveConfig()
-                        StarterGui:SetCore("SendNotification", {
-                            Title = "Música",
-                            Text = lang.NotifMusicaDeletada .. selectedMusic,
-                            Duration = 2
-                        })
-                        deleteGui:Destroy()
-                        if strokeLoop then
-                            strokeLoop:Disconnect()
-                            strokeLoop = nil
-                        end
-                    end
-                else
-                    StarterGui:SetCore("SendNotification", {
-                        Title = "Erro",
-                        Text = lang.ErroSelecionarMusica,
-                        Duration = 2
-                    })
-                end
-            end)
-
-            local strokeLoop = nil
-            strokeLoop = RunService.Heartbeat:Connect(function()
-                if deleteGui and deleteGui.Parent then
-                    if tick() % 1 < 0.5 then
-                        stroke.Color = Color3.fromRGB(255, 0, 0)
-                    else
-                        stroke.Color = Color3.fromRGB(0, 0, 255)
-                    end
-                else
-                    if strokeLoop then
-                        strokeLoop:Disconnect()
-                        strokeLoop = nil
-                    end
-                end
-            end)
-
-            deleteGui.AncestryChanged:Connect(function()
-                if not deleteGui.Parent then
-                    if strokeLoop then
-                        strokeLoop:Disconnect()
-                        strokeLoop = nil
-                    end
-                end
-            end)
-        end
-    })
-
-    -- ====== ABA CONFIG (igual) ======
-    TabConfig:Section({ Title = lang.SecConfig })
-    TabConfig:Dropdown({
-        Title = lang.DropIdioma,
-        Desc = lang.DescIdioma,
-        Values = {"Português", "Espanhol", "English"},
-        Value = Config.Language,
-        Callback = function(value)
-            if Config.Language ~= value then
-                Config.Language = value
-                SaveConfig()
-                CriarMenu()
-            end
-        end
-    })
-    TabConfig:Toggle({
-        Title = lang.ToggleIntro,
-        Desc = lang.DescIntro,
-        Value = Config.RemoverIntro,
-        Callback = function(value)
-            Config.RemoverIntro = value
-            SaveConfig()
-        end
-    })
-    TabConfig:Toggle({
-        Title = lang.ToggleAFK,
-        Desc = lang.DescAFK,
-        Value = Config.AntiAFK,
-        Callback = function(value)
-            Config.AntiAFK = value
-            SaveConfig()
-            if value then
-                task.spawn(startAntiAFK)
-            else
-                antiAFKRunning = false
-                if antiAFKConnection then
-                    task.cancel(antiAFKConnection)
-                    antiAFKConnection = nil
-                end
-            end
-        end
-    })
-    TabConfig:Button({
-        Title = lang.BtnManualSave,
-        Desc = lang.DescManualSave,
-        Callback = function()
-            SaveConfig()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Configurações",
-                Text = "Salvas com sucesso!",
-                Duration = 2
-            })
-        end
-    })
-    TabConfig:Button({
-        Title = lang.BtnReset,
-        Desc = lang.DescReset,
-        Callback = function()
-            Config.RaidEnabled = false
-            Config.Language = "Português"
-            Config.RemoverIntro = false
-            Config.AntiAFK = false
-            Config.BossShip = false
-            Config.BossKraken = false
-            Config.BossTransDimensional = false
-            Config.BossRajo = false
-            Config.BossAhPuch = false
-            Config.BossAddwaitya = false
-            Config.RaidInfinity1Enabled = false
-            Config.AlienSlots = { "heatblast", "wildmutt", "diamond", "xrl8", "fourarms" }
-            Config.MusicasSalvas = { { nome = "Bem 10", id = "92524084286516" } }
-            Config.MusicaAtual = "Bem 10"
-            Config.TocarMusica = false
-            pararMusica()
-            SaveConfig()
-            if Window.Notify then
-                Window:Notify({
-                    Title = lang.NotifTitle,
-                    Desc = lang.NotifDesc,
-                    Duration = 3,
-                })
-            end
-            CriarMenu()
-        end
-    })
-
-    TabConfig:Section({ Title = lang.SecServer })
-    TabConfig:Button({
-        Title = "Rejoin",
-        Desc = lang.DescRejoin,
-        Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
-    })
-    TabConfig:Button({
-        Title = "ServeHop",
-        Desc = lang.DescHop,
-        Callback = function() MudarServidor("Desc") end
-    })
-    TabConfig:Button({
-        Title = "SmallServe",
-        Desc = lang.DescSmall,
-        Callback = function() MudarServidor("Asc") end
-    })
 end
 
-pcall(CriarMenu)
+SelectedNPCLabel.MouseButton1Click:Connect(ToggleDropdown)
 
-StarterGui:SetCore("SendNotification", {
-    Title = "Project Sor",
-    Text = "Carregado! Boss corrigido e aba 23 funcional.",
-    Duration = 3
-})
+-- Variável para armazenar NPC selecionado
+local SelectedNPC = nil
+local NPCList = {} -- tabela com NPCs
 
-print("Project Sor carregado. Boss corrigido e aba 23 funcional.")
+-- Função para criar item no dropdown
+local function CreateDropdownItem(npc, name, health)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 25)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = name .. " (HP: " .. math.floor(health) .. ")"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSans
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = Color3.fromRGB(80, 80, 80)
+    btn.Parent = DropdownList
+
+    btn.MouseButton1Click:Connect(function()
+        SelectedNPC = npc
+        SelectedNPCLabel.Text = name .. " (HP: " .. math.floor(health) .. ")"
+        DropdownFrame.Visible = false
+        -- Destacar NPC (Chams)
+        HighlightNPC(npc)
+    end)
+    return btn
+end
+
+-- Função para destacar NPC (verde)
+local function HighlightNPC(npc)
+    -- Remover highlight anterior
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Highlight") and obj.Name == "FarmHighlight" then
+            obj:Destroy()
+        end
+    end
+    if not npc then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FarmHighlight"
+    highlight.Adornee = npc
+    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0.5
+    highlight.Parent = npc
+end
+
+-- Função de Scannear
+local function ScanNPCs()
+    -- Limpar lista
+    for _, child in pairs(DropdownList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    NPCList = {}
+    local character = LocalPlayer.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local distThreshold = 50 -- raio de busca
+
+    for _, npc in pairs(workspace:GetDescendants()) do
+        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") then
+            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+            if hrp then
+                local dist = (hrp.Position - root.Position).Magnitude
+                if dist <= distThreshold then
+                    local humanoid = npc:FindFirstChild("Humanoid")
+                    if humanoid then
+                        local health = humanoid.Health
+                        local maxHealth = humanoid.MaxHealth
+                        local healthPercent = health / maxHealth * 100
+                        -- Criar item no dropdown
+                        local item = CreateDropdownItem(npc, npc.Name, health)
+                        table.insert(NPCList, npc)
+                    end
+                end
+            end
+        end
+    end
+    -- Atualizar canvas size
+    local count = #DropdownList:GetChildren()
+    DropdownList.CanvasSize = UDim2.new(0, 0, 0, count * 27)
+end
+
+ScanBtn.MouseButton1Click:Connect(function()
+    ScanNPCs()
+    -- Opcional: fechar dropdown
+    DropdownFrame.Visible = false
+end)
+
+-- Botão Copiar Nome
+local CopyNameBtn = Instance.new("TextButton")
+CopyNameBtn.Size = UDim2.new(0, 120, 0, 25)
+CopyNameBtn.Position = UDim2.new(0, 320, 0, 25)
+CopyNameBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+CopyNameBtn.Text = "Copiar Nome"
+CopyNameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyNameBtn.TextSize = 14
+CopyNameBtn.Font = Enum.Font.SourceSans
+CopyNameBtn.BorderSizePixel = 0
+CopyNameBtn.Parent = ConfigSection
+
+CopyNameBtn.MouseButton1Click:Connect(function()
+    if SelectedNPC then
+        Clipboard:SetAsync(SelectedNPC.Name)
+        print("Nome copiado: " .. SelectedNPC.Name)
+    else
+        print("Nenhum NPC selecionado")
+    end
+end)
+
+-- Seção Pasta
+local PastaSection = CreateSection(FarmContent, "Pasta", 185)
+
+-- Dropdown para localizações (usaremos o mesmo sistema do dropdown anterior, mas com caminhos)
+local PastaDropdownFrame = Instance.new("Frame")
+PastaDropdownFrame.Size = UDim2.new(0, 200, 0, 100)
+PastaDropdownFrame.Position = UDim2.new(0, 5, 0, 25)
+PastaDropdownFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+PastaDropdownFrame.BackgroundTransparency = 0
+PastaDropdownFrame.BorderSizePixel = 1
+PastaDropdownFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
+PastaDropdownFrame.Visible = false
+PastaDropdownFrame.Parent = PastaSection
+
+local PastaDropdownList = Instance.new("ScrollingFrame")
+PastaDropdownList.Size = UDim2.new(1, 0, 1, 0)
+PastaDropdownList.Position = UDim2.new(0, 0, 0, 0)
+PastaDropdownList.BackgroundTransparency = 1
+PastaDropdownList.BorderSizePixel = 0
+PastaDropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+PastaDropdownList.ScrollBarThickness = 8
+PastaDropdownList.Parent = PastaDropdownFrame
+
+local PastaUIListLayout = Instance.new("UIListLayout")
+PastaUIListLayout.Padding = UDim.new(0, 2)
+PastaUIListLayout.Parent = PastaDropdownList
+
+-- Botão que mostra a pasta selecionada (caminho)
+local SelectedPastaLabel = Instance.new("TextButton")
+SelectedPastaLabel.Size = UDim2.new(0, 200, 0, 25)
+SelectedPastaLabel.Position = UDim2.new(0, 5, 0, 25)
+SelectedPastaLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SelectedPastaLabel.Text = "Nenhuma pasta"
+SelectedPastaLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SelectedPastaLabel.TextSize = 14
+SelectedPastaLabel.Font = Enum.Font.SourceSans
+SelectedPastaLabel.BorderSizePixel = 1
+SelectedPastaLabel.BorderColor3 = Color3.fromRGB(80, 80, 80)
+SelectedPastaLabel.Parent = PastaSection
+
+local function TogglePastaDropdown()
+    PastaDropdownFrame.Visible = not PastaDropdownFrame.Visible
+end
+
+SelectedPastaLabel.MouseButton1Click:Connect(TogglePastaDropdown)
+
+-- Variável para pasta selecionada
+local SelectedPastaPath = ""
+
+-- Função para criar item no dropdown de pastas (baseado nos NPCs escaneados)
+local function CreatePastaItem(npc)
+    local path = "workspace." .. npc:GetFullName():gsub(" ", ".") -- caminho aproximado
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 25)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = npc.Name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSans
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = Color3.fromRGB(80, 80, 80)
+    btn.Parent = PastaDropdownList
+
+    btn.MouseButton1Click:Connect(function()
+        SelectedPastaPath = path
+        SelectedPastaLabel.Text = path
+        PastaDropdownFrame.Visible = false
+        -- Destacar NPC (verde) também
+        HighlightNPC(npc)
+    end)
+    return btn
+end
+
+-- Quando escanear, também preencher o dropdown de pastas
+local oldScan = ScanBtn.MouseButton1Click
+ScanBtn.MouseButton1Click:Connect(function()
+    -- Limpar lista de pastas
+    for _, child in pairs(PastaDropdownList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    -- Popular com os NPCs escaneados
+    for _, npc in pairs(NPCList) do
+        CreatePastaItem(npc)
+    end
+    -- Atualizar canvas
+    local count = #PastaDropdownList:GetChildren()
+    PastaDropdownList.CanvasSize = UDim2.new(0, 0, 0, count * 27)
+end)
+
+-- Botão Copiar Pasta
+local CopyPastaBtn = Instance.new("TextButton")
+CopyPastaBtn.Size = UDim2.new(0, 120, 0, 25)
+CopyPastaBtn.Position = UDim2.new(0, 220, 0, 25)
+CopyPastaBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+CopyPastaBtn.Text = "Copiar Pasta"
+CopyPastaBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyPastaBtn.TextSize = 14
+CopyPastaBtn.Font = Enum.Font.SourceSans
+CopyPastaBtn.BorderSizePixel = 0
+CopyPastaBtn.Parent = PastaSection
+
+CopyPastaBtn.MouseButton1Click:Connect(function()
+    if SelectedPastaPath ~= "" then
+        Clipboard:SetAsync(SelectedPastaPath)
+        print("Pasta copiada: " .. SelectedPastaPath)
+    else
+        print("Nenhuma pasta selecionada")
+    end
+end)
+
+-- Ajustar posições e visibilidade inicial
+FarmContent.Visible = true
+MainFrame.Visible = true
+
+-- Fechar dropdowns ao clicar fora
+local function CloseDropdowns()
+    DropdownFrame.Visible = false
+    PastaDropdownFrame.Visible = false
+end
+
+MainFrame.MouseButton1Down:Connect(CloseDropdowns)
+
+-- Atualizar vida dos NPCs no dropdown periodicamente (opcional)
+-- Pode adicionar um loop para atualizar as barras de vida, mas simplificamos.
+
+print("FarmUI carregado!")
