@@ -1,9 +1,9 @@
 -- ============================================================
--- CARREGAMENTO DA BIBLIOTECA WINDUI
+-- CARREGAMENTO DA WINDUI COM VERIFICAÇÃO
 -- ============================================================
 local WindUI
 local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua"))()
 end)
 
 if not success then
@@ -16,56 +16,39 @@ if not success then
 end
 
 -- ============================================================
--- SERVIÇOS E VARIÁVEIS GLOBAIS
+-- SERVIÇOS E VARIÁVEIS
 -- ============================================================
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
-local npcTable = {}      -- { [path] = {npc, name, path, health} }
+local npcTable = {}
 local selectedNPC = nil
 local highlightInstance = nil
+local uiVisible = true  -- controla visibilidade
 
 -- ============================================================
 -- FUNÇÕES AUXILIARES
 -- ============================================================
-
--- Obtém o caminho completo de um objeto no Workspace (ex: "workspace.Enemy.Boss")
 local function getPath(obj)
-    local full = workspace:GetFullName(obj) -- retorna "Workspace.Enemy.Boss"
-    return full:gsub(" ", ".") -- substitui espaços por ponto (por segurança)
+    return workspace:GetFullName(obj):gsub(" ", ".")
 end
 
--- Copia texto para o clipboard (funciona em muitos executors)
 local function copyToClipboard(text)
-    local success, err = pcall(function()
-        if setclipboard then
-            setclipboard(text)
-        elseif Clipboard then
-            Clipboard:SetAsync(text)
-        else
-            error("Nenhum método de clipboard disponível")
+    pcall(function()
+        if setclipboard then setclipboard(text)
+        elseif Clipboard then Clipboard:SetAsync(text)
         end
     end)
-    if not success then
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Erro ao copiar",
-            Text = tostring(err),
-            Duration = 3
-        })
-    end
 end
 
 -- ============================================================
--- ESCANEAMENTO DE NPCS
+-- ESCANEAMENTO DE NPCs
 -- ============================================================
-
 function scanNPCs()
     npcTable = {}
     local npcList = {}
-
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
             local humanoid = obj.Humanoid
@@ -85,68 +68,39 @@ function scanNPCs()
             end
         end
     end
-
-    -- Atualiza os dropdowns
     updateDropdowns(npcList)
     return #npcList
 end
 
--- ============================================================
--- ATUALIZA DROPDOWNS
--- ============================================================
-
 function updateDropdowns(npcList)
-    -- Prepara listas
     local configItems = {}
     local pastaItems = {}
     for _, info in ipairs(npcList) do
         table.insert(configItems, info.display)
         table.insert(pastaItems, info.path)
     end
-
-    -- Atualiza dropdown da Config (pelo nome + HP)
     if configDropdown then
-        -- Limpa e recarrega
         configDropdown:SetItems(configItems)
-        if #configItems > 0 then
-            configDropdown:SetSelectedIndex(1)
-        end
+        if #configItems > 0 then configDropdown:SetSelectedIndex(1) end
     end
-
-    -- Atualiza dropdown da Pasta (pelo caminho)
     if pastaDropdown then
         pastaDropdown:SetItems(pastaItems)
-        if #pastaItems > 0 then
-            pastaDropdown:SetSelectedIndex(1)
-        end
+        if #pastaItems > 0 then pastaDropdown:SetSelectedIndex(1) end
     end
 end
 
--- ============================================================
--- DESTAQUE DO NPC (CHAMS VERDE)
--- ============================================================
-
 function highlightNPC(npc)
-    if highlightInstance then
-        highlightInstance:Destroy()
-        highlightInstance = nil
-    end
+    if highlightInstance then highlightInstance:Destroy() end
     if npc and npc:FindFirstChild("HumanoidRootPart") then
         highlightInstance = Instance.new("Highlight")
-        highlightInstance.FillColor = Color3.new(0, 1, 0)
+        highlightInstance.FillColor = Color3.new(0,1,0)
         highlightInstance.FillTransparency = 0.5
-        highlightInstance.OutlineColor = Color3.new(0, 1, 0)
+        highlightInstance.OutlineColor = Color3.new(0,1,0)
         highlightInstance.OutlineTransparency = 0.2
         highlightInstance.Adornee = npc
         highlightInstance.Parent = npc
-        return true
     end
-    return false
 end
-
--- ============================================================
--- SELECIONA NPC POR CAMINHO
--- ============================================================
 
 function selectNPCByPath(path)
     local data = npcTable[path]
@@ -158,20 +112,13 @@ function selectNPCByPath(path)
     return false
 end
 
--- ============================================================
--- TELEPORTE PARA NPC POR NOME
--- ============================================================
-
 function teleportToNPC(npcName)
     for path, data in pairs(npcTable) do
         if data.name:lower() == npcName:lower() then
             local target = data.npc
             if target and target:FindFirstChild("HumanoidRootPart") then
-                local pos = target.HumanoidRootPart.Position
-                if humanoidRootPart then
-                    humanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-                    return true
-                end
+                humanoidRootPart.CFrame = CFrame.new(target.HumanoidRootPart.Position + Vector3.new(0,2,0))
+                return true
             end
         end
     end
@@ -179,42 +126,49 @@ function teleportToNPC(npcName)
 end
 
 -- ============================================================
--- CRIAÇÃO DA INTERFACE
+-- CRIAÇÃO DA INTERFACE (com posição centralizada)
 -- ============================================================
+local Window
+local successUI, errUI = pcall(function()
+    Window = WindUI:CreateWindow({
+        Title = "🌟 Sor_UmPlayer HUB 🌟",
+        Icon = "Hi",
+        Author = "made by Sor_Gostoso",
+        Folder = "CloudHub",
+        Size = UDim2.fromOffset(460, 260),
+        Transparent = true,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        Background = "",
+        BackgroundImageTransparency = 0.42,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+        -- FORÇA POSIÇÃO CENTRAL
+        Position = UDim2.new(0.5, -230, 0.5, -130)
+    })
+end)
 
-local Window = WindUI:CreateWindow({
-    Title = "🌟 Sor_UmPlayer HUB 🌟",
-    Icon = "Hi",
-    Author = "made by Sor_Gostoso",
-    Folder = "CloudHub",
-    Size = UDim2.fromOffset(460, 260),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    Background = "",
-    BackgroundImageTransparency = 0.42,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
+if not successUI then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Erro UI",
+        Text = "Falha ao criar janela: " .. tostring(errUI),
+        Duration = 5
+    })
+    return
+end
 
--- =============== ABA FARM ===============
-local farmTab = Window:CreateTab({
-    Title = "Farm",
-    Icon = "🌾"
-})
-
-local teleportCategory = farmTab:CreateCategory({
-    Title = "Teleporte"
-})
-
+-- ============================================================
+-- CRIANDO AS ABAS E ELEMENTOS
+-- ============================================================
+-- Aba Farm
+local farmTab = Window:CreateTab({ Title = "Farm", Icon = "🌾" })
+local teleportCategory = farmTab:CreateCategory({ Title = "Teleporte" })
 local npcNameBox = teleportCategory:CreateTextbox({
     Title = "Escreva nome do NPC",
     Placeholder = "Ex: Boss",
-    Default = "",
-    Callback = function(text) end
+    Default = ""
 })
-
 teleportCategory:CreateButton({
     Title = "Teleportar",
     Icon = "🚀",
@@ -222,61 +176,36 @@ teleportCategory:CreateButton({
         local name = npcNameBox:GetValue()
         if name and name ~= "" then
             if teleportToNPC(name) then
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "Teleporte",
-                    Text = "Teleportado para " .. name,
-                    Duration = 3
-                })
+                game:GetService("StarterGui"):SetCore("SendNotification", {Title="Teleporte", Text="Teleportado para "..name, Duration=3})
             else
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "NPC não encontrado!",
-                    Duration = 3
-                })
+                game:GetService("StarterGui"):SetCore("SendNotification", {Title="Erro", Text="NPC não encontrado!", Duration=3})
             end
         else
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Aviso",
-                Text = "Digite o nome do NPC!",
-                Duration = 3
-            })
+            game:GetService("StarterGui"):SetCore("SendNotification", {Title="Aviso", Text="Digite o nome do NPC!", Duration=3})
         end
     end
 })
 
--- =============== ABA CONFIG ===============
-local configTab = Window:CreateTab({
-    Title = "Config",
-    Icon = "⚙️"
-})
-
-local configCategory = configTab:CreateCategory({
-    Title = "Config"
-})
+-- Aba Config
+local configTab = Window:CreateTab({ Title = "Config", Icon = "⚙️" })
+local configCategory = configTab:CreateCategory({ Title = "Config" })
 
 configCategory:CreateButton({
     Title = "Scannear",
     Icon = "🔍",
     Callback = function()
         local count = scanNPCs()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Scan",
-            Text = "NPCs encontrados: " .. count,
-            Duration = 3
-        })
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title="Scan", Text="NPCs: "..count, Duration=3})
     end
 })
 
--- Dropdown que mostra nome + HP
 local configDropdown = configCategory:CreateDropdown({
     Title = "Todos NPC próximo de mim",
-    Items = {}, -- preenchido pelo scan
+    Items = {},
     DefaultIndex = 1,
     Callback = function(item, index)
-        -- item é a string exibida (ex: "Boss (HP: 80%)")
         for path, data in pairs(npcTable) do
-            local display = data.name .. " (HP: " .. data.health .. "%)"
-            if display == item then
+            if (data.name .. " (HP: " .. data.health .. "%)") == item then
                 selectNPCByPath(path)
                 break
             end
@@ -290,38 +219,22 @@ configCategory:CreateButton({
     Callback = function()
         if selectedNPC then
             copyToClipboard(selectedNPC.Name)
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Copiado",
-                Text = "Nome: " .. selectedNPC.Name,
-                Duration = 2
-            })
+            game:GetService("StarterGui"):SetCore("SendNotification", {Title="Copiado", Text="Nome: "..selectedNPC.Name, Duration=2})
         else
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Nenhum NPC selecionado!",
-                Duration = 2
-            })
+            game:GetService("StarterGui"):SetCore("SendNotification", {Title="Erro", Text="Nenhum NPC selecionado!", Duration=2})
         end
     end
 })
 
--- =============== PASTA ===============
-local pastaCategory = configTab:CreateCategory({
-    Title = "Pasta"
-})
-
+-- Categoria Pasta
+local pastaCategory = configTab:CreateCategory({ Title = "Pasta" })
 local pastaDropdown = pastaCategory:CreateDropdown({
     Title = "Localização da pasta do NPC",
     Items = {},
     DefaultIndex = 1,
     Callback = function(item, index)
-        -- item é o caminho completo (ex: "Workspace.Enemy.Boss")
         if selectNPCByPath(item) then
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Selecionado",
-                Text = "NPC destacado em verde!",
-                Duration = 2
-            })
+            game:GetService("StarterGui"):SetCore("SendNotification", {Title="Selecionado", Text="NPC destacado em verde!", Duration=2})
         end
     end
 })
@@ -333,45 +246,41 @@ pastaCategory:CreateButton({
         if selectedNPC then
             local path = ""
             for p, data in pairs(npcTable) do
-                if data.npc == selectedNPC then
-                    path = p
-                    break
-                end
+                if data.npc == selectedNPC then path = p; break end
             end
             if path ~= "" then
                 copyToClipboard(path)
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "Copiado",
-                    Text = "Caminho: " .. path,
-                    Duration = 3
-                })
+                game:GetService("StarterGui"):SetCore("SendNotification", {Title="Copiado", Text="Caminho: "..path, Duration=3})
             else
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "Caminho não encontrado!",
-                    Duration = 2
-                })
+                game:GetService("StarterGui"):SetCore("SendNotification", {Title="Erro", Text="Caminho não encontrado!", Duration=2})
             end
         else
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Nenhum NPC selecionado!",
-                Duration = 2
-            })
+            game:GetService("StarterGui"):SetCore("SendNotification", {Title="Erro", Text="Nenhum NPC selecionado!", Duration=2})
         end
     end
 })
 
 -- ============================================================
--- INICIALIZAÇÃO
+-- INICIALIZAÇÃO E ATALHO DE TECLADO
 -- ============================================================
-
--- Escaneia automaticamente ao iniciar
 scanNPCs()
+
+-- Atalho Insert para mostrar/ocultar a UI
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Insert then
+        uiVisible = not uiVisible
+        if Window then
+            Window:SetVisible(uiVisible)
+        end
+    end
+end)
 
 -- Notificação de boas-vindas
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Sor_UmPlayer Hub",
-    Text = "Bem-vindo, jogador!",
+    Text = "Pressione INSERT para abrir/fechar",
     Duration = 5
 })
+
+print("Interface criada. Pressione INSERT para alternar visibilidade.")
