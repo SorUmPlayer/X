@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT COMPLETO (Project Sor) - COM ABA 23
+-- SCRIPT COMPLETO (Project Sor - Parte 1) - CORRIGIDO
 -- =============================================
 -- [[ CONFIGURAÇÕES GLOBAIS E ESTADO ]]
 local players = game:GetService("Players")
@@ -187,7 +187,7 @@ if not Config.RemoverIntro then
 end
 
 -- =============================================
--- DICIONÁRIO DE IDIOMAS (com "23")
+-- DICIONÁRIO DE IDIOMAS (atualizado com "23")
 -- =============================================
 local Idiomas = {
     ["Português"] = {
@@ -196,7 +196,7 @@ local Idiomas = {
         TabTeleport = "Teleporte",
         TabShop = "Shop",
         TabClasses = "Classes",
-        Tab23 = "23",
+        TabDimensao23 = "23",
         TabExtra = "Extra",
         TabConfig = "Configurações",
         SecRaid = "Raid",
@@ -221,6 +221,9 @@ local Idiomas = {
         ToggleRajo = "Rajo",
         ToggleAhPuch = "Ah Puch Totem",
         ToggleAddwaitya = "Addwaitya",
+        SecNovaDimensao = "🌐 Nova Dimensão",
+        BtnCarregar23 = "23",
+        DescCarregar23 = "Carrega o script da Dimensão 23",
         SecTerra = "🌍 Terra",
         SecLua = "🌙 Lua",
         SecFogoFrio = "🔥❄️ Fogo & Frio",
@@ -282,9 +285,6 @@ local Idiomas = {
         SecRaidInfinity1 = "🔥 Raid Infinity 1",
         ToggleRaidInfinity1 = "Auto Raid Infinity 1",
         DescRaidInfinity1 = "Farm automático da Raid Infinity 1",
-        Sec23 = "🌌 Nova Dimensão",
-        Btn23 = "23",
-        Desc23 = "Carrega o script da Dimensão 23",
         SecExtra = "🎵 Música",
         DropMusica = "Selecionar Música",
         ToggleMusica = "Tocar Música",
@@ -320,11 +320,270 @@ local Idiomas = {
         BtnManualSave = "💾 Salvar Configurações",
         DescManualSave = "Salva todas as opções manualmente"
     },
-    -- (Espanhol e Inglês mantidos, mas omitidos por brevidade)
+    ["Espanhol"] = {
+        TabMain = "Raid y Teleportes",
+        TabBoss = "Jefe",
+        TabTeleport = "Teletransporte",
+        TabShop = "Tienda",
+        TabClasses = "Clases",
+        TabDimensao23 = "23",
+        TabExtra = "Extra",
+        TabConfig = "Configuraciones",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activa el ataque y el teletransporte en bucle",
+        ChatMulti = "Multiplicador de Tiro",
+        DescMulti = "Número de disparos por ciclo (Ej: 9)",
+        PlaceMulti = "Escribe un número...",
+        Distancia = "Distancia",
+        DescDist = "Distancia sobre los NPCs (Studs) - 0 a 20",
+        SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Segundo Mundo",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teletransporta al NPC Hokestar",
+        SecBossConfig = "Config Jefe",
+        DescBossDist = "Distancia sobre el Jefe (0 a 20)",
+        DescBossMulti = "Multiplicador de disparos para Jefe",
+        SecBoss = "Jefe",
+        ToggleShip = "Barco",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Monstruo Transdimensional",
+        ToggleRajo = "Rajo",
+        ToggleAhPuch = "Ah Puch Totem",
+        ToggleAddwaitya = "Addwaitya",
+        SecNovaDimensao = "🌐 Nueva Dimensión",
+        BtnCarregar23 = "23",
+        DescCarregar23 = "Carga el script de la Dimensión 23",
+        SecTerra = "🌍 Tierra",
+        SecLua = "🌙 Luna",
+        SecFogoFrio = "🔥❄️ Fuego & Frío",
+        SecEstacaoAcademia = "🏫 Estación especial academia",
+        SecMarte = "🔴 Marte",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Edificio de Billy",
+        BtnMansao = "Mansión",
+        BtnFloresta = "Bosque",
+        BtnColiseu = "Coliseo",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Centro de la Luna",
+        BtnCentroFogoFrio = "Centro",
+        BtnAcademia = "Academia",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cubo",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX ADN",
+        BtnPredioGalvan = "Edificio",
+        BtnCidadeBaixo = "Ciudad de Abajo",
+        DescCidadeBaixo = "Teletransporta a la Ciudad de Abajo",
+        SecConcessionaria = "🚗 Concesionario",
+        BtnKevin = "Kevin",
+        DescKevin = "Teletransporta a Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Tienda de Espadas/Reiniciar Equipo",
+        DescLojaEspada = "Teletransporta a la Tienda de Espadas",
+        SecHoverBoards = "🛹 HoverBoards/Naves",
+        BtnVendedorHover = "Vendedor HoverBoards Ilegal",
+        DescVendedorHover = "Teletransporta al vendedor ilegal",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teletransporta a Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teletransporta a BASTZIN22",
+        SecEstiloLuta = "🥊 Estilo de lucha",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teletransporta a Fistrick",
+        SecLojaCelular = "📱 Tienda de Celulares",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teletransporta a Pakmar",
+        SecSementes = "🌱 Semillas 23",
+        BtnRostoArdente = "Rosto Ardente",
+        DescRostoArdente = "Teletransporta a Rosto Ardente",
+        SecEspadaMontaria = "⚔️ Espada/Montura",
+        BtnMergulhador = "Mergulhador",
+        DescMergulhador = "Teletransporta a Mergulhador",
+        SecClasses = "⚡ Clases",
+        BtnPrototipo = "Prototipo",
+        DescPrototipo = "Teletransporta al Prototipo",
+        BtnPrototipo10k = "Prototipo 10k/Recalibrado",
+        DescPrototipo10k = "Teletransporta a Prototipo 10k/Recalibrado",
+        BtnOsmosiano = "Osmosiano",
+        DescOsmosiano = "Teletransporta al Osmosiano",
+        BtnOsmosianoMaster = "Osmosiano Masterizado",
+        DescOsmosianoMaster = "Teletransporta a Osmosiano Masterizado",
+        SecRaidInfinity1 = "🔥 Raid Infinity 1",
+        ToggleRaidInfinity1 = "Auto Raid Infinity 1",
+        DescRaidInfinity1 = "Farm automático de la Raid Infinity 1",
+        SecExtra = "🎵 Música",
+        DropMusica = "Seleccionar Música",
+        ToggleMusica = "Tocar Música",
+        BtnSalvarMusica = "Guardar Música",
+        BtnDeletarMusica = "Eliminar Música",
+        TituloSalvarMusica = "Guardar Música",
+        LabelID = "ID de la Música",
+        LabelNome = "Nombre de la Música",
+        BtnAplicar = "Aplicar",
+        TituloDeletarMusica = "Eliminar Música",
+        DropDeletar = "Seleccionar música para eliminar",
+        BtnDeletar = "🗑️ Eliminar",
+        NotifMusicaSalva = "Música guardada: ",
+        NotifMusicaDeletada = "Música eliminada: ",
+        ErroPreencherCampos = "¡Completa todos los campos!",
+        ErroSelecionarMusica = "Selecciona una música válida para eliminar.",
+        ErroHokestarNaoEncontrado = "¡NPC Hokestar no encontrado!",
+        SecConfig = "Config",
+        DropIdioma = "Idiomas",
+        DescIdioma = "Cambia el idioma del Script",
+        BtnReset = "Reset Config",
+        DescReset = "Restablece los toggles e idioma",
+        ToggleIntro = "Eliminar Intro",
+        DescIntro = "Desactiva la introducción al iniciar el script",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Envía clic cada 60s para no ser desconectado",
+        SecServer = "Servidor",
+        DescRejoin = "Volver al mismo servidor",
+        DescHop = "Teletransporta al servidor antiguo",
+        DescSmall = "Teletransporte a servidor reciente",
+        NotifTitle = "Configuración Reiniciada",
+        NotifDesc = "Raid desactivada e idioma restablecido.",
+        BtnManualSave = "💾 Guardar Configuraciones",
+        DescManualSave = "Guarda todas las opciones manualmente"
+    },
+    ["English"] = {
+        TabMain = "Raid & Teleports",
+        TabBoss = "Boss",
+        TabTeleport = "Teleport",
+        TabShop = "Shop",
+        TabClasses = "Classes",
+        TabDimensao23 = "23",
+        TabExtra = "Extra",
+        TabConfig = "Settings",
+        SecRaid = "Raid",
+        ToggleRaid = "Toggle Auto Raid",
+        DescRaid = "Activates loop attack and teleport",
+        ChatMulti = "Shot Multiplier",
+        DescMulti = "Number of shots per cycle (Ex: 9)",
+        PlaceMulti = "Type a number...",
+        Distancia = "Distance",
+        DescDist = "Distance above NPCs (Studs) - 0 to 20",
+        SecTp = "Tp Raids",
+        SecSegundoMundo = "🌍 Second World",
+        BtnHokestar = "Hokestar",
+        DescHokestar = "Teleport to NPC Hokestar",
+        SecBossConfig = "Boss Config",
+        DescBossDist = "Distance above Boss (0 to 20)",
+        DescBossMulti = "Shot multiplier for Boss",
+        SecBoss = "Boss",
+        ToggleShip = "Ship",
+        ToggleKraken = "Kraken",
+        ToggleTrans = "Trans Dimensional",
+        ToggleRajo = "Rajo",
+        ToggleAhPuch = "Ah Puch Totem",
+        ToggleAddwaitya = "Addwaitya",
+        SecNovaDimensao = "🌐 New Dimension",
+        BtnCarregar23 = "23",
+        DescCarregar23 = "Loads the Dimension 23 script",
+        SecTerra = "🌍 Earth",
+        SecLua = "🌙 Moon",
+        SecFogoFrio = "🔥❄️ Fire & Ice",
+        SecEstacaoAcademia = "🏫 Special Academy Station",
+        SecMarte = "🔴 Mars",
+        SecAlienX = "👽 AlienX",
+        SecGalvanPrime = "🪐 Galvan Prime",
+        BtnParker = "Parker",
+        BtnPredioBilly = "Billy's Building",
+        BtnMansao = "Mansion",
+        BtnFloresta = "Forest",
+        BtnColiseu = "Coliseum",
+        BtnYggasill = "Yggasill",
+        BtnLedgerDomain = "LedgerDomain",
+        BtnCentroLua = "Moon Center",
+        BtnCentroFogoFrio = "Center",
+        BtnAcademia = "Academy",
+        BtnArenaMarte = "Arena",
+        BtnCubo = "Cube",
+        BtnBBAlienX = "BB AlienX",
+        BtnAlienXDNA = "AlienX DNA",
+        BtnPredioGalvan = "Building",
+        BtnCidadeBaixo = "Lower City",
+        DescCidadeBaixo = "Teleport to Lower City",
+        SecConcessionaria = "🚗 Dealership",
+        BtnKevin = "Kevin",
+        DescKevin = "Teleport to Kevin",
+        SecDojo = "⚔️ Dojo",
+        BtnLojaEspada = "Sword Shop/Reset Team",
+        DescLojaEspada = "Teleport to Sword Shop",
+        SecHoverBoards = "🛹 HoverBoards/Ships",
+        BtnVendedorHover = "Illegal HoverBoard Seller",
+        DescVendedorHover = "Teleport to illegal seller",
+        BtnTetrax = "Tetrax",
+        DescTetrax = "Teleport to Tetrax",
+        BtnBASTZIN22 = "BASTZIN22",
+        DescBASTZIN22 = "Teleport to BASTZIN22",
+        SecEstiloLuta = "🥊 Fighting Style",
+        BtnFistrick = "Fistrick",
+        DescFistrick = "Teleport to Fistrick",
+        SecLojaCelular = "📱 Cell Phone Shop",
+        BtnPakmar = "Pakmar",
+        DescPakmar = "Teleport to Pakmar",
+        SecSementes = "🌱 Seeds 23",
+        BtnRostoArdente = "Rosto Ardente",
+        DescRostoArdente = "Teleport to Rosto Ardente",
+        SecEspadaMontaria = "⚔️ Sword/Mount",
+        BtnMergulhador = "Mergulhador",
+        DescMergulhador = "Teleport to Mergulhador",
+        SecClasses = "⚡ Classes",
+        BtnPrototipo = "Prototype",
+        DescPrototipo = "Teleport to Prototype",
+        BtnPrototipo10k = "Prototype 10k/Recalibrated",
+        DescPrototipo10k = "Teleport to Prototype 10k/Recalibrated",
+        BtnOsmosiano = "Osmosian",
+        DescOsmosiano = "Teleport to Osmosian",
+        BtnOsmosianoMaster = "Mastered Osmosian",
+        DescOsmosianoMaster = "Teleport to Mastered Osmosian",
+        SecRaidInfinity1 = "🔥 Raid Infinity 1",
+        ToggleRaidInfinity1 = "Auto Raid Infinity 1",
+        DescRaidInfinity1 = "Automated farming for Raid Infinity 1",
+        SecExtra = "🎵 Music",
+        DropMusica = "Select Music",
+        ToggleMusica = "Play Music",
+        BtnSalvarMusica = "Save Music",
+        BtnDeletarMusica = "Delete Music",
+        TituloSalvarMusica = "Save Music",
+        LabelID = "Music ID",
+        LabelNome = "Music Name",
+        BtnAplicar = "Apply",
+        TituloDeletarMusica = "Delete Music",
+        DropDeletar = "Select music to delete",
+        BtnDeletar = "🗑️ Delete",
+        NotifMusicaSalva = "Music saved: ",
+        NotifMusicaDeletada = "Music deleted: ",
+        ErroPreencherCampos = "Please fill all fields!",
+        ErroSelecionarMusica = "Select a valid music to delete.",
+        ErroHokestarNaoEncontrado = "NPC Hokestar not found!",
+        SecConfig = "Config",
+        DropIdioma = "Languages",
+        DescIdioma = "Change the script language",
+        BtnReset = "Reset Config",
+        DescReset = "Reset toggles and language",
+        ToggleIntro = "Remove Intro",
+        DescIntro = "Disables the intro splash",
+        ToggleAFK = "Anti‑AFK",
+        DescAFK = "Sends a click every 60s to avoid disconnect",
+        SecServer = "Server",
+        DescRejoin = "Rejoin the same server",
+        DescHop = "Teleport to an old server",
+        DescSmall = "Teleport to a recently created server",
+        NotifTitle = "Config Reset",
+        NotifDesc = "Raid disabled and language reset.",
+        BtnManualSave = "💾 Save Settings",
+        DescManualSave = "Saves all options manually"
+    }
 }
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES)
+-- SISTEMA DE COMBATE (REMOTES) - CORRIGIDO
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -464,14 +723,17 @@ if Config.RaidEnabled then
 end
 
 -- =============================================
--- LOOP DOS BOSSES
+-- LOOP DOS BOSSES (CORRIGIDO)
 -- =============================================
 local bossRunning = false
 local bossConnection = nil
 
 local function getActiveBossTarget()
     local enemys = Workspace:FindFirstChild("Enemys")
-    if not enemys then return nil end
+    if not enemys then
+        print("[Boss] Pasta Enemys não encontrada!")
+        return nil
+    end
 
     local bosses = {
         { configKey = "BossShip", folderName = "Ship [ Ferris Wheel Form ]", charName = "Character", partName = "Ship" },
@@ -485,23 +747,40 @@ local function getActiveBossTarget()
     for _, boss in ipairs(bosses) do
         if Config[boss.configKey] then
             local folder = enemys:FindFirstChild(boss.folderName)
-            if folder then
-                local char = folder:FindFirstChild(boss.charName)
-                if char and char:IsA("Model") then
-                    local part = char:FindFirstChild(boss.partName) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-                    if not part then
-                        for _, child in ipairs(char:GetChildren()) do
-                            if child:IsA("BasePart") then
-                                part = child
-                                break
-                            end
-                        end
-                    end
-                    if part and part:IsA("BasePart") then
-                        return part
-                    end
+            if not folder then
+                print("[Boss] Pasta '" .. boss.folderName .. "' não encontrada!")
+                continue
+            end
+            local char = folder:FindFirstChild(boss.charName)
+            if not char or not char:IsA("Model") then
+                print("[Boss] Character de '" .. boss.folderName .. "' não encontrado!")
+                continue
+            end
+            -- Verifica se o boss está vivo
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then
+                print("[Boss] '" .. boss.folderName .. "' está morto ou sem Humanoid!")
+                continue
+            end
+            local part = char:FindFirstChild(boss.partName)
+            if part and part:IsA("BasePart") then
+                print("[Boss] Parte '" .. boss.partName .. "' encontrada para " .. boss.folderName)
+                return part
+            end
+            -- Fallback: HumanoidRootPart ou Torso
+            part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+            if part and part:IsA("BasePart") then
+                print("[Boss] Usando parte alternativa para " .. boss.folderName)
+                return part
+            end
+            -- Fallback: qualquer BasePart
+            for _, child in ipairs(char:GetChildren()) do
+                if child:IsA("BasePart") then
+                    print("[Boss] Usando parte genérica (" .. child.Name .. ") para " .. boss.folderName)
+                    return child
                 end
             end
+            print("[Boss] Nenhuma BasePart encontrada para " .. boss.folderName)
         end
     end
     return nil
@@ -521,7 +800,13 @@ local function startBossLoop()
         end
 
         local targetPart = getActiveBossTarget()
-        if not targetPart then return end
+        if not targetPart then
+            if not bossConnection._lastPrint or tick() - bossConnection._lastPrint > 5 then
+                print("[Boss] Nenhum boss alvo encontrado. Verifique se os bosses estão ativos e vivos.")
+                bossConnection._lastPrint = tick()
+            end
+            return
+        end
 
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
@@ -547,7 +832,7 @@ if Config.BossShip or Config.BossKraken or Config.BossTransDimensional or Config
 end
 
 -- =============================================
--- LOOP RAID INFINITY 1 (CORRIGIDO)
+-- LOOP RAID INFINITY 1 (mantido)
 -- =============================================
 local raidInfinity1Running = false
 local raidInfinity1Connection = nil
@@ -1248,32 +1533,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =============================================
--- FUNÇÃO PARA CARREGAR SCRIPT DA DIMENSÃO 23
--- =============================================
-local function carregarDimensao23()
-    pcall(function()
-        local scriptUrl = "https://raw.githubusercontent.com/SorUmPlayer/Sor/refs/heads/main/SorOminiX"
-        local scriptContent = game:HttpGet(scriptUrl)
-        if scriptContent and scriptContent ~= "" then
-            loadstring(scriptContent)()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Dimensão 23",
-                Text = "Script carregado com sucesso!",
-                Duration = 3
-            })
-            print("[Dimensão 23] Script carregado com sucesso!")
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Não foi possível carregar o script da Dimensão 23.",
-                Duration = 3
-            })
-        end
-    end)
-end
-
--- =============================================
--- MENU – WINDUI (com aba 23)
+-- MENU – WINDUI (com aba "23")
 -- =============================================
 local oldWindow = nil
 
@@ -1348,7 +1608,7 @@ local function CriarMenu()
     local TabTeleport = Window:Tab({ Title = lang.TabTeleport, Icon = "rbxassetid://135710581431595" })
     local TabShop = Window:Tab({ Title = lang.TabShop, Icon = "rbxassetid://135710581431595" })
     local TabClasses = Window:Tab({ Title = lang.TabClasses, Icon = "rbxassetid://135710581431595" })
-    local Tab23 = Window:Tab({ Title = lang.Tab23, Icon = "rbxassetid://135710581431595" })
+    local TabD23 = Window:Tab({ Title = lang.TabDimensao23, Icon = "rbxassetid://135710581431595" })  -- NOVA ABA
     local TabExtra = Window:Tab({ Title = lang.TabExtra, Icon = "rbxassetid://135710581431595" })
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
 
@@ -1439,7 +1699,7 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA BOSS ======
+    -- ====== ABA BOSS (CORRIGIDA) ======
     TabBoss:Section({ Title = lang.SecBossConfig })
     TabBoss:Slider({
         Title = lang.Distancia,
@@ -1717,13 +1977,30 @@ local function CriarMenu()
         Callback = function() ExecutarTeleporte(CFrame.new(2201, 35288, 51615)) end
     })
 
-    -- ====== ABA 23 ======
-    Tab23:Section({ Title = lang.Sec23 })
-    Tab23:Button({
-        Title = lang.Btn23,
-        Desc = lang.Desc23,
+    -- ====== ABA "23" (NOVA) ======
+    TabD23:Section({ Title = lang.SecNovaDimensao })
+    TabD23:Button({
+        Title = lang.BtnCarregar23,
+        Desc = lang.DescCarregar23,
         Callback = function()
-            carregarDimensao23()
+            pcall(function()
+                local success, err = pcall(function()
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/SorUmPlayer/SorOminiX/refs/heads/main/23"))()
+                end)
+                if success then
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Dimensão 23",
+                        Text = "Script carregado com sucesso!",
+                        Duration = 3
+                    })
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Erro",
+                        Text = "Falha ao carregar o script da Dimensão 23: " .. tostring(err),
+                        Duration = 5
+                    })
+                end
+            end)
         end
     })
 
@@ -2260,8 +2537,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Project Sor",
-    Text = "Carregado! Aba 23 disponível.",
+    Text = "Carregado! Aba 23 adicionada e Boss corrigido.",
     Duration = 3
 })
 
-print("Project Sor carregado. Aba 23 disponível para carregar a Dimensão 23.")
+print("Project Sor carregado. Aba 23 adicionada e Boss corrigido.")
