@@ -1,293 +1,338 @@
--- Script simplificado com interface funcional
+-- Carregar a interface WindUI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- Criar a janela principal
+local Window = WindUI:CreateWindow({
+    Title = "🌟 Sor_UmPlayer HUB 🌟",
+    Icon = "Hi",
+    Author = "made by Sor_Gostoso",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(460, 260),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    Background = "",
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+})
+
+-- Serviços
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 local Clipboard = game:GetService("Clipboard")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Criar UI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FarmUI"
-ScreenGui.Parent = LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+-- Variáveis globais
+local npcTable = {}          -- Tabela com todos os NPCs escaneados: { [path] = {npc, name, path, health} }
+local selectedNPC = nil      -- NPC atualmente selecionado (objeto)
+local highlightInstance = nil -- Instância de Highlight aplicada
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 400, 0, 450)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MainFrame.BorderSizePixel = 0
-MainFrame.Parent = ScreenGui
+-- Função para escanear NPCs no Workspace
+local function scanNPCs()
+    npcTable = {}
+    local npcList = {}
 
--- Título
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundTransparency = 1
-Title.Text = "Farm Interface"
-Title.TextColor3 = Color3.new(1,1,1)
-Title.TextSize = 20
-Title.Font = Enum.Font.SourceSansBold
-Title.Parent = MainFrame
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+            local humanoid = obj.Humanoid
+            if humanoid.Health > 0 then
+                local path = getPath(obj) -- função para obter o caminho
+                local name = obj.Name
+                local health = humanoid.Health
+                local maxHealth = humanoid.MaxHealth
+                local healthPercent = math.floor((health / maxHealth) * 100)
+                npcTable[path] = {
+                    npc = obj,
+                    name = name,
+                    path = path,
+                    health = healthPercent
+                }
+                table.insert(npcList, {path = path, display = name .. " (HP: " .. healthPercent .. "%)"})
+            end
+        end
+    end
 
--- Função para criar seções
-local function CreateSection(parent, title, y)
-    local sec = Instance.new("Frame")
-    sec.Size = UDim2.new(1, -10, 0, 80)
-    sec.Position = UDim2.new(0, 5, 0, y)
-    sec.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    sec.BackgroundTransparency = 0.3
-    sec.BorderSizePixel = 0
-    sec.Parent = parent
-
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1,0,0,20)
-    lbl.Position = UDim2.new(0,0,0,0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = title
-    lbl.TextColor3 = Color3.new(0.8,0.8,0.8)
-    lbl.TextSize = 14
-    lbl.Font = Enum.Font.SourceSansBold
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = sec
-    return sec
+    -- Atualizar os dropdowns
+    updateDropdowns(npcList)
 end
 
--- Seção Teleporte
-local teleSec = CreateSection(MainFrame, "Teleporte", 35)
-local nomeBox = Instance.new("TextBox")
-nomeBox.Size = UDim2.new(0, 150, 0, 25)
-nomeBox.Position = UDim2.new(0, 70, 0, 22)
-nomeBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
-nomeBox.TextColor3 = Color3.new(1,1,1)
-nomeBox.TextSize = 14
-nomeBox.PlaceholderText = "Nome do NPC"
-nomeBox.Text = ""
-nomeBox.Parent = teleSec
+-- Função auxiliar para obter o caminho completo de um objeto
+local function getPath(obj)
+    local path = ""
+    local current = obj
+    while current ~= workspace do
+        if current.Parent then
+            path = current.Name .. "." .. path
+            current = current.Parent
+        else
+            break
+        end
+    end
+    path = "workspace." .. path
+    return path:sub(1, #path - 1) -- remove último ponto
+end
 
-local teleBtn = Instance.new("TextButton")
-teleBtn.Size = UDim2.new(0, 100, 0, 25)
-teleBtn.Position = UDim2.new(0, 230, 0, 22)
-teleBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-teleBtn.Text = "Teleportar"
-teleBtn.TextColor3 = Color3.new(1,1,1)
-teleBtn.TextSize = 14
-teleBtn.Parent = teleSec
-teleBtn.MouseButton1Click:Connect(function()
-    local name = nomeBox.Text
-    if name == "" then return end
-    for _, npc in pairs(workspace:GetDescendants()) do
-        if npc:IsA("Model") and npc.Name == name and npc:FindFirstChild("Humanoid") then
-            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-            if hrp and LocalPlayer.Character then
-                LocalPlayer.Character:SetPrimaryPartCFrame(hrp.CFrame + Vector3.new(0,2,0))
+-- Função para atualizar ambos os dropdowns
+function updateDropdowns(npcList)
+    -- Preparar itens para dropdown de Config (nome + HP)
+    local configItems = {}
+    local pastaItems = {}
+    for _, info in ipairs(npcList) do
+        table.insert(configItems, info.display)
+        table.insert(pastaItems, info.path)
+    end
+
+    -- Atualizar dropdown de Config
+    if configDropdown then
+        configDropdown:SetItems(configItems)
+        if #configItems > 0 then
+            configDropdown:SetSelectedIndex(1)
+        end
+    end
+
+    -- Atualizar dropdown de Pasta
+    if pastaDropdown then
+        pastaDropdown:SetItems(pastaItems)
+        if #pastaItems > 0 then
+            pastaDropdown:SetSelectedIndex(1)
+        end
+    end
+end
+
+-- Função para selecionar um NPC pelo caminho
+function selectNPCByPath(path)
+    if npcTable[path] then
+        selectedNPC = npcTable[path].npc
+        highlightNPC(selectedNPC)
+        return true
+    end
+    return false
+end
+
+-- Função para destacar o NPC (chams verde)
+function highlightNPC(npc)
+    -- Remover highlight anterior
+    if highlightInstance then
+        highlightInstance:Destroy()
+        highlightInstance = nil
+    end
+
+    if npc and npc:FindFirstChild("HumanoidRootPart") then
+        highlightInstance = Instance.new("Highlight")
+        highlightInstance.FillColor = Color3.new(0, 1, 0) -- verde
+        highlightInstance.FillTransparency = 0.5
+        highlightInstance.OutlineColor = Color3.new(0, 1, 0)
+        highlightInstance.OutlineTransparency = 0.2
+        highlightInstance.Adornee = npc
+        highlightInstance.Parent = npc
+    end
+end
+
+-- Função para teleportar até um NPC pelo nome
+function teleportToNPC(npcName)
+    for path, data in pairs(npcTable) do
+        if data.name:lower() == npcName:lower() then
+            local target = data.npc
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local pos = target.HumanoidRootPart.Position
+                if humanoidRootPart then
+                    humanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ===================== Criação da Interface =====================
+
+-- Aba Farm
+local farmTab = Window:CreateTab({
+    Title = "Farm",
+    Icon = "🌾"
+})
+
+-- Categoria Teleporte
+local teleportCategory = farmTab:CreateCategory({
+    Title = "Teleporte"
+})
+
+-- Campo de texto para nome do NPC
+local npcNameBox = teleportCategory:CreateTextbox({
+    Title = "Escreva nome do NPC",
+    Placeholder = "Ex: Boss",
+    Default = "",
+    Callback = function(text)
+        -- Não faz nada automaticamente, apenas armazena
+    end
+})
+
+-- Botão de Teleportar
+teleportCategory:CreateButton({
+    Title = "Teleportar",
+    Icon = "🚀",
+    Callback = function()
+        local name = npcNameBox:GetValue()
+        if name and name ~= "" then
+            if teleportToNPC(name) then
+                -- Notificação de sucesso
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Teleporte",
+                    Text = "Teleportado para " .. name,
+                    Duration = 3
+                })
+            else
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "NPC não encontrado!",
+                    Duration = 3
+                })
+            end
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Aviso",
+                Text = "Digite o nome do NPC!",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Aba Config
+local configTab = Window:CreateTab({
+    Title = "Config",
+    Icon = "⚙️"
+})
+
+-- Categoria Config
+local configCategory = configTab:CreateCategory({
+    Title = "Config"
+})
+
+-- Botão Scannear
+configCategory:CreateButton({
+    Title = "Scannear",
+    Icon = "🔍",
+    Callback = function()
+        scanNPCs()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Scan",
+            Text = "NPCs escaneados: " .. #npcTable,
+            Duration = 3
+        })
+    end
+})
+
+-- Dropdown para NPCs próximos (com barra de vida)
+local configDropdown = configCategory:CreateDropdown({
+    Title = "Todos NPC próximo de mim",
+    Items = {}, -- será preenchido pelo scan
+    DefaultIndex = 1,
+    Callback = function(item, index)
+        -- O item é a string exibida (ex: "Boss (HP: 80%)")
+        -- Precisamos extrair o caminho a partir do display
+        for path, data in pairs(npcTable) do
+            if data.name .. " (HP: " .. data.health .. "%)" == item then
+                selectNPCByPath(path)
                 break
             end
         end
     end
-end)
+})
 
--- Seção Config
-local configSec = CreateSection(MainFrame, "Config", 125)
-local scanBtn = Instance.new("TextButton")
-scanBtn.Size = UDim2.new(0, 100, 0, 25)
-scanBtn.Position = UDim2.new(0, 5, 0, 22)
-scanBtn.BackgroundColor3 = Color3.fromRGB(0,100,200)
-scanBtn.Text = "Scannear"
-scanBtn.TextColor3 = Color3.new(1,1,1)
-scanBtn.TextSize = 14
-scanBtn.Parent = configSec
-
--- Dropdown (simples com lista)
-local selectedNPC = nil
-local npcList = {}
-local dropBtn = Instance.new("TextButton")
-dropBtn.Size = UDim2.new(0, 180, 0, 25)
-dropBtn.Position = UDim2.new(0, 110, 0, 22)
-dropBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-dropBtn.Text = "Nenhum"
-dropBtn.TextColor3 = Color3.new(1,1,1)
-dropBtn.TextSize = 14
-dropBtn.Parent = configSec
-
-local dropFrame = Instance.new("Frame")
-dropFrame.Size = UDim2.new(0, 180, 0, 100)
-dropFrame.Position = UDim2.new(0, 110, 0, 47)
-dropFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-dropFrame.Visible = false
-dropFrame.Parent = configSec
-
-local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1,0,1,0)
-scroll.BackgroundTransparency = 1
-scroll.CanvasSize = UDim2.new(0,0,0,0)
-scroll.Parent = dropFrame
-
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0,2)
-layout.Parent = scroll
-
-dropBtn.MouseButton1Click:Connect(function()
-    dropFrame.Visible = not dropFrame.Visible
-end)
-
--- Função para popular dropdown
-local function PopulateDropdown(npcs)
-    for _, child in pairs(scroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    for _, npc in pairs(npcs) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1,0,0,25)
-        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-        local humanoid = npc:FindFirstChild("Humanoid")
-        local hp = humanoid and math.floor(humanoid.Health) or "?"
-        btn.Text = npc.Name .. " (HP: " .. hp .. ")"
-        btn.TextColor3 = Color3.new(1,1,1)
-        btn.TextSize = 13
-        btn.Parent = scroll
-        btn.MouseButton1Click:Connect(function()
-            selectedNPC = npc
-            dropBtn.Text = npc.Name .. " (HP: " .. hp .. ")"
-            dropFrame.Visible = false
-            -- Highlight verde
-            for _, h in pairs(workspace:GetDescendants()) do
-                if h:IsA("Highlight") and h.Name == "FarmHL" then h:Destroy() end
-            end
-            local hl = Instance.new("Highlight")
-            hl.Name = "FarmHL"
-            hl.Adornee = npc
-            hl.FillColor = Color3.fromRGB(0,255,0)
-            hl.FillTransparency = 0.5
-            hl.Parent = npc
-        end)
-    end
-    scroll.CanvasSize = UDim2.new(0,0,0, #npcs * 27)
-end
-
-scanBtn.MouseButton1Click:Connect(function()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    npcList = {}
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-            local hrp = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
-            if hrp and (hrp.Position - root.Position).Magnitude <= 50 then
-                table.insert(npcList, obj)
-            end
+-- Botão copiar nome do NPC
+configCategory:CreateButton({
+    Title = "Copiar apenas nome do NPC",
+    Icon = "📋",
+    Callback = function()
+        if selectedNPC then
+            local name = selectedNPC.Name
+            Clipboard:SetAsync(name)
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Copiado",
+                Text = "Nome copiado: " .. name,
+                Duration = 2
+            })
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Nenhum NPC selecionado!",
+                Duration = 2
+            })
         end
     end
-    PopulateDropdown(npcList)
-end)
+})
 
--- Copiar nome
-local copyNameBtn = Instance.new("TextButton")
-copyNameBtn.Size = UDim2.new(0, 100, 0, 25)
-copyNameBtn.Position = UDim2.new(0, 295, 0, 22)
-copyNameBtn.BackgroundColor3 = Color3.fromRGB(200,100,0)
-copyNameBtn.Text = "Copiar Nome"
-copyNameBtn.TextColor3 = Color3.new(1,1,1)
-copyNameBtn.TextSize = 14
-copyNameBtn.Parent = configSec
-copyNameBtn.MouseButton1Click:Connect(function()
-    if selectedNPC then
-        Clipboard:SetAsync(selectedNPC.Name)
-        print("Nome copiado: " .. selectedNPC.Name)
+-- Categoria Pasta
+local pastaCategory = configTab:CreateCategory({
+    Title = "Pasta"
+})
+
+-- Dropdown para localização da pasta do NPC
+local pastaDropdown = pastaCategory:CreateDropdown({
+    Title = "Localização da pasta do NPC",
+    Items = {}, -- preenchido pelo scan
+    DefaultIndex = 1,
+    Callback = function(item, index)
+        -- O item é o caminho (ex: "workspace.Enemy.Boss")
+        if selectNPCByPath(item) then
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Selecionado",
+                Text = "NPC destacado em verde!",
+                Duration = 2
+            })
+        end
     end
-end)
+})
 
--- Seção Pasta
-local pastaSec = CreateSection(MainFrame, "Pasta", 215)
-local pastaDropBtn = Instance.new("TextButton")
-pastaDropBtn.Size = UDim2.new(0, 180, 0, 25)
-pastaDropBtn.Position = UDim2.new(0, 5, 0, 22)
-pastaDropBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-pastaDropBtn.Text = "Selecione"
-pastaDropBtn.TextColor3 = Color3.new(1,1,1)
-pastaDropBtn.TextSize = 14
-pastaDropBtn.Parent = pastaSec
-
-local pastaDropFrame = Instance.new("Frame")
-pastaDropFrame.Size = UDim2.new(0, 180, 0, 100)
-pastaDropFrame.Position = UDim2.new(0, 5, 0, 47)
-pastaDropFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-pastaDropFrame.Visible = false
-pastaDropFrame.Parent = pastaSec
-
-local pastaScroll = Instance.new("ScrollingFrame")
-pastaScroll.Size = UDim2.new(1,0,1,0)
-pastaScroll.BackgroundTransparency = 1
-pastaScroll.CanvasSize = UDim2.new(0,0,0,0)
-pastaScroll.Parent = pastaDropFrame
-
-local pastaLayout = Instance.new("UIListLayout")
-pastaLayout.Padding = UDim.new(0,2)
-pastaLayout.Parent = pastaScroll
-
-local selectedPasta = ""
-
-pastaDropBtn.MouseButton1Click:Connect(function()
-    pastaDropFrame.Visible = not pastaDropFrame.Visible
-end)
-
--- Popular pasta dropdown (usando os NPCs escaneados)
-local function PopulatePasta(npcs)
-    for _, child in pairs(pastaScroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    for _, npc in pairs(npcs) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1,0,0,25)
-        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-        btn.Text = npc.Name
-        btn.TextColor3 = Color3.new(1,1,1)
-        btn.TextSize = 13
-        btn.Parent = pastaScroll
-        btn.MouseButton1Click:Connect(function()
-            local path = "workspace." .. npc:GetFullName():gsub(" ", ".")
-            selectedPasta = path
-            pastaDropBtn.Text = path
-            pastaDropFrame.Visible = false
-            -- Highlight também
-            for _, h in pairs(workspace:GetDescendants()) do
-                if h:IsA("Highlight") and h.Name == "FarmHL" then h:Destroy() end
+-- Botão copiar Pasta (caminho completo)
+pastaCategory:CreateButton({
+    Title = "Copiar Pasta",
+    Icon = "📂",
+    Callback = function()
+        if selectedNPC then
+            local path = ""
+            for p, data in pairs(npcTable) do
+                if data.npc == selectedNPC then
+                    path = p
+                    break
+                end
             end
-            local hl = Instance.new("Highlight")
-            hl.Name = "FarmHL"
-            hl.Adornee = npc
-            hl.FillColor = Color3.fromRGB(0,255,0)
-            hl.FillTransparency = 0.5
-            hl.Parent = npc
-        end)
+            if path ~= "" then
+                Clipboard:SetAsync(path)
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Copiado",
+                    Text = "Caminho copiado: " .. path,
+                    Duration = 3
+                })
+            else
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Caminho não encontrado!",
+                    Duration = 2
+                })
+            end
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Nenhum NPC selecionado!",
+                Duration = 2
+            })
+        end
     end
-    pastaScroll.CanvasSize = UDim2.new(0,0,0, #npcs * 27)
-end
+})
 
--- Atualizar pasta quando escanear
-local oldScan2 = scanBtn.MouseButton1Click
-scanBtn.MouseButton1Click:Connect(function()
-    -- já atualiza npcList no scan anterior, então só popular
-    PopulatePasta(npcList)
-end)
+-- Escaneia automaticamente ao iniciar
+scanNPCs()
 
--- Copiar pasta
-local copyPastaBtn = Instance.new("TextButton")
-copyPastaBtn.Size = UDim2.new(0, 100, 0, 25)
-copyPastaBtn.Position = UDim2.new(0, 190, 0, 22)
-copyPastaBtn.BackgroundColor3 = Color3.fromRGB(200,100,0)
-copyPastaBtn.Text = "Copiar Pasta"
-copyPastaBtn.TextColor3 = Color3.new(1,1,1)
-copyPastaBtn.TextSize = 14
-copyPastaBtn.Parent = pastaSec
-copyPastaBtn.MouseButton1Click:Connect(function()
-    if selectedPasta ~= "" then
-        Clipboard:SetAsync(selectedPasta)
-        print("Pasta copiada: " .. selectedPasta)
-    end
-end)
-
--- Fechar dropdowns clicando fora
-MainFrame.MouseButton1Down:Connect(function()
-    dropFrame.Visible = false
-    pastaDropFrame.Visible = false
-end)
-
-print("FarmUI carregada com sucesso!")
+-- Notificação de boas-vindas
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Sor_UmPlayer Hub",
+    Text = "Bem-vindo, jogador!",
+    Duration = 5
+})
