@@ -1,288 +1,608 @@
--- Carregar WindUI
+
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
--- Criar a janela principal
 local Window = WindUI:CreateWindow({
-    Title = "🌟 Farm Hub 🌟",
+    Title = "Sor_UmPlayer Hub",
     Icon = "Hi",
-    Author = "SeuNome",
-    Folder = "FarmHub",
-    Size = UDim2.fromOffset(500, 350),
+    Author = "made by Sor_Gostoso",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(460, 260),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
     SideBarWidth = 200,
+    Background = "", -- rbxassetid only
+    BackgroundImageTransparency = 0.42,
     HideSearchBar = true,
     ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = false,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+    KeySystem = { -- <- ↓ remove this all, if you dont neet the key system
+        Key = { "1", "SOR" },
+        Note = "Key: SOR",
+        Thumbnail = {
+            Image = "rbxassetid://",
+            Title = "HI",
+        },
+        URL = "Sor",
+        SaveKey = nil,
+    },
 })
 
--- Criar a aba "Farm"
+-----------point_down é igual ao selection apenas copie e coloque no seu Hub com o nome que quiser
+
 local Tab = Window:Tab({
-    Title = "Farm",
+    Title = "Main",
     Icon = "",
     Locked = false,
 })
 
--- Variáveis globais
-local npcList = {}  -- tabela com todos os NPCs escaneados
-local selectedConfigNPC = nil  -- NPC selecionado no dropdown Config
-local selectedPastaNPC = nil   -- NPC selecionado no dropdown Pasta
-local highlightObj = nil       -- instância de Highlight aplicada
+--- Categorias ---
 
--- Função para obter o caminho completo de um objeto
-local function getFullPath(obj)
-    local path = obj.Name
-    local parent = obj.Parent
-    while parent and parent ~= workspace do
-        path = parent.Name .. "." .. path
-        parent = parent.Parent
-    end
-    if parent == workspace then
-        path = "workspace." .. path
-    end
-    return path
-end
-
--- Função para escanear NPCs próximos
-local function scanNPCs()
-    npcList = {}
-    local player = game.Players.LocalPlayer
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        warn("Personagem não encontrado.")
-        return
-    end
-    local playerPos = player.Character.HumanoidRootPart.Position
-    local range = 100  -- distância máxima para considerar "próximo"
-
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-            local humanoid = obj.Humanoid
-            local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
-            if rootPart then
-                local dist = (playerPos - rootPart.Position).Magnitude
-                if dist <= range then
-                    table.insert(npcList, {
-                        Object = obj,
-                        Name = obj.Name,
-                        Path = getFullPath(obj),
-                        Health = humanoid.Health,
-                        MaxHealth = humanoid.MaxHealth
-                    })
-                end
-            end
-        end
-    end
-
-    -- Ordenar por distância (opcional)
-    table.sort(npcList, function(a, b)
-        local distA = (playerPos - (a.Object:FindFirstChild("HumanoidRootPart") and a.Object.HumanoidRootPart.Position or a.Object.PrimaryPart.Position)).Magnitude
-        local distB = (playerPos - (b.Object:FindFirstChild("HumanoidRootPart") and b.Object.HumanoidRootPart.Position or b.Object.PrimaryPart.Position)).Magnitude
-        return distA < distB
-    end)
-
-    return npcList
-end
-
--- Função para atualizar os dropdowns com a lista de NPCs
-local function updateDropdowns()
-    -- Construir lista de strings para o dropdown Config (com saúde)
-    local configValues = {}
-    local configDisplayMap = {}  -- mapeia string -> NPC data
-    for _, npc in ipairs(npcList) do
-        local healthStr = string.format("%.0f/%.0f", npc.Health, npc.MaxHealth)
-        local display = string.format("%s - Health: %s", npc.Name, healthStr)
-        table.insert(configValues, display)
-        configDisplayMap[display] = npc
-    end
-
-    -- Atualizar dropdown Config
-    if dropdownConfig then
-        dropdownConfig:SetValues(configValues)
-        dropdownConfig:SetValue("")  -- limpar seleção
-    end
-
-    -- Construir lista para o dropdown Pasta (apenas nomes)
-    local pastaValues = {}
-    local pastaDisplayMap = {}
-    for _, npc in ipairs(npcList) do
-        local display = npc.Name
-        table.insert(pastaValues, display)
-        pastaDisplayMap[display] = npc
-    end
-
-    -- Atualizar dropdown Pasta
-    if dropdownPasta then
-        dropdownPasta:SetValues(pastaValues)
-        dropdownPasta:SetValue("")
-    end
-
-    -- Armazenar os maps para uso nos callbacks
-    _G.configDisplayMap = configDisplayMap
-    _G.pastaDisplayMap = pastaDisplayMap
-end
-
--- Função para aplicar highlight (chams verde) em um NPC
-local function applyHighlight(npc)
-    -- Remover highlight anterior
-    if highlightObj then
-        highlightObj:Destroy()
-        highlightObj = nil
-    end
-
-    if not npc then return end
-
-    -- Criar novo Highlight
-    highlightObj = Instance.new("Highlight")
-    highlightObj.Adornee = npc.Object
-    highlightObj.FillColor = Color3.fromRGB(0, 255, 0)  -- verde
-    highlightObj.FillTransparency = 0.5
-    highlightObj.OutlineColor = Color3.fromRGB(0, 255, 0)
-    highlightObj.OutlineTransparency = 0
-    highlightObj.Parent = npc.Object
-end
-
--- ====================================================
--- Seção: Teleporte
--- ====================================================
-local SectionTeleporte = Tab:Section({
-    Title = "Teleporte",
+local Section = Tab:Section({ 
+    Title = "Main",
     TextXAlignment = "Left",
-    TextSize = 17,
+    TextSize = 17, -- Default Size
 })
 
--- Input para digitar o nome do NPC (se WindUI tiver Input)
-local inputNPC = Tab:Input({
-    Title = "Nome do NPC",
-    Placeholder = "Digite o nome...",
-    Default = "",
-    Callback = function(text)
-        -- Aqui você pode implementar a lógica de teleporte para o NPC com esse nome
-        print("Teleportar para: " .. text)
-        -- Exemplo: procurar NPC com nome e teleportar
-        for _, npc in ipairs(npcList) do
-            if npc.Name == text then
-                local root = npc.Object:FindFirstChild("HumanoidRootPart")
-                if root then
-                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = root.CFrame * CFrame.new(0, 2, 3)
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Auto Click",
+    Desc = "Auto Click Booster",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("SwingSaber"):FireServer()
+                    
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(0.001) -- tempo de espera entre repetições
                 end
-                break
+            end)
+        end
+    end
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Auto Sell",
+    Desc = "Exchange Forces for Coins",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("SellStrength"):FireServer()
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+local Section = Tab:Section({ 
+    Title = "Gift",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Gift Collection",
+    Desc = "DAILY REWARDS",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+local args = {
+	"ClaimDailyTimedReward"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
+
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+local Section = Tab:Section({ 
+    Title = "SHOP",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "SWORD",
+    Desc = "Buy All Sword",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+local args = {
+	"BuyAllWeapons"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "DNA",
+    Desc = "Buy All DNA ",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+local args = {
+	"BuyAllDNAs"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+local Section = Tab:Section({ 
+    Title = "Trades",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Trade All",
+    Desc = "Send Trade to Everyone on the Server",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+local args = {
+	"RequestTradeWithPlayer",
+	game:GetService("Players"):WaitForChild("FAstnodf")
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+---- Categoria de Bosses ----
+local Tab = Window:Tab({
+    Title = "Boss/Elements",
+    Icon = "",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "Boss",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Boss",
+    Desc = "BossHolder",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        -- Configurável
+        local HITBOX_SIZE = Vector3.new(40, 100, 100) -- tamanho da hitbox do boss
+
+        local plr  = game.Players.LocalPlayer
+        local char = plr.Character or plr.CharacterAdded:Wait()
+        local hrp  = char:WaitForChild("HumanoidRootPart")
+
+        local gp         = workspace:FindFirstChild("Gameplay")
+        local bossModel  = gp and gp:FindFirstChild("Boss")
+        local arenaBase  = bossModel and bossModel:FindFirstChild("ArenaBase")
+        local bossHolder = bossModel and bossModel:FindFirstChild("BossHolder")
+
+        if state then
+            -- Teleportar apenas uma vez
+            if arenaBase and arenaBase:IsA("BasePart") then
+                hrp.CFrame = arenaBase.CFrame + Vector3.new(0, 5, 0)
+            else
+                warn("ArenaBase não encontrada em workspace.Gameplay.Boss.ArenaBase")
+            end
+
+            -- Aumentar hitbox apenas uma vez
+            if bossHolder then
+                for _, part in ipairs(bossHolder:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Size = HITBOX_SIZE
+                        part.CanCollide = false
+                        part.Transparency = 1
+                        part.Massless = true
+                    end
+                end
+            else
+                warn("BossHolder não encontrado em workspace.Gameplay.Boss.BossHolder")
+            end
+        else
+            -- Quando desligar, restaurar hitbox (se quiser)
+            if bossHolder then
+                for _, part in ipairs(bossHolder:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Size = Vector3.new(10,10,10) -- tamanho padrão (ajuste se souber o original)
+                        part.CanCollide = true
+                        part.Transparency = 0
+                        part.Massless = false
+                    end
+                end
             end
         end
     end
 })
 
--- ====================================================
--- Seção: Config
--- ====================================================
-local SectionConfig = Tab:Section({
+---- Categoria de Bosses ----
+local Tab = Window:Tab({
+    Title = "CROWN",
+    Icon = "",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "test",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "Toggle",
+    Desc = "Toggle Description",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    -- ⬇ Seu código vai aqui
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+---- Categoria de Bosses ---
+
+local Section = Tab:Section({ 
+    Title = "Crown",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local rodando = false
+
+-- Serviço e Config
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local MAGNET_RADIUS = 9999
+local ARRIVE_OFFSET = Vector3.new(0, 1.5, 0)
+local HOLDER_PATH = {"Gameplay", "CurrencyPickup", "CurrencyHolder"}
+
+-- Cria chave global de controle
+local toggle = ReplicatedStorage:FindFirstChild("CrownMagnetEnabled")
+if not toggle then
+    toggle = Instance.new("BoolValue")
+    toggle.Name = "CrownMagnetEnabled"
+    toggle.Value = false
+    toggle.Parent = ReplicatedStorage
+end
+
+-- Função util para achar caminho
+local function waitPath(root, names)
+    local obj = root
+    for _, name in ipairs(names) do
+        obj = obj:WaitForChild(name)
+    end
+    return obj
+end
+
+-- Player e HRP
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+player.CharacterAdded:Connect(function(char)
+    character = char
+    hrp = character:WaitForChild("HumanoidRootPart")
+end)
+
+local holder = waitPath(workspace, HOLDER_PATH)
+
+-- Controle de puxada
+local pulling = {} :: {[Instance]: boolean}
+
+local function getRoot(partOrModel: Instance): BasePart?
+    if partOrModel:IsA("BasePart") then
+        return partOrModel
+    elseif partOrModel:IsA("Model") then
+        return partOrModel.PrimaryPart or partOrModel:FindFirstChildWhichIsA("BasePart")
+    end
+    return nil
+end
+
+local function isCrown(inst: Instance): boolean
+    return inst.Name == "Crown"
+end
+
+-- Teleportar coroa
+local function teleportToYou(crownInst: Instance)
+    if not hrp or not hrp.Parent then return end
+    if pulling[crownInst] then return end
+
+    local root = getRoot(crownInst)
+    if not root or not root:IsDescendantOf(workspace) then return end
+
+    pulling[crownInst] = true
+    pcall(function() root.Anchored = false end)
+
+    root.CFrame = CFrame.new(hrp.Position + ARRIVE_OFFSET)
+
+    task.delay(0.1, function()
+        pulling[crownInst] = nil
+    end)
+end
+
+-- Puxar coroa
+local function tryPull(inst: Instance)
+    if not toggle.Value then return end
+    if not isCrown(inst) then return end
+    local root = getRoot(inst)
+    if root and (root.Position - hrp.Position).Magnitude <= MAGNET_RADIUS then
+        teleportToYou(inst)
+    end
+end
+
+-- Eventos (criados uma vez só)
+holder.ChildAdded:Connect(function(child)
+    task.wait(0.05)
+    tryPull(child)
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not toggle.Value then return end
+    for _, crown in ipairs(holder:GetChildren()) do
+        if isCrown(crown) and not pulling[crown] then
+            local root = getRoot(crown)
+            if root and (root.Position - hrp.Position).Magnitude <= MAGNET_RADIUS then
+                teleportToYou(crown)
+            end
+        end
+    end
+end)
+
+toggle.Changed:Connect(function(val)
+    if toggle.Value then
+        for _, crown in ipairs(holder:GetChildren()) do
+            tryPull(crown)
+        end
+    end
+end)
+
+-- Toggle do seu UI
+local Toggle = Tab:Toggle({
+    Title = "Crown Collection",
+    Desc = "Collect All Crowns on the Map",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        rodando = state
+        toggle.Value = state -- controla tudo só por aqui
+        print("Toggle Activated: " .. tostring(state))
+    end
+})
+
+local rodando = false
+
+local Toggle = Tab:Toggle({
+    Title = "collected StudBrick",
+    Desc = "Collect all StudBricks on the map",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state) 
+        rodando = state
+        print("Toggle Activated: " .. tostring(state))
+
+        if state then
+            task.spawn(function()
+                while rodando do
+                    
+-- Função para pegar objetos mesmo fora do workspace
+function getNil(name, class)
+    for _, v in next, getnilinstances() do
+        if v.ClassName == class and v.Name == name then 
+            return v 
+        end
+    end
+end
+
+-- Função para achar todos StudBrick no jogo
+local function getAllStudBricks()
+    local studs = {}
+
+    -- Procurar no workspace
+    for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+        if v:IsA("Part") and v.Name == "StudBrick" then
+            table.insert(studs, v)
+        end
+    end
+
+    -- Procurar nos objetos nil
+    for _, v in next, getnilinstances() do
+        if v:IsA("Part") and v.Name == "StudBrick" then
+            table.insert(studs, v)
+        end
+    end
+
+    return studs
+end
+
+-- Pega a HumanoidRootPart (barriga do boneco)
+local player = game.Players.LocalPlayer
+local root = player.Character:WaitForChild("HumanoidRootPart")
+
+-- Coleta todos StudBricks existentes UMA VEZ
+local studs = getAllStudBricks()
+for _, stud in pairs(studs) do
+    if stud and stud:IsDescendantOf(game) then
+        -- Teleporta o StudBrick pra barriga do boneco
+        stud.CFrame = root.CFrame * CFrame.new(0,0,-1)
+
+        -- Dispara o evento de coleta
+        local args = {
+            [1] = {
+                [1] = stud
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("CollectCurrencyPickup"):FireServer(unpack(args))
+    end
+end
+
+                    print("Meu código está rodando em loop infinito!")
+
+                    task.wait(1) -- tempo de espera entre repetições
+                end
+            end)
+        end
+    end
+})
+
+---- Categoria de Teleportes ----
+local Tab = Window:Tab({
+    Title = "Teleport",
+    Icon = "",
+    Locked = false,
+})
+
+---- Categoria de Bosses ----
+local Tab = Window:Tab({
+    Title = "MISC",
+    Icon = "",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
     Title = "Config",
     TextXAlignment = "Left",
-    TextSize = 17,
+    TextSize = 17, -- Default Size
 })
 
--- Botão Scannear
-local btnScan = Tab:Button({
-    Title = "Scannear",
-    Desc = "Escaneia NPCs próximos e atualiza as listas",
+local Button = Tab:Button({
+    Title = "Remove Notifications",
+    Desc = "Remove all Notifications",
     Locked = false,
     Callback = function()
-        scanNPCs()
-        updateDropdowns()
-        print("NPCs escaneados: " .. #npcList)
+
+local args = {
+    [1] = "ChangeSetting",
+    [2] = "Popups"
+}
+
+game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
+
+        print("clicked")
     end
 })
 
--- Dropdown Config (com saúde)
-local dropdownConfig = Tab:Dropdown({
-    Title = "NPCs próximos (com vida)",
-    Values = {},  -- será preenchido após scan
-    Callback = function(value)
-        if value and value ~= "" then
-            local map = _G.configDisplayMap
-            if map and map[value] then
-                selectedConfigNPC = map[value]
-                print("NPC selecionado (Config): " .. selectedConfigNPC.Name)
-            end
-        else
-            selectedConfigNPC = nil
-        end
-    end
-})
 
--- Botão copiar nome
-local btnCopyName = Tab:Button({
-    Title = "Copiar apenas nome do NPC",
-    Desc = "Copia o nome do NPC selecionado no dropdown acima",
-    Locked = false,
-    Callback = function()
-        if selectedConfigNPC then
-            local clipboard = game:GetService("Clipboard")
-            clipboard:set(selectedConfigNPC.Name)
-            print("Nome copiado: " .. selectedConfigNPC.Name)
-        else
-            warn("Nenhum NPC selecionado.")
-        end
-    end
-})
 
--- ====================================================
--- Seção: Pasta
--- ====================================================
-local SectionPasta = Tab:Section({
-    Title = "Pasta",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
 
--- Dropdown Pasta (apenas nomes)
-local dropdownPasta = Tab:Dropdown({
-    Title = "Selecione o NPC para destacar",
-    Values = {},
-    Callback = function(value)
-        if value and value ~= "" then
-            local map = _G.pastaDisplayMap
-            if map and map[value] then
-                selectedPastaNPC = map[value]
-                applyHighlight(selectedPastaNPC)
-                print("NPC selecionado (Pasta): " .. selectedPastaNPC.Name)
-            end
-        else
-            selectedPastaNPC = nil
-            if highlightObj then
-                highlightObj:Destroy()
-                highlightObj = nil
-            end
-        end
-    end
-})
 
--- Botão copiar pasta (caminho completo)
-local btnCopyPath = Tab:Button({
-    Title = "Copiar Pasta",
-    Desc = "Copia o caminho completo do NPC selecionado",
-    Locked = false,
-    Callback = function()
-        if selectedPastaNPC then
-            local clipboard = game:GetService("Clipboard")
-            clipboard:set(selectedPastaNPC.Path)
-            print("Caminho copiado: " .. selectedPastaNPC.Path)
-        else
-            warn("Nenhum NPC selecionado.")
-        end
-    end
-})
-
--- ====================================================
--- Inicialização: escaneia automaticamente ao abrir
--- ====================================================
-task.wait(0.5)  -- aguarda carregamento
-scanNPCs()
-updateDropdowns()
-
--- Mensagem de boas-vindas
-local StarterGui = game:GetService("StarterGui")
-StarterGui:SetCore("SendNotification", {
-    Title = "Farm Hub",
-    Text = "Clique em 'Scannear' para listar NPCs próximos.",
-    Duration = 3
-})
