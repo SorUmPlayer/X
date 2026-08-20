@@ -1,113 +1,147 @@
--- ============================================================
--- 1. SERVER SCRIPT – Coloque em ServerScriptService
--- ============================================================
---[[
-   Este script cria o RemoteEvent e gerencia o teleporte.
-   Também cria a GUI para cada jogador que entrar (opcional).
-   Mas a GUI é mais fácil de criar no cliente, então faremos no cliente.
-   Apenas o servidor lida com a lógica de teleporte.
---]]
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
--- Cria o RemoteEvent se não existir
-local remoteEvent = ReplicatedStorage:FindFirstChild("TeleportToPrompts")
-if not remoteEvent then
-	remoteEvent = Instance.new("RemoteEvent")
-	remoteEvent.Name = "TeleportToPrompts"
-	remoteEvent.Parent = ReplicatedStorage
-end
+local LocalPlayer = Players.LocalPlayer
 
--- Função que retorna os prompts do jogador
-local function getPlayerPrompts(player)
-	local prompts = {}
-	local character = player.Character
-	if not character then return prompts end
+-- 1. Criação da Interface Flutuante (Button Voado)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TycoonCollectorUI"
+-- Tenta colocar no CoreGui para fugir de detecções, se não conseguir, vai pro PlayerGui
+ScreenGui.Parent = (CoreGui:FindFirstChild("RobloxGui") and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
 
-	-- Percorre todos os ProximityPrompt do workspace
-	for _, prompt in ipairs(workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			local parent = prompt.Parent
-			-- Verifica se o pai é uma BasePart e tem o atributo "Owner" = nome do jogador
-			if parent and parent:IsA("BasePart") and parent:GetAttribute("Owner") == player.Name then
-				table.insert(prompts, prompt)
-			end
-		end
-	end
-	return prompts
-end
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 160, 0, 45)
+MainFrame.Position = UDim2.new(0.5, -80, 0.1, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
 
--- Evento disparado quando o jogador clica no botão
-remoteEvent.OnServerEvent:Connect(function(player)
-	local prompts = getPlayerPrompts(player)
-	if #prompts == 0 then
-		warn("Nenhum prompt encontrado para " .. player.Name)
-		return
-	end
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
 
-	local character = player.Character
-	if not character or not character.Parent then
-		character = player.CharacterAdded:Wait()
-	end
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if not rootPart then return end
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(1, 0, 1, 0)
+ToggleButton.BackgroundTransparency = 1
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 14
+ToggleButton.Text = "Coletador: OFF"
+ToggleButton.Parent = MainFrame
 
-	-- Teleporta para cada prompt (com pequeno intervalo)
-	for _, prompt in ipairs(prompts) do
-		local target = prompt.Parent -- BasePart
-		if target and target:IsA("BasePart") then
-			local pos = target.Position + Vector3.new(0, 3, 0) -- ajuste de altura
-			rootPart.CFrame = CFrame.new(pos)
-			task.wait(0.15)
-		end
-	end
+-- 2. Sistema de Arrastar (Drag Suave)
+local dragging, dragInput, dragStart, startPos
 
-	print(string.format("%s coletou %d itens.", player.Name, #prompts))
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
 end)
 
--- ============================================================
--- 2. LOCAL SCRIPT – Coloque em StarterGui (dentro de um ScreenGui)
--- ============================================================
---[[
-   Este script cria o botão flutuante na tela do jogador.
-   Ele se comunica com o servidor via RemoteEvent.
---]]
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
 
-local player = game.Players.LocalPlayer
-local remote = game:GetService("ReplicatedStorage"):WaitForChild("TeleportToPrompts")
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
--- Criar a GUI
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = player:WaitForChild("PlayerGui")
+-- 3. Lógica do Coletador
+local autoCollectEnabled = false
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 120, 0, 50)
-frame.Position = UDim2.new(0, 20, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
-frame.BackgroundTransparency = 0.2
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = screenGui
+-- Função para verificar se o ProximityPrompt é do SEU personagem/tycoon
+local function belongsToMyTycoon(prompt)
+    local currentObj = prompt
+    local isMine = false
+    
+    -- Sobe na hierarquia procurando pistas de que o Tycoon é seu
+    while currentObj and currentObj ~= workspace do
+        -- Verifica se a pasta/modelo tem o seu nome
+        if string.find(string.lower(currentObj.Name), string.lower(LocalPlayer.Name)) then
+            isMine = true
+            break
+        end
+        
+        -- Verifica se existe um valor de "Dono" com o seu nome
+        local ownerValue = currentObj:FindFirstChild("Owner") or currentObj:FindFirstChild("OwnerName")
+        if ownerValue and (ownerValue:IsA("StringValue") or ownerValue:IsA("ObjectValue")) then
+            if tostring(ownerValue.Value) == LocalPlayer.Name then
+                isMine = true
+                break
+            end
+        end
+        
+        currentObj = currentObj.Parent
+    end
+    
+    -- Se o jogo não usar o nome no Tycoon, retornamos true como fallback para tentar coletar.
+    -- (Pode ajustar isso se o jogo for muito rigoroso)
+    return isMine or true 
+end
 
--- Arredondar cantos (opcional)
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = frame
+local function startAutoCollect()
+    while autoCollectEnabled do
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local hrp = character.HumanoidRootPart
+            
+            for _, prompt in ipairs(workspace:GetDescendants()) do
+                if not autoCollectEnabled then break end
+                
+                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                    if belongsToMyTycoon(prompt) then
+                        local part = prompt.Parent
+                        if part and part:IsA("BasePart") then
+                            
+                            -- Dá TP do personagem até o botão (para o servidor validar)
+                            hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                            task.wait(0.2) -- Tempo rápido pro servidor registrar sua posição
+                            
+                            -- Executa o prompt
+                            if fireproximityprompt then
+                                fireproximityprompt(prompt, 1)
+                            else
+                                -- Fallback caso o executor não suporte fireproximityprompt
+                                prompt:InputHoldBegin()
+                                task.wait(prompt.HoldDuration + 0.1)
+                                prompt:InputHoldEnd()
+                            end
+                            
+                            task.wait(0.5) -- Pequeno delay para não bugar o jogo (anti-spam)
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(1) -- Espera antes de fazer a varredura do mapa novamente
+    end
+end
 
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(1, 0, 1, 0)
-button.Text = "📦 Coletar"
-button.TextColor3 = Color3.new(1, 1, 1)
-button.TextScaled = true
-button.BackgroundTransparency = 1
-button.Parent = frame
-
--- Ação ao clicar
-button.MouseButton1Click:Connect(function()
-	remote:FireServer()
-	-- Feedback visual (opcional)
-	button.Text = "⏳ Buscando..."
-	task.wait(0.5)
-	button.Text = "📦 Coletar"
+-- 4. Botão de Ativação
+ToggleButton.MouseButton1Click:Connect(function()
+    autoCollectEnabled = not autoCollectEnabled
+    
+    if autoCollectEnabled then
+        MainFrame.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
+        ToggleButton.Text = "Coletador: ON"
+        task.spawn(startAutoCollect)
+    else
+        MainFrame.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+        ToggleButton.Text = "Coletador: OFF"
+    end
 end)
