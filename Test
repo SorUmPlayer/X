@@ -1,608 +1,82 @@
+--[[
+    Script: Ativador Automático de ProximityPrompt
+    Funcionamento: O script encontra TODOS os ProximityPrompt do jogo,
+    teletransporta seu personagem para perto de cada um, ativa o prompt
+    e depois retorna à posição original.
+]]
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-
-local Window = WindUI:CreateWindow({
-    Title = "Sor_UmPlayer Hub",
-    Icon = "Hi",
-    Author = "made by Sor_Gostoso",
-    Folder = "CloudHub",
-    Size = UDim2.fromOffset(460, 260),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    Background = "", -- rbxassetid only
-    BackgroundImageTransparency = 0.42,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-    User = {
-        Enabled = true,
-        Anonymous = false,
-        Callback = function()
-            print("clicked")
-        end,
-    },
-    KeySystem = { -- <- ↓ remove this all, if you dont neet the key system
-        Key = { "1", "SOR" },
-        Note = "Key: SOR",
-        Thumbnail = {
-            Image = "rbxassetid://",
-            Title = "HI",
-        },
-        URL = "Sor",
-        SaveKey = nil,
-    },
-})
-
------------point_down é igual ao selection apenas copie e coloque no seu Hub com o nome que quiser
-
-local Tab = Window:Tab({
-    Title = "Main",
-    Icon = "",
-    Locked = false,
-})
-
---- Categorias ---
-
-local Section = Tab:Section({ 
-    Title = "Main",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Auto Click",
-    Desc = "Auto Click Booster",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("SwingSaber"):FireServer()
-                    
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(0.001) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Auto Sell",
-    Desc = "Exchange Forces for Coins",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("SellStrength"):FireServer()
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
-local Section = Tab:Section({ 
-    Title = "Gift",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Gift Collection",
-    Desc = "DAILY REWARDS",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
-local args = {
-	"ClaimDailyTimedReward"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
-
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
-local Section = Tab:Section({ 
-    Title = "SHOP",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "SWORD",
-    Desc = "Buy All Sword",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
-local args = {
-	"BuyAllWeapons"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "DNA",
-    Desc = "Buy All DNA ",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
-local args = {
-	"BuyAllDNAs"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
-local Section = Tab:Section({ 
-    Title = "Trades",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Trade All",
-    Desc = "Send Trade to Everyone on the Server",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
-local args = {
-	"RequestTradeWithPlayer",
-	game:GetService("Players"):WaitForChild("FAstnodf")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
----- Categoria de Bosses ----
-local Tab = Window:Tab({
-    Title = "Boss/Elements",
-    Icon = "",
-    Locked = false,
-})
-
-local Section = Tab:Section({ 
-    Title = "Boss",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Boss",
-    Desc = "BossHolder",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        -- Configurável
-        local HITBOX_SIZE = Vector3.new(40, 100, 100) -- tamanho da hitbox do boss
-
-        local plr  = game.Players.LocalPlayer
-        local char = plr.Character or plr.CharacterAdded:Wait()
-        local hrp  = char:WaitForChild("HumanoidRootPart")
-
-        local gp         = workspace:FindFirstChild("Gameplay")
-        local bossModel  = gp and gp:FindFirstChild("Boss")
-        local arenaBase  = bossModel and bossModel:FindFirstChild("ArenaBase")
-        local bossHolder = bossModel and bossModel:FindFirstChild("BossHolder")
-
-        if state then
-            -- Teleportar apenas uma vez
-            if arenaBase and arenaBase:IsA("BasePart") then
-                hrp.CFrame = arenaBase.CFrame + Vector3.new(0, 5, 0)
-            else
-                warn("ArenaBase não encontrada em workspace.Gameplay.Boss.ArenaBase")
-            end
-
-            -- Aumentar hitbox apenas uma vez
-            if bossHolder then
-                for _, part in ipairs(bossHolder:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Size = HITBOX_SIZE
-                        part.CanCollide = false
-                        part.Transparency = 1
-                        part.Massless = true
-                    end
-                end
-            else
-                warn("BossHolder não encontrado em workspace.Gameplay.Boss.BossHolder")
-            end
-        else
-            -- Quando desligar, restaurar hitbox (se quiser)
-            if bossHolder then
-                for _, part in ipairs(bossHolder:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Size = Vector3.new(10,10,10) -- tamanho padrão (ajuste se souber o original)
-                        part.CanCollide = true
-                        part.Transparency = 0
-                        part.Massless = false
-                    end
-                end
-            end
-        end
-    end
-})
-
----- Categoria de Bosses ----
-local Tab = Window:Tab({
-    Title = "CROWN",
-    Icon = "",
-    Locked = false,
-})
-
-local Section = Tab:Section({ 
-    Title = "test",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "Toggle",
-    Desc = "Toggle Description",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    -- ⬇ Seu código vai aqui
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
----- Categoria de Bosses ---
-
-local Section = Tab:Section({ 
-    Title = "Crown",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local rodando = false
-
--- Serviço e Config
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local MAGNET_RADIUS = 9999
-local ARRIVE_OFFSET = Vector3.new(0, 1.5, 0)
-local HOLDER_PATH = {"Gameplay", "CurrencyPickup", "CurrencyHolder"}
-
--- Cria chave global de controle
-local toggle = ReplicatedStorage:FindFirstChild("CrownMagnetEnabled")
-if not toggle then
-    toggle = Instance.new("BoolValue")
-    toggle.Name = "CrownMagnetEnabled"
-    toggle.Value = false
-    toggle.Parent = ReplicatedStorage
-end
-
--- Função util para achar caminho
-local function waitPath(root, names)
-    local obj = root
-    for _, name in ipairs(names) do
-        obj = obj:WaitForChild(name)
-    end
-    return obj
-end
-
--- Player e HRP
-local player = Players.LocalPlayer
+local player = game:GetService("Players").LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
+local hrp = character:FindFirstChild("HumanoidRootPart")
 
-player.CharacterAdded:Connect(function(char)
-    character = char
-    hrp = character:WaitForChild("HumanoidRootPart")
-end)
+if not hrp then
+    warn("HumanoidRootPart não encontrado!")
+    return
+end
 
-local holder = waitPath(workspace, HOLDER_PATH)
+-- Salva a posição original e estado de ancoragem
+local originalCFrame = hrp.CFrame
+local wasAnchored = hrp.Anchored
+hrp.Anchored = false
 
--- Controle de puxada
-local pulling = {} :: {[Instance]: boolean}
-
-local function getRoot(partOrModel: Instance): BasePart?
-    if partOrModel:IsA("BasePart") then
-        return partOrModel
-    elseif partOrModel:IsA("Model") then
-        return partOrModel.PrimaryPart or partOrModel:FindFirstChildWhichIsA("BasePart")
+-- Função para descobrir onde o prompt está (suporta BasePart, Attachment e Model)
+local function getPromptPosition(prompt)
+    local parent = prompt.Parent
+    if parent:IsA("BasePart") then
+        return parent.Position
+    elseif parent:IsA("Attachment") then
+        return parent.WorldPosition
+    elseif parent:IsA("Model") then
+        local primary = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")
+        if primary then
+            return primary.Position
+        end
     end
     return nil
 end
 
-local function isCrown(inst: Instance): boolean
-    return inst.Name == "Crown"
-end
-
--- Teleportar coroa
-local function teleportToYou(crownInst: Instance)
-    if not hrp or not hrp.Parent then return end
-    if pulling[crownInst] then return end
-
-    local root = getRoot(crownInst)
-    if not root or not root:IsDescendantOf(workspace) then return end
-
-    pulling[crownInst] = true
-    pcall(function() root.Anchored = false end)
-
-    root.CFrame = CFrame.new(hrp.Position + ARRIVE_OFFSET)
-
-    task.delay(0.1, function()
-        pulling[crownInst] = nil
-    end)
-end
-
--- Puxar coroa
-local function tryPull(inst: Instance)
-    if not toggle.Value then return end
-    if not isCrown(inst) then return end
-    local root = getRoot(inst)
-    if root and (root.Position - hrp.Position).Magnitude <= MAGNET_RADIUS then
-        teleportToYou(inst)
+-- Coleta todos os ProximityPrompts do jogo
+local prompts = {}
+for _, obj in ipairs(game:GetDescendants()) do
+    if obj:IsA("ProximityPrompt") then
+        table.insert(prompts, obj)
     end
 end
 
--- Eventos (criados uma vez só)
-holder.ChildAdded:Connect(function(child)
-    task.wait(0.05)
-    tryPull(child)
-end)
+print(string.format("Encontrados %d ProximityPrompts.", #prompts))
 
-RunService.Heartbeat:Connect(function()
-    if not toggle.Value then return end
-    for _, crown in ipairs(holder:GetChildren()) do
-        if isCrown(crown) and not pulling[crown] then
-            local root = getRoot(crown)
-            if root and (root.Position - hrp.Position).Magnitude <= MAGNET_RADIUS then
-                teleportToYou(crown)
-            end
+-- Se não houver nenhum, encerra
+if #prompts == 0 then
+    print("Nenhum prompt encontrado.")
+    return
+end
+
+-- Percorre a lista de prompts
+for i, prompt in ipairs(prompts) do
+    local pos = getPromptPosition(prompt)
+    if pos then
+        -- Teletransporta para a posição do prompt (2.5 unidades acima para não ficar preso no chão)
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0))
+        task.wait(0.1) -- Pequena pausa para o servidor reconhecer a nova posição
+
+        -- Tenta ativar o prompt
+        local success, err = pcall(function()
+            prompt:Trigger()
+        end)
+
+        if success then
+            print(string.format("[%d/%d] Prompt ativado em %s", i, #prompts, tostring(pos)))
+        else
+            warn(string.format("Erro ao ativar prompt %s: %s", prompt.Name, err))
         end
-    end
-end)
 
-toggle.Changed:Connect(function(val)
-    if toggle.Value then
-        for _, crown in ipairs(holder:GetChildren()) do
-            tryPull(crown)
-        end
-    end
-end)
-
--- Toggle do seu UI
-local Toggle = Tab:Toggle({
-    Title = "Crown Collection",
-    Desc = "Collect All Crowns on the Map",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state)
-        rodando = state
-        toggle.Value = state -- controla tudo só por aqui
-        print("Toggle Activated: " .. tostring(state))
-    end
-})
-
-local rodando = false
-
-local Toggle = Tab:Toggle({
-    Title = "collected StudBrick",
-    Desc = "Collect all StudBricks on the map",
-    Icon = "bird",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        rodando = state
-        print("Toggle Activated: " .. tostring(state))
-
-        if state then
-            task.spawn(function()
-                while rodando do
-                    
--- Função para pegar objetos mesmo fora do workspace
-function getNil(name, class)
-    for _, v in next, getnilinstances() do
-        if v.ClassName == class and v.Name == name then 
-            return v 
-        end
+        task.wait(0.1) -- Delay entre as ativações para evitar sobrecarga
+    else
+        warn(string.format("Não foi possível achar a posição do prompt: %s", prompt.Name))
     end
 end
 
--- Função para achar todos StudBrick no jogo
-local function getAllStudBricks()
-    local studs = {}
-
-    -- Procurar no workspace
-    for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
-        if v:IsA("Part") and v.Name == "StudBrick" then
-            table.insert(studs, v)
-        end
-    end
-
-    -- Procurar nos objetos nil
-    for _, v in next, getnilinstances() do
-        if v:IsA("Part") and v.Name == "StudBrick" then
-            table.insert(studs, v)
-        end
-    end
-
-    return studs
-end
-
--- Pega a HumanoidRootPart (barriga do boneco)
-local player = game.Players.LocalPlayer
-local root = player.Character:WaitForChild("HumanoidRootPart")
-
--- Coleta todos StudBricks existentes UMA VEZ
-local studs = getAllStudBricks()
-for _, stud in pairs(studs) do
-    if stud and stud:IsDescendantOf(game) then
-        -- Teleporta o StudBrick pra barriga do boneco
-        stud.CFrame = root.CFrame * CFrame.new(0,0,-1)
-
-        -- Dispara o evento de coleta
-        local args = {
-            [1] = {
-                [1] = stud
-            }
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("CollectCurrencyPickup"):FireServer(unpack(args))
-    end
-end
-
-                    print("Meu código está rodando em loop infinito!")
-
-                    task.wait(1) -- tempo de espera entre repetições
-                end
-            end)
-        end
-    end
-})
-
----- Categoria de Teleportes ----
-local Tab = Window:Tab({
-    Title = "Teleport",
-    Icon = "",
-    Locked = false,
-})
-
----- Categoria de Bosses ----
-local Tab = Window:Tab({
-    Title = "MISC",
-    Icon = "",
-    Locked = false,
-})
-
-local Section = Tab:Section({ 
-    Title = "Config",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local Button = Tab:Button({
-    Title = "Remove Notifications",
-    Desc = "Remove all Notifications",
-    Locked = false,
-    Callback = function()
-
-local args = {
-    [1] = "ChangeSetting",
-    [2] = "Popups"
-}
-
-game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("UIAction"):FireServer(unpack(args))
-
-        print("clicked")
-    end
-})
-
-
-
-
-
+-- Retorna o personagem para o local original e restaura a ancora
+hrp.CFrame = originalCFrame
+hrp.Anchored = wasAnchored
+print("Todos os prompts foram processados!")
