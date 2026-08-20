@@ -1,122 +1,113 @@
+-- ============================================================
+-- 1. SERVER SCRIPT – Coloque em ServerScriptService
+-- ============================================================
 --[[
-    COLETOR AUTOMÁTICO DE PROXIMITYPROMPT (SEM TELEPORTE)
-    Como funciona: Ao clicar no botão, o script varre TODO o jogo,
-    mas SÓ ativa os prompts que estão dentro do raio de alcance do seu personagem.
-    Isso simula um "auto-clicker E" para tudo que está perto de você.
-]]
+   Este script cria o RemoteEvent e gerencia o teleporte.
+   Também cria a GUI para cada jogador que entrar (opcional).
+   Mas a GUI é mais fácil de criar no cliente, então faremos no cliente.
+   Apenas o servidor lida com a lógica de teleporte.
+--]]
 
-local player = game:GetService("Players").LocalPlayer
-local button = script.Parent -- O botão onde este script está inserido
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Variável de controle para ligar/desligar (opcional, mas útil)
-local isRunning = false
-local loopConnection = nil
-
--- Função para descobrir a posição exata do prompt (suporta Part, Attachment e Model)
-local function getPromptPosition(prompt)
-    local parent = prompt.Parent
-    if parent:IsA("BasePart") then
-        return parent.Position
-    elseif parent:IsA("Attachment") then
-        return parent.WorldPosition
-    elseif parent:IsA("Model") then
-        local primary = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")
-        if primary then
-            return primary.Position
-        end
-    end
-    return nil
+-- Cria o RemoteEvent se não existir
+local remoteEvent = ReplicatedStorage:FindFirstChild("TeleportToPrompts")
+if not remoteEvent then
+	remoteEvent = Instance.new("RemoteEvent")
+	remoteEvent.Name = "TeleportToPrompts"
+	remoteEvent.Parent = ReplicatedStorage
 end
 
--- Função principal que executa uma rodada de coleta
-local function collectNearby()
-    local character = player.Character
-    if not character then return end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+-- Função que retorna os prompts do jogador
+local function getPlayerPrompts(player)
+	local prompts = {}
+	local character = player.Character
+	if not character then return prompts end
 
-    local collectedCount = 0
-    local prompts = game:GetDescendants()
-    
-    for _, prompt in ipairs(prompts) do
-        if prompt:IsA("ProximityPrompt") then
-            local pos = getPromptPosition(prompt)
-            if pos then
-                -- Calcula a distância real do seu personagem até o prompt
-                local distance = (hrp.Position - pos).Magnitude
-                -- Verifica se está dentro do raio máximo de ativação do prompt
-                if distance <= prompt.MaxActivationDistance then
-                    -- Tenta ativar (aperta o "E" automaticamente)
-                    local success, err = pcall(function()
-                        prompt:Trigger()
-                    end)
-                    if success then
-                        collectedCount = collectedCount + 1
-                    end
-                end
-            end
-        end
-    end
-    
-    if collectedCount > 0 then
-        print(string.format("[Coletor] Ativou %d prompts próximos!", collectedCount))
-    end
+	-- Percorre todos os ProximityPrompt do workspace
+	for _, prompt in ipairs(workspace:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			local parent = prompt.Parent
+			-- Verifica se o pai é uma BasePart e tem o atributo "Owner" = nome do jogador
+			if parent and parent:IsA("BasePart") and parent:GetAttribute("Owner") == player.Name then
+				table.insert(prompts, prompt)
+			end
+		end
+	end
+	return prompts
 end
 
--- Função para iniciar a coleta em loop (a cada 0.2 segundos)
-local function startCollector()
-    if isRunning then return end
-    isRunning = true
-    button.Text = "⏹ Coletando..."
-    
-    -- Executa imediatamente a primeira vez
-    collectNearby()
-    
-    -- Cria o loop contínuo
-    loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        -- Executa a cada tick (aproximadamente 60x por segundo, mas limitamos com um contador)
-        -- Para não sobrecarregar, usamos um timer manual dentro do heartbeat ou um while com task.wait
-    end)
-    
-    -- Método mais estável: loop usando task.wait() dentro de uma thread separada
-    task.spawn(function()
-        while isRunning do
-            collectNearby()
-            task.wait(0.2) -- Ajuste: 0.2 segundos entre cada varredura (bom para tycoons)
-        end
-    end)
-end
+-- Evento disparado quando o jogador clica no botão
+remoteEvent.OnServerEvent:Connect(function(player)
+	local prompts = getPlayerPrompts(player)
+	if #prompts == 0 then
+		warn("Nenhum prompt encontrado para " .. player.Name)
+		return
+	end
 
--- Função para parar a coleta
-local function stopCollector()
-    isRunning = false
-    button.Text = "▶ Coletar Próximos"
-    if loopConnection then
-        loopConnection:Disconnect()
-        loopConnection = nil
-    end
-end
+	local character = player.Character
+	if not character or not character.Parent then
+		character = player.CharacterAdded:Wait()
+	end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
 
--- Alterna entre ligar e desligar ao clicar no botão
+	-- Teleporta para cada prompt (com pequeno intervalo)
+	for _, prompt in ipairs(prompts) do
+		local target = prompt.Parent -- BasePart
+		if target and target:IsA("BasePart") then
+			local pos = target.Position + Vector3.new(0, 3, 0) -- ajuste de altura
+			rootPart.CFrame = CFrame.new(pos)
+			task.wait(0.15)
+		end
+	end
+
+	print(string.format("%s coletou %d itens.", player.Name, #prompts))
+end)
+
+-- ============================================================
+-- 2. LOCAL SCRIPT – Coloque em StarterGui (dentro de um ScreenGui)
+-- ============================================================
+--[[
+   Este script cria o botão flutuante na tela do jogador.
+   Ele se comunica com o servidor via RemoteEvent.
+--]]
+
+local player = game.Players.LocalPlayer
+local remote = game:GetService("ReplicatedStorage"):WaitForChild("TeleportToPrompts")
+
+-- Criar a GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 120, 0, 50)
+frame.Position = UDim2.new(0, 20, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
+frame.BackgroundTransparency = 0.2
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+-- Arredondar cantos (opcional)
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = frame
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(1, 0, 1, 0)
+button.Text = "📦 Coletar"
+button.TextColor3 = Color3.new(1, 1, 1)
+button.TextScaled = true
+button.BackgroundTransparency = 1
+button.Parent = frame
+
+-- Ação ao clicar
 button.MouseButton1Click:Connect(function()
-    if isRunning then
-        stopCollector()
-    else
-        startCollector()
-    end
+	remote:FireServer()
+	-- Feedback visual (opcional)
+	button.Text = "⏳ Buscando..."
+	task.wait(0.5)
+	button.Text = "📦 Coletar"
 end)
-
--- Para garantir que pare se o personagem morrer ou o jogo fechar
-player.CharacterRemoving:Connect(function()
-    stopCollector()
-end)
-
--- Configuração inicial do botão
-button.Text = "▶ Coletar Próximos"
-button.Size = UDim2.new(0, 150, 0, 40)
-button.Position = UDim2.new(0.8, 0, 0.9, 0) -- Canto inferior direito (flutuante)
-button.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Font = Enum.Font.GothamBold
-button.TextSize = 16
