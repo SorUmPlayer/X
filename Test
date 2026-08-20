@@ -1,25 +1,18 @@
 --[[
-    Script: Ativador Automático de ProximityPrompt
-    Funcionamento: O script encontra TODOS os ProximityPrompt do jogo,
-    teletransporta seu personagem para perto de cada um, ativa o prompt
-    e depois retorna à posição original.
+    COLETOR AUTOMÁTICO DE PROXIMITYPROMPT (SEM TELEPORTE)
+    Como funciona: Ao clicar no botão, o script varre TODO o jogo,
+    mas SÓ ativa os prompts que estão dentro do raio de alcance do seu personagem.
+    Isso simula um "auto-clicker E" para tudo que está perto de você.
 ]]
 
 local player = game:GetService("Players").LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:FindFirstChild("HumanoidRootPart")
+local button = script.Parent -- O botão onde este script está inserido
 
-if not hrp then
-    warn("HumanoidRootPart não encontrado!")
-    return
-end
+-- Variável de controle para ligar/desligar (opcional, mas útil)
+local isRunning = false
+local loopConnection = nil
 
--- Salva a posição original e estado de ancoragem
-local originalCFrame = hrp.CFrame
-local wasAnchored = hrp.Anchored
-hrp.Anchored = false
-
--- Função para descobrir onde o prompt está (suporta BasePart, Attachment e Model)
+-- Função para descobrir a posição exata do prompt (suporta Part, Attachment e Model)
 local function getPromptPosition(prompt)
     local parent = prompt.Parent
     if parent:IsA("BasePart") then
@@ -35,48 +28,95 @@ local function getPromptPosition(prompt)
     return nil
 end
 
--- Coleta todos os ProximityPrompts do jogo
-local prompts = {}
-for _, obj in ipairs(game:GetDescendants()) do
-    if obj:IsA("ProximityPrompt") then
-        table.insert(prompts, obj)
-    end
-end
+-- Função principal que executa uma rodada de coleta
+local function collectNearby()
+    local character = player.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-print(string.format("Encontrados %d ProximityPrompts.", #prompts))
-
--- Se não houver nenhum, encerra
-if #prompts == 0 then
-    print("Nenhum prompt encontrado.")
-    return
-end
-
--- Percorre a lista de prompts
-for i, prompt in ipairs(prompts) do
-    local pos = getPromptPosition(prompt)
-    if pos then
-        -- Teletransporta para a posição do prompt (2.5 unidades acima para não ficar preso no chão)
-        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0))
-        task.wait(0.1) -- Pequena pausa para o servidor reconhecer a nova posição
-
-        -- Tenta ativar o prompt
-        local success, err = pcall(function()
-            prompt:Trigger()
-        end)
-
-        if success then
-            print(string.format("[%d/%d] Prompt ativado em %s", i, #prompts, tostring(pos)))
-        else
-            warn(string.format("Erro ao ativar prompt %s: %s", prompt.Name, err))
+    local collectedCount = 0
+    local prompts = game:GetDescendants()
+    
+    for _, prompt in ipairs(prompts) do
+        if prompt:IsA("ProximityPrompt") then
+            local pos = getPromptPosition(prompt)
+            if pos then
+                -- Calcula a distância real do seu personagem até o prompt
+                local distance = (hrp.Position - pos).Magnitude
+                -- Verifica se está dentro do raio máximo de ativação do prompt
+                if distance <= prompt.MaxActivationDistance then
+                    -- Tenta ativar (aperta o "E" automaticamente)
+                    local success, err = pcall(function()
+                        prompt:Trigger()
+                    end)
+                    if success then
+                        collectedCount = collectedCount + 1
+                    end
+                end
+            end
         end
-
-        task.wait(0.1) -- Delay entre as ativações para evitar sobrecarga
-    else
-        warn(string.format("Não foi possível achar a posição do prompt: %s", prompt.Name))
+    end
+    
+    if collectedCount > 0 then
+        print(string.format("[Coletor] Ativou %d prompts próximos!", collectedCount))
     end
 end
 
--- Retorna o personagem para o local original e restaura a ancora
-hrp.CFrame = originalCFrame
-hrp.Anchored = wasAnchored
-print("Todos os prompts foram processados!")
+-- Função para iniciar a coleta em loop (a cada 0.2 segundos)
+local function startCollector()
+    if isRunning then return end
+    isRunning = true
+    button.Text = "⏹ Coletando..."
+    
+    -- Executa imediatamente a primeira vez
+    collectNearby()
+    
+    -- Cria o loop contínuo
+    loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        -- Executa a cada tick (aproximadamente 60x por segundo, mas limitamos com um contador)
+        -- Para não sobrecarregar, usamos um timer manual dentro do heartbeat ou um while com task.wait
+    end)
+    
+    -- Método mais estável: loop usando task.wait() dentro de uma thread separada
+    task.spawn(function()
+        while isRunning do
+            collectNearby()
+            task.wait(0.2) -- Ajuste: 0.2 segundos entre cada varredura (bom para tycoons)
+        end
+    end)
+end
+
+-- Função para parar a coleta
+local function stopCollector()
+    isRunning = false
+    button.Text = "▶ Coletar Próximos"
+    if loopConnection then
+        loopConnection:Disconnect()
+        loopConnection = nil
+    end
+end
+
+-- Alterna entre ligar e desligar ao clicar no botão
+button.MouseButton1Click:Connect(function()
+    if isRunning then
+        stopCollector()
+    else
+        startCollector()
+    end
+end)
+
+-- Para garantir que pare se o personagem morrer ou o jogo fechar
+player.CharacterRemoving:Connect(function()
+    stopCollector()
+end)
+
+-- Configuração inicial do botão
+button.Text = "▶ Coletar Próximos"
+button.Size = UDim2.new(0, 150, 0, 40)
+button.Position = UDim2.new(0.8, 0, 0.9, 0) -- Canto inferior direito (flutuante)
+button.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Font = Enum.Font.GothamBold
+button.TextSize = 16
