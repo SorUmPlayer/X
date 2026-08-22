@@ -1,147 +1,519 @@
-
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
+-- =============================================
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - COM ABA CONFIG
+-- =============================================
+local players = game:GetService("Players")
+local coreGui = game:GetService("CoreGui")
+local lighting = game:GetService("Lighting")
+local tweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
+local TextChatService = game:GetService("TextChatService")
+local Workspace = game:GetService("Workspace")
 
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = players.LocalPlayer
+local estaTeleportando = false
 
--- 1. Criação da Interface Flutuante (Button Voado)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "TycoonCollectorUI"
--- Tenta colocar no CoreGui para fugir de detecções, se não conseguir, vai pro PlayerGui
-ScreenGui.Parent = (CoreGui:FindFirstChild("RobloxGui") and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+-- =============================================
+-- CONFIGURAÇÕES PERSISTENTES
+-- =============================================
+local CONFIG_FILE = "SorOminiX_KillBoss_Config.json"
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 160, 0, 45)
-MainFrame.Position = UDim2.new(0.5, -80, 0.1, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
-
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.BackgroundTransparency = 1
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 14
-ToggleButton.Text = "Coletador: OFF"
-ToggleButton.Parent = MainFrame
-
--- 2. Sistema de Arrastar (Drag Suave)
-local dragging, dragInput, dragStart, startPos
-
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
+local function LoadConfig()
+    if not isfile then return {} end
+    if isfile(CONFIG_FILE) then
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(CONFIG_FILE))
         end)
-    end
-end)
-
-MainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- 3. Lógica do Coletador
-local autoCollectEnabled = false
-
--- Função para verificar se o ProximityPrompt é do SEU personagem/tycoon
-local function belongsToMyTycoon(prompt)
-    local currentObj = prompt
-    local isMine = false
-    
-    -- Sobe na hierarquia procurando pistas de que o Tycoon é seu
-    while currentObj and currentObj ~= workspace do
-        -- Verifica se a pasta/modelo tem o seu nome
-        if string.find(string.lower(currentObj.Name), string.lower(LocalPlayer.Name)) then
-            isMine = true
-            break
+        if success and type(data) == "table" then
+            return data
         end
-        
-        -- Verifica se existe um valor de "Dono" com o seu nome
-        local ownerValue = currentObj:FindFirstChild("Owner") or currentObj:FindFirstChild("OwnerName")
-        if ownerValue and (ownerValue:IsA("StringValue") or ownerValue:IsA("ObjectValue")) then
-            if tostring(ownerValue.Value) == LocalPlayer.Name then
-                isMine = true
-                break
-            end
-        end
-        
-        currentObj = currentObj.Parent
     end
-    
-    -- Se o jogo não usar o nome no Tycoon, retornamos true como fallback para tentar coletar.
-    -- (Pode ajustar isso se o jogo for muito rigoroso)
-    return isMine or true 
+    return {}
 end
 
-local function startAutoCollect()
-    while autoCollectEnabled do
-        local character = LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local hrp = character.HumanoidRootPart
-            
-            for _, prompt in ipairs(workspace:GetDescendants()) do
-                if not autoCollectEnabled then break end
-                
-                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                    if belongsToMyTycoon(prompt) then
-                        local part = prompt.Parent
-                        if part and part:IsA("BasePart") then
-                            
-                            -- Dá TP do personagem até o botão (para o servidor validar)
-                            hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                            task.wait(0.2) -- Tempo rápido pro servidor registrar sua posição
-                            
-                            -- Executa o prompt
-                            if fireproximityprompt then
-                                fireproximityprompt(prompt, 1)
-                            else
-                                -- Fallback caso o executor não suporte fireproximityprompt
-                                prompt:InputHoldBegin()
-                                task.wait(prompt.HoldDuration + 0.1)
-                                prompt:InputHoldEnd()
-                            end
-                            
-                            task.wait(0.5) -- Pequeno delay para não bugar o jogo (anti-spam)
-                        end
-                    end
+local function SaveConfigToFile(configTable)
+    if not writefile then return end
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(configTable)
+    end)
+    if success then
+        pcall(function() writefile(CONFIG_FILE, json) end)
+    end
+end
+
+local Config = {
+    Distancia = 2,
+    Multiplicador = 1,
+    Bivalvan = false,
+    Galapagus = false,
+    Pandor = false,
+    Andreas = false,
+    ModoTiro = true,
+}
+local savedConfig = LoadConfig()
+for k, v in pairs(savedConfig) do
+    Config[k] = v
+end
+
+local function SaveConfig()
+    SaveConfigToFile(Config)
+end
+
+-- =============================================
+-- TEMPOS PARA EXIBIÇÃO
+-- =============================================
+local serverStartTime = os.time()
+local playerJoinTime = os.time()
+
+-- =============================================
+-- SISTEMA DE COMBATE (REMOTES)
+-- =============================================
+local RS = pcall(function()
+    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
+    if remotes then
+        return remotes:FindFirstChild("upgrade")
+    end
+end) and ReplicatedStorage:FindFirstChild("AliensPowerRemotes"):FindFirstChild("upgrade") or nil
+
+local SonicRemote = nil
+pcall(function()
+    local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
+    if remotes then
+        SonicRemote = remotes:FindFirstChild("uechoecho")
+        if SonicRemote then
+            SonicRemote = SonicRemote:FindFirstChild("Sonic_Shard")
+        end
+    end
+end)
+
+local function LaserAttack()
+    if RS and RS.Laser then pcall(function() RS.Laser:InvokeServer() end) end
+end
+local function GunArm()
+    if RS and RS.GunArm then pcall(function() RS.GunArm:InvokeServer() end) end
+end
+local function Armature()
+    if RS and RS.Armature then pcall(function() RS.Armature:InvokeServer() end) end
+end
+
+local function ArmFire(targetRoot)
+    if not RS or not RS.ArmFire then return end
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        local targetPosition = targetRoot and targetRoot.Position or (root.Position + Vector3.new(0, -100, 0))
+        pcall(function()
+            RS.ArmFire:InvokeServer(targetPosition)
+        end)
+    end
+end
+
+local function SonicAttack(targetRoot)
+    if not SonicRemote then
+        print("[Kill Boss] Remote Sonic_Shard não encontrado!")
+        return false
+    end
+    if not targetRoot then
+        print("[Kill Boss] Alvo inválido para Sonic_Shard!")
+        return false
+    end
+    local targetPosition = targetRoot.Position
+    pcall(function()
+        SonicRemote:InvokeServer(targetPosition, 26.567533493042)
+        print("[Kill Boss] Sonic_Shard invocado para posição: " .. tostring(targetPosition))
+    end)
+    return true
+end
+
+-- =============================================
+-- LÓGICA DE ALVO E TELEPORTE
+-- =============================================
+local function getLocalCharacter()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    return char, root
+end
+
+local function getBossPart(bossName, partName)
+    local enemys = Workspace:FindFirstChild("Enemys")
+    if not enemys then
+        print("[Kill Boss] Pasta Enemys não encontrada!")
+        return nil
+    end
+    local bossFolder = enemys:FindFirstChild(bossName)
+    if not bossFolder then
+        print("[Kill Boss] Boss " .. bossName .. " não encontrado!")
+        return nil
+    end
+    local char = bossFolder:FindFirstChild("Character")
+    if not char then
+        print("[Kill Boss] Character de " .. bossName .. " não encontrado!")
+        return nil
+    end
+    local part = char:FindFirstChild(partName)
+    if part and part:IsA("BasePart") then
+        print("[Kill Boss] Parte " .. partName .. " encontrada para " .. bossName)
+        return part
+    end
+    part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    if part and part:IsA("BasePart") then
+        print("[Kill Boss] Usando parte alternativa para " .. bossName)
+        return part
+    end
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("BasePart") then
+            print("[Kill Boss] Usando parte genérica (" .. child.Name .. ") para " .. bossName)
+            return child
+        end
+    end
+    print("[Kill Boss] Nenhuma BasePart encontrada para " .. bossName)
+    return nil
+end
+
+local function getActiveBossTarget()
+    if Config.Bivalvan then
+        local part = getBossPart("Bivalvan", "Ominitrix_Symbol")
+        if part then return part end
+    end
+    if Config.Galapagus then
+        local part = getBossPart("Galapagus", "Ominitrix_Symbol")
+        if part then return part end
+    end
+    if Config.Pandor then
+        local part = getBossPart("P'Andor", "Ominitrix_Symbol")
+        if part then return part end
+    end
+    if Config.Andreas then
+        local part = getBossPart("Andreas", "Ominitrix_Symbol")
+        if part then return part end
+    end
+    return nil
+end
+
+-- =============================================
+-- LOOP KILL BOSS
+-- =============================================
+local killBossRunning = false
+local killBossConnection = nil
+
+local function startKillBossLoop()
+    if killBossConnection then return end
+    killBossRunning = true
+    killBossConnection = RunService.Heartbeat:Connect(function()
+        if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas) then
+            killBossRunning = false
+            if killBossConnection then
+                killBossConnection:Disconnect()
+                killBossConnection = nil
+            end
+            return
+        end
+
+        local targetPart = getActiveBossTarget()
+        if not targetPart then
+            if not killBossConnection._lastPrint or tick() - killBossConnection._lastPrint > 5 then
+                print("[Kill Boss] Nenhum boss alvo encontrado.")
+                killBossConnection._lastPrint = tick()
+            end
+            return
+        end
+
+        local _, myRoot = getLocalCharacter()
+        if not myRoot then return end
+
+        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.Distancia, 0)
+
+        local multiplier = math.floor(tonumber(Config.Multiplicador) or 1)
+        if multiplier < 1 then multiplier = 1 end
+
+        for i = 1, multiplier do
+            if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas) then break end
+            if Config.ModoTiro then
+                LaserAttack()
+                GunArm()
+                ArmFire(targetPart)
+                Armature()
+            else
+                SonicAttack(targetPart)
+            end
+            task.wait(0.05)
+        end
+    end)
+end
+
+if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas then
+    task.spawn(startKillBossLoop)
+end
+
+-- =============================================
+-- MENU – WINDUI (com aba Config)
+-- =============================================
+local oldWindow = nil
+local updateConnection = nil
+local timeDisplay = nil
+
+local function formatTime(seconds)
+    local h = math.floor(seconds / 3600)
+    local m = math.floor((seconds % 3600) / 60)
+    local s = math.floor(seconds % 60)
+    return string.format("%02d:%02d:%02d", h, m, s)
+end
+
+local function getServerUptime()
+    -- Retorna o tempo de servidor usando RunService (se disponível) ou estimativa
+    local success, serverTime = pcall(function()
+        return RunService:GetServerTime()
+    end)
+    if success and serverTime then
+        return serverTime
+    end
+    -- Fallback: estimativa baseada no horário de carregamento do script
+    return os.time() - serverStartTime
+end
+
+local function getPlayerTime()
+    return os.time() - playerJoinTime
+end
+
+local function atualizarDisplay()
+    if timeDisplay then
+        local serverUptime = getServerUptime()
+        local playerUptime = getPlayerTime()
+        local texto = "Tempo de servidor: " .. formatTime(serverUptime) .. "\nTempo que Player entrou: " .. formatTime(playerUptime)
+        timeDisplay:SetDesc(texto)
+    end
+end
+
+local function CriarMenu()
+    if oldWindow then
+        pcall(function() oldWindow:Destroy() end)
+        oldWindow = nil
+    end
+
+    if updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
+
+    local lang = {
+        TabKillBoss = "Kill Boss",
+        TabConfig = "Config",
+        SecConfig = "Configuração do Boss",
+        Distancia = "Distância",
+        DescDist = "Distância acima do boss (Studs) - 1 a 100",
+        Multiplicador = "Multiplicador do Tiro",
+        DescMulti = "Número de tiros por ciclo (Ex: 9)",
+        PlaceMulti = "Digite um número...",
+        ModoTiro = "Modo de Tiro",
+        DescModoTiro = "Ativado = Laser | Desativado = Sonic",
+        SecBoss = "Boss",
+        ToggleBivalvan = "Bivalvan",
+        ToggleGalapagus = "Galapagus",
+        TogglePandor = "P'Andor",
+        ToggleAndreas = "Andreas",
+        SecInfo = "Informações do Servidor",
+    }
+
+    local WindUI
+    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        WindUI = result
+    else
+        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+        success, result = pcall(function()
+            return loadstring(game:HttpGet(fallbackUrl))()
+        end)
+        if success and result then
+            WindUI = result
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Não foi possível carregar a WindUI.",
+                Duration = 5
+            })
+            return
+        end
+    end
+
+    local Window = WindUI:CreateWindow({
+        Title = "Kill Boss - Dimensão 23",
+        Icon = "rbxassetid://135710581431595",
+        Author = "Project Sor",
+        Folder = "Kill Boss Dimensão 23",
+        Size = UDim2.fromOffset(460, 320),
+        Transparent = false,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        BackgroundImageTransparency = 0.42,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+        User = {
+            Enabled = true,
+            Anonymous = false,
+            Callback = function() print("clicked") end,
+        },
+    })
+    oldWindow = Window
+    Window:SetIconSize(60)
+
+    Window:EditOpenButton({
+        Title = "Kill Boss",
+        Icon = "",
+        CornerRadius = UDim.new(0, 16),
+        StrokeThickness = 2,
+        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
+        OnlyMobile = false,
+        Enabled = true,
+        Draggable = false
+    })
+
+    -- Aba Kill Boss
+    local TabKill = Window:Tab({ Title = lang.TabKillBoss, Icon = "rbxassetid://135710581431595" })
+
+    TabKill:Section({ Title = lang.SecConfig })
+    TabKill:Slider({
+        Title = lang.Distancia,
+        Desc = lang.DescDist,
+        Step = 1,
+        Value = { Min = 1, Max = 100, Default = Config.Distancia },
+        Callback = function(value)
+            Config.Distancia = math.floor(value)
+            SaveConfig()
+        end
+    })
+    TabKill:Input({
+        Title = lang.Multiplicador,
+        Desc = lang.DescMulti,
+        Value = tostring(Config.Multiplicador),
+        Placeholder = lang.PlaceMulti,
+        Callback = function(text)
+            local numero = tonumber(text)
+            if numero and numero > 0 then
+                Config.Multiplicador = numero
+                SaveConfig()
+                print("[Kill Boss] Multiplicador: " .. numero)
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Digite um número válido!",
+                    Duration = 2
+                })
+            end
+        end
+    })
+    TabKill:Toggle({
+        Title = lang.ModoTiro,
+        Desc = lang.DescModoTiro,
+        Value = Config.ModoTiro,
+        Callback = function(value)
+            Config.ModoTiro = value
+            SaveConfig()
+            print("[Kill Boss] Modo de tiro: " .. (value and "Laser" or "Sonic"))
+        end
+    })
+
+    TabKill:Section({ Title = lang.SecBoss })
+    TabKill:Toggle({
+        Title = lang.ToggleBivalvan,
+        Value = Config.Bivalvan,
+        Callback = function(value)
+            Config.Bivalvan = value
+            SaveConfig()
+            if value or Config.Galapagus or Config.Pandor or Config.Andreas then
+                task.spawn(startKillBossLoop)
+            else
+                if killBossConnection then
+                    killBossConnection:Disconnect()
+                    killBossConnection = nil
                 end
             end
         end
-        task.wait(1) -- Espera antes de fazer a varredura do mapa novamente
-    end
+    })
+    TabKill:Toggle({
+        Title = lang.ToggleGalapagus,
+        Value = Config.Galapagus,
+        Callback = function(value)
+            Config.Galapagus = value
+            SaveConfig()
+            if Config.Bivalvan or value or Config.Pandor or Config.Andreas then
+                task.spawn(startKillBossLoop)
+            else
+                if killBossConnection then
+                    killBossConnection:Disconnect()
+                    killBossConnection = nil
+                end
+            end
+        end
+    })
+    TabKill:Toggle({
+        Title = lang.TogglePandor,
+        Value = Config.Pandor,
+        Callback = function(value)
+            Config.Pandor = value
+            SaveConfig()
+            if Config.Bivalvan or Config.Galapagus or value or Config.Andreas then
+                task.spawn(startKillBossLoop)
+            else
+                if killBossConnection then
+                    killBossConnection:Disconnect()
+                    killBossConnection = nil
+                end
+            end
+        end
+    })
+    TabKill:Toggle({
+        Title = lang.ToggleAndreas,
+        Value = Config.Andreas,
+        Callback = function(value)
+            Config.Andreas = value
+            SaveConfig()
+            if Config.Bivalvan or Config.Galapagus or Config.Pandor or value then
+                task.spawn(startKillBossLoop)
+            else
+                if killBossConnection then
+                    killBossConnection:Disconnect()
+                    killBossConnection = nil
+                end
+            end
+        end
+    })
+
+    -- ====== NOVA ABA CONFIG ======
+    local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
+    TabConfig:Section({ Title = lang.SecInfo })
+
+    -- Display de tempo (não interativo)
+    local serverUptime = getServerUptime()
+    local playerUptime = getPlayerTime()
+    local textoInicial = "Tempo de servidor: " .. formatTime(serverUptime) .. "\nTempo que Player entrou: " .. formatTime(playerUptime)
+    timeDisplay = TabConfig:Paragraph({
+        Title = "⏱️ Status do Servidor",
+        Desc = textoInicial,
+    })
+
+    -- Loop para atualizar a cada 1 segundo
+    updateConnection = RunService.Heartbeat:Connect(function()
+        if timeDisplay then
+            atualizarDisplay()
+        end
+    end)
 end
 
--- 4. Botão de Ativação
-ToggleButton.MouseButton1Click:Connect(function()
-    autoCollectEnabled = not autoCollectEnabled
-    
-    if autoCollectEnabled then
-        MainFrame.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-        ToggleButton.Text = "Coletador: ON"
-        task.spawn(startAutoCollect)
-    else
-        MainFrame.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-        ToggleButton.Text = "Coletador: OFF"
-    end
-end)
+pcall(CriarMenu)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "Kill Boss - Dimensão 23",
+    Text = "Carregado com sucesso! Aba Config adicionada.",
+    Duration = 3
+})
+
+print("Kill Boss - Dimensão 23 carregado. Aba Config adicionada.")
