@@ -71,24 +71,27 @@ end
 local playerJoinTime = _G.PlayerJoinTime or os.time()
 
 -- Função para obter o tempo de servidor (desde a criação do servidor)
--- Usando Workspace.DistributedGameTime que é o tempo real do servidor
+-- Usa exclusivamente Workspace.DistributedGameTime, que é a fonte mais confiável
 local function getServerTime()
-    -- Primeira tentativa: DistributedGameTime
+    -- Tenta Workspace.DistributedGameTime (padrão Roblox)
     local success, gameTime = pcall(function()
         return Workspace.DistributedGameTime
     end)
     if success and type(gameTime) == "number" and gameTime > 0 then
+        print("[Dimensão23] Usando DistributedGameTime: " .. gameTime)
         return gameTime
     end
-    -- Segunda tentativa: RunService:GetServerTime()
+    -- Fallback para RunService:GetServerTime()
     local success2, serverTime = pcall(function()
         return RunService:GetServerTime()
     end)
     if success2 and type(serverTime) == "number" and serverTime > 0 then
+        print("[Dimensão23] Usando GetServerTime: " .. serverTime)
         return serverTime
     end
-    -- Último recurso: estimativa baseada no tempo do player (não é ideal, mas evita erro)
-    return os.time() - playerJoinTime
+    -- Se ambos falharem, retorna 0 para não exibir tempo errado
+    warn("[Dimensão23] Não foi possível obter o tempo do servidor!")
+    return 0
 end
 
 -- Função para obter o tempo do player (desde que entrou no servidor)
@@ -97,7 +100,7 @@ local function getPlayerTime()
 end
 
 -- =============================================
--- SISTEMA DE COMBATE (REMOTES)
+-- SISTEMA DE COMBATE (REMOTES) - mantido
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
