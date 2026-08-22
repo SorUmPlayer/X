@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT KILL BOSS (DIMENSÃO 23) - COM ABA CONFIG
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - ABA CONFIG CORRIGIDA
 -- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
@@ -65,10 +65,33 @@ local function SaveConfig()
 end
 
 -- =============================================
--- TEMPOS PARA EXIBIÇÃO
+-- TEMPOS PARA EXIBIÇÃO (CORRIGIDO)
 -- =============================================
-local serverStartTime = os.time()
-local playerJoinTime = os.time()
+local playerJoinTime = os.time()  -- Momento que o script foi carregado
+
+-- Função para obter o tempo de servidor (desde a criação do servidor)
+local function getServerTime()
+    local success, serverTime = pcall(function()
+        return RunService:GetServerTime()
+    end)
+    if success and type(serverTime) == "number" and serverTime > 0 then
+        return serverTime
+    end
+    -- Fallback: estimativa baseada no tempo de jogo distribuído
+    local success2, gameTime = pcall(function()
+        return Workspace.DistributedGameTime
+    end)
+    if success2 and type(gameTime) == "number" and gameTime > 0 then
+        return gameTime
+    end
+    -- Último fallback: usar o tempo desde o carregamento do script (não ideal, mas evita erro)
+    return os.time() - playerJoinTime
+end
+
+-- Função para obter o tempo do player (desde que entrou)
+local function getPlayerTime()
+    return os.time() - playerJoinTime
+end
 
 -- =============================================
 -- SISTEMA DE COMBATE (REMOTES)
@@ -251,40 +274,27 @@ if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas then
 end
 
 -- =============================================
--- MENU – WINDUI (com aba Config)
+-- MENU – WINDUI (com aba Config corrigida)
 -- =============================================
 local oldWindow = nil
 local updateConnection = nil
 local timeDisplay = nil
 
 local function formatTime(seconds)
+    if type(seconds) ~= "number" or seconds < 0 then
+        seconds = 0
+    end
     local h = math.floor(seconds / 3600)
     local m = math.floor((seconds % 3600) / 60)
     local s = math.floor(seconds % 60)
     return string.format("%02d:%02d:%02d", h, m, s)
 end
 
-local function getServerUptime()
-    -- Retorna o tempo de servidor usando RunService (se disponível) ou estimativa
-    local success, serverTime = pcall(function()
-        return RunService:GetServerTime()
-    end)
-    if success and serverTime then
-        return serverTime
-    end
-    -- Fallback: estimativa baseada no horário de carregamento do script
-    return os.time() - serverStartTime
-end
-
-local function getPlayerTime()
-    return os.time() - playerJoinTime
-end
-
 local function atualizarDisplay()
     if timeDisplay then
-        local serverUptime = getServerUptime()
+        local serverUptime = getServerTime()
         local playerUptime = getPlayerTime()
-        local texto = "Tempo de servidor: " .. formatTime(serverUptime) .. "\nTempo que Player entrou: " .. formatTime(playerUptime)
+        local texto = "⏱️ Tempo de servidor: " .. formatTime(serverUptime) .. "\n👤 Tempo do Player: " .. formatTime(playerUptime)
         timeDisplay:SetDesc(texto)
     end
 end
@@ -316,7 +326,7 @@ local function CriarMenu()
         ToggleGalapagus = "Galapagus",
         TogglePandor = "P'Andor",
         ToggleAndreas = "Andreas",
-        SecInfo = "Informações do Servidor",
+        SecInfo = "⏱️ Informações do Servidor",
     }
 
     local WindUI
@@ -487,16 +497,15 @@ local function CriarMenu()
         end
     })
 
-    -- ====== NOVA ABA CONFIG ======
+    -- ====== ABA CONFIG (CORRIGIDA) ======
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
     TabConfig:Section({ Title = lang.SecInfo })
 
-    -- Display de tempo (não interativo)
-    local serverUptime = getServerUptime()
+    local serverUptime = getServerTime()
     local playerUptime = getPlayerTime()
-    local textoInicial = "Tempo de servidor: " .. formatTime(serverUptime) .. "\nTempo que Player entrou: " .. formatTime(playerUptime)
+    local textoInicial = "⏱️ Tempo de servidor: " .. formatTime(serverUptime) .. "\n👤 Tempo do Player: " .. formatTime(playerUptime)
     timeDisplay = TabConfig:Paragraph({
-        Title = "⏱️ Status do Servidor",
+        Title = "📊 Status do Servidor",
         Desc = textoInicial,
     })
 
@@ -512,8 +521,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Kill Boss - Dimensão 23",
-    Text = "Carregado com sucesso! Aba Config adicionada.",
+    Text = "Carregado! Aba Config corrigida.",
     Duration = 3
 })
 
-print("Kill Boss - Dimensão 23 carregado. Aba Config adicionada.")
+print("Kill Boss - Dimensão 23 carregado. Aba Config corrigida.")
