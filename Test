@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT KILL BOSS (DIMENSÃO 23) - ABA CONFIG CORRIGIDA
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - TEMPOS CORRIGIDOS
 -- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
@@ -67,28 +67,31 @@ end
 -- =============================================
 -- TEMPOS PARA EXIBIÇÃO (CORRIGIDO)
 -- =============================================
-local playerJoinTime = os.time()  -- Momento que o script foi carregado
+-- Tempo do Player: usa o valor definido na Parte 1, ou fallback para os.time()
+local playerJoinTime = _G.PlayerJoinTime or os.time()
 
 -- Função para obter o tempo de servidor (desde a criação do servidor)
+-- Usando Workspace.DistributedGameTime que é o tempo real do servidor
 local function getServerTime()
-    local success, serverTime = pcall(function()
-        return RunService:GetServerTime()
-    end)
-    if success and type(serverTime) == "number" and serverTime > 0 then
-        return serverTime
-    end
-    -- Fallback: estimativa baseada no tempo de jogo distribuído
-    local success2, gameTime = pcall(function()
+    -- Primeira tentativa: DistributedGameTime
+    local success, gameTime = pcall(function()
         return Workspace.DistributedGameTime
     end)
-    if success2 and type(gameTime) == "number" and gameTime > 0 then
+    if success and type(gameTime) == "number" and gameTime > 0 then
         return gameTime
     end
-    -- Último fallback: usar o tempo desde o carregamento do script (não ideal, mas evita erro)
+    -- Segunda tentativa: RunService:GetServerTime()
+    local success2, serverTime = pcall(function()
+        return RunService:GetServerTime()
+    end)
+    if success2 and type(serverTime) == "number" and serverTime > 0 then
+        return serverTime
+    end
+    -- Último recurso: estimativa baseada no tempo do player (não é ideal, mas evita erro)
     return os.time() - playerJoinTime
 end
 
--- Função para obter o tempo do player (desde que entrou)
+-- Função para obter o tempo do player (desde que entrou no servidor)
 local function getPlayerTime()
     return os.time() - playerJoinTime
 end
@@ -274,7 +277,7 @@ if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas then
 end
 
 -- =============================================
--- MENU – WINDUI (com aba Config corrigida)
+-- MENU – WINDUI
 -- =============================================
 local oldWindow = nil
 local updateConnection = nil
@@ -294,7 +297,7 @@ local function atualizarDisplay()
     if timeDisplay then
         local serverUptime = getServerTime()
         local playerUptime = getPlayerTime()
-        local texto = "⏱️ Tempo de servidor: " .. formatTime(serverUptime) .. "\n👤 Tempo do Player: " .. formatTime(playerUptime)
+        local texto = "⏱️ Servidor: " .. formatTime(serverUptime) .. "\n👤 Player: " .. formatTime(playerUptime)
         timeDisplay:SetDesc(texto)
     end
 end
@@ -497,13 +500,13 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA CONFIG (CORRIGIDA) ======
+    -- ====== ABA CONFIG ======
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
     TabConfig:Section({ Title = lang.SecInfo })
 
     local serverUptime = getServerTime()
     local playerUptime = getPlayerTime()
-    local textoInicial = "⏱️ Tempo de servidor: " .. formatTime(serverUptime) .. "\n👤 Tempo do Player: " .. formatTime(playerUptime)
+    local textoInicial = "⏱️ Servidor: " .. formatTime(serverUptime) .. "\n👤 Player: " .. formatTime(playerUptime)
     timeDisplay = TabConfig:Paragraph({
         Title = "📊 Status do Servidor",
         Desc = textoInicial,
@@ -521,8 +524,8 @@ pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Kill Boss - Dimensão 23",
-    Text = "Carregado! Aba Config corrigida.",
+    Text = "Carregado! Tempos 100% alinhados.",
     Duration = 3
 })
 
-print("Kill Boss - Dimensão 23 carregado. Aba Config corrigida.")
+print("Kill Boss - Dimensão 23 carregado. Tempos corrigidos.")
