@@ -1,5 +1,5 @@
 -- =============================================
--- SCRIPT KILL BOSS (DIMENSÃO 23) - TEMPOS CORRIGIDOS
+-- SCRIPT KILL BOSS (DIMENSÃO 23) - ATUALIZADO
 -- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
@@ -54,6 +54,7 @@ local Config = {
     Pandor = false,
     Andreas = false,
     ModoTiro = true,
+    Posicao = "Cima", -- NOVO: Cima, Baixo, Atrás
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -65,42 +66,7 @@ local function SaveConfig()
 end
 
 -- =============================================
--- TEMPOS PARA EXIBIÇÃO (CORRIGIDO)
--- =============================================
--- Tempo do Player: usa o valor definido na Parte 1, ou fallback para os.time()
-local playerJoinTime = _G.PlayerJoinTime or os.time()
-
--- Função para obter o tempo de servidor (desde a criação do servidor)
--- Usa exclusivamente Workspace.DistributedGameTime, que é a fonte mais confiável
-local function getServerTime()
-    -- Tenta Workspace.DistributedGameTime (padrão Roblox)
-    local success, gameTime = pcall(function()
-        return Workspace.DistributedGameTime
-    end)
-    if success and type(gameTime) == "number" and gameTime > 0 then
-        print("[Dimensão23] Usando DistributedGameTime: " .. gameTime)
-        return gameTime
-    end
-    -- Fallback para RunService:GetServerTime()
-    local success2, serverTime = pcall(function()
-        return RunService:GetServerTime()
-    end)
-    if success2 and type(serverTime) == "number" and serverTime > 0 then
-        print("[Dimensão23] Usando GetServerTime: " .. serverTime)
-        return serverTime
-    end
-    -- Se ambos falharem, retorna 0 para não exibir tempo errado
-    warn("[Dimensão23] Não foi possível obter o tempo do servidor!")
-    return 0
-end
-
--- Função para obter o tempo do player (desde que entrou no servidor)
-local function getPlayerTime()
-    return os.time() - playerJoinTime
-end
-
--- =============================================
--- SISTEMA DE COMBATE (REMOTES) - mantido
+-- SISTEMA DE COMBATE (REMOTES)
 -- =============================================
 local RS = pcall(function()
     local remotes = ReplicatedStorage:FindFirstChild("AliensPowerRemotes")
@@ -255,7 +221,18 @@ local function startKillBossLoop()
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
 
-        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, Config.Distancia, 0)
+        -- Determina o offset baseado na posição selecionada
+        local offset = Vector3.new(0, 0, 0)
+        local dist = Config.Distancia
+        if Config.Posicao == "Cima" then
+            offset = Vector3.new(0, dist, 0)
+        elseif Config.Posicao == "Baixo" then
+            offset = Vector3.new(0, -dist, 0)
+        elseif Config.Posicao == "Atrás" then
+            offset = Vector3.new(0, 0, -dist)
+        end
+
+        myRoot.CFrame = targetPart.CFrame * CFrame.new(offset)
 
         local multiplier = math.floor(tonumber(Config.Multiplicador) or 1)
         if multiplier < 1 then multiplier = 1 end
@@ -280,40 +257,20 @@ if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas then
 end
 
 -- =============================================
+-- TEMPO DE SESSÃO
+-- =============================================
+local tempoInicio = os.time()
+local tempoLabel = nil
+
+-- =============================================
 -- MENU – WINDUI
 -- =============================================
 local oldWindow = nil
-local updateConnection = nil
-local timeDisplay = nil
-
-local function formatTime(seconds)
-    if type(seconds) ~= "number" or seconds < 0 then
-        seconds = 0
-    end
-    local h = math.floor(seconds / 3600)
-    local m = math.floor((seconds % 3600) / 60)
-    local s = math.floor(seconds % 60)
-    return string.format("%02d:%02d:%02d", h, m, s)
-end
-
-local function atualizarDisplay()
-    if timeDisplay then
-        local serverUptime = getServerTime()
-        local playerUptime = getPlayerTime()
-        local texto = "⏱️ Servidor: " .. formatTime(serverUptime) .. "\n👤 Player: " .. formatTime(playerUptime)
-        timeDisplay:SetDesc(texto)
-    end
-end
 
 local function CriarMenu()
     if oldWindow then
         pcall(function() oldWindow:Destroy() end)
         oldWindow = nil
-    end
-
-    if updateConnection then
-        updateConnection:Disconnect()
-        updateConnection = nil
     end
 
     local lang = {
@@ -327,12 +284,15 @@ local function CriarMenu()
         PlaceMulti = "Digite um número...",
         ModoTiro = "Modo de Tiro",
         DescModoTiro = "Ativado = Laser | Desativado = Sonic",
+        Posicao = "Posição",
+        DescPosicao = "Localização do teleporte em relação ao boss",
         SecBoss = "Boss",
         ToggleBivalvan = "Bivalvan",
         ToggleGalapagus = "Galapagus",
         TogglePandor = "P'Andor",
         ToggleAndreas = "Andreas",
-        SecInfo = "⏱️ Informações do Servidor",
+        SecInfo = "Informações do Servidor",
+        TempoSessao = "Tempo que Player entrou no serve",
     }
 
     local WindUI
@@ -392,7 +352,7 @@ local function CriarMenu()
         Draggable = false
     })
 
-    -- Aba Kill Boss
+    -- ====== ABA KILL BOSS ======
     local TabKill = Window:Tab({ Title = lang.TabKillBoss, Icon = "rbxassetid://135710581431595" })
 
     TabKill:Section({ Title = lang.SecConfig })
@@ -434,6 +394,18 @@ local function CriarMenu()
             Config.ModoTiro = value
             SaveConfig()
             print("[Kill Boss] Modo de tiro: " .. (value and "Laser" or "Sonic"))
+        end
+    })
+    -- NOVO DROPDOWN POSIÇÃO
+    TabKill:Dropdown({
+        Title = lang.Posicao,
+        Desc = lang.DescPosicao,
+        Values = {"Cima", "Baixo", "Atrás"},
+        Value = Config.Posicao,
+        Callback = function(value)
+            Config.Posicao = value
+            SaveConfig()
+            print("[Kill Boss] Posição alterada para: " .. value)
         end
     })
 
@@ -503,32 +475,40 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA CONFIG ======
+    -- ====== ABA CONFIG (NOVA) ======
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
     TabConfig:Section({ Title = lang.SecInfo })
 
-    local serverUptime = getServerTime()
-    local playerUptime = getPlayerTime()
-    local textoInicial = "⏱️ Servidor: " .. formatTime(serverUptime) .. "\n👤 Player: " .. formatTime(playerUptime)
-    timeDisplay = TabConfig:Paragraph({
-        Title = "📊 Status do Servidor",
-        Desc = textoInicial,
+    -- Painel não interativo (sem callback)
+    local painel = TabConfig:Paragraph({
+        Title = lang.TempoSessao,
+        Desc = "00:00:00" -- será atualizado
     })
 
-    -- Loop para atualizar a cada 1 segundo
-    updateConnection = RunService.Heartbeat:Connect(function()
-        if timeDisplay then
-            atualizarDisplay()
+    -- Atualizar o tempo a cada segundo
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            local tempoAtual = os.time()
+            local diff = tempoAtual - tempoInicio
+            local horas = math.floor(diff / 3600)
+            local minutos = math.floor((diff % 3600) / 60)
+            local segundos = diff % 60
+            local tempoStr = string.format("%02d:%02d:%02d", horas, minutos, segundos)
+            painel:SetDesc(tempoStr)
         end
     end)
+
+    -- Armazenar o painel para uso futuro (opcional)
+    tempoLabel = painel
 end
 
 pcall(CriarMenu)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Kill Boss - Dimensão 23",
-    Text = "Carregado! Tempos 100% alinhados.",
+    Text = "Carregado com sucesso!",
     Duration = 3
 })
 
-print("Kill Boss - Dimensão 23 carregado. Tempos corrigidos.")
+print("Kill Boss - Dimensão 23 carregado. Boss Andreas e posição adicionados.")
