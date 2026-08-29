@@ -1,22 +1,12 @@
--- =============================================
--- 1. CONFIGURAÇÃO INICIAL COM TRATAMENTO DE ERROS
--- =============================================
 local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
 local lighting = game:GetService("Lighting")
 local tweenService = game:GetService("TweenService")
+local runService = game:GetService("RunService")
+
 local localPlayer = players.LocalPlayer
 
--- Função para log no console
-local function debugLog(msg)
-    warn("[Project Sor] " .. msg)
-end
-
-debugLog("Iniciando script...")
-
--- =============================================
--- 2. ANIMAÇÃO DE ABERTURA (com pcall para não travar)
--- =============================================
+-- Intro Animation Setup
 local blur = Instance.new("BlurEffect")
 blur.Name = "UIBlurEffect"
 blur.Size = 0
@@ -28,18 +18,17 @@ screenGui.Name = "OverlayGui"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local successGui = pcall(function()
+local success = pcall(function()
     screenGui.Parent = coreGui
 end)
-if not successGui then
-    debugLog("Não foi possível por no CoreGui, usando PlayerGui")
+if not success then
     screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 end
 
 local img = Instance.new("ImageLabel")
 img.Name = "DisplayImage"
 img.BackgroundTransparency = 1
-img.Image = "rbxassetid://135710581431595" -- verifique se esse ID existe
+img.Image = "rbxassetid://135710581431595"
 img.AnchorPoint = Vector2.new(0.5, 0.5)
 img.Position = UDim2.new(0.5, 0, 0.45, 0)
 img.Size = UDim2.new(0, 400, 0, 400)
@@ -47,18 +36,11 @@ img.ImageTransparency = 1
 img.ZIndex = 10
 img.Parent = screenGui
 
--- Aguarda um pouco para a GUI ser criada
-task.wait(2)
+task.wait(5)
 
--- Animação
 local fadeInfo = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local ok, err = pcall(function()
-    tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
-    tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
-end)
-if not ok then
-    debugLog("Erro na animação de fade: " .. tostring(err))
-end
+tweenService:Create(img, fadeInfo, {ImageTransparency = 0}):Play()
+tweenService:Create(blur, fadeInfo, {Size = 20}):Play()
 
 task.wait(1.5)
 local pulseInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
@@ -67,7 +49,6 @@ pulseTween:Play()
 
 task.wait(8)
 
--- Fecha a animação
 pulseTween:Cancel()
 tweenService:Create(img, fadeInfo, {ImageTransparency = 1}):Play()
 tweenService:Create(blur, fadeInfo, {Size = 0}):Play()
@@ -76,31 +57,9 @@ task.wait(1.5)
 screenGui:Destroy()
 blur:Destroy()
 
-debugLog("Animação de abertura concluída.")
+-- Load WindUI
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))()
 
--- =============================================
--- 3. CARREGAR WINDUI (com fallback)
--- =============================================
-local WindUI
-local loadSuccess, loadErr = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))()
-end)
-
-if not loadSuccess then
-    debugLog("Falha ao carregar WindUI: " .. tostring(loadErr))
-    return -- para a execução
-end
-
-if not WindUI then
-    debugLog("WindUI retornou nil")
-    return
-end
-
-debugLog("WindUI carregada com sucesso.")
-
--- =============================================
--- 4. CRIAR JANELA PRINCIPAL
--- =============================================
 local Window = WindUI:CreateWindow({
     Title = "Project Sor",
     Icon = "rbxassetid://135710581431595",
@@ -118,7 +77,7 @@ local Window = WindUI:CreateWindow({
         Enabled = true,
         Anonymous = false,
         Callback = function()
-            print("Usuário clicou no ícone")
+            print("clicked")
         end,
     },
 })
@@ -139,127 +98,85 @@ Window:EditOpenButton({
     Draggable = false
 })
 
-debugLog("Janela criada.")
+-- Structure Tabs
+local MainTab = Window:Tab({ Title = "MAIN", Icon = "rbxassetid://135710581431595" })
+local BringSection = MainTab:Section({ Title = "BRING NPCs" })
 
--- =============================================
--- 5. CATEGORIA "BRING NPCs"
--- =============================================
-local category = Window:AddCategory({
-    Title = "BRING NPCs",
-    Icon = "", -- pode colocar um ícone se quiser
+-- Bring NPC Logic
+local bringStates = {}
+
+local function bringNPC(path, stateKey)
+    task.spawn(function()
+        while bringStates[stateKey] do
+            local character = localPlayer.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if rootPart then
+                local target = path()
+                if target then
+                    local targetRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Torso") or target.PrimaryPart
+                    if targetRoot then
+                        targetRoot.CFrame = rootPart.CFrame * CFrame.new(0, 0, -3)
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- NPC Toggles
+BringSection:Toggle({
+    Title = "Bring Lazarus",
+    Default = false,
+    Callback = function(Value)
+        bringStates["Lazarus"] = Value
+        if Value then
+            bringNPC(function() return workspace:FindFirstChild("World5") and workspace.World5:FindFirstChild("Lazarus") end, "Lazarus")
+        end
+    end,
 })
 
--- Definição dos NPCs com caminhos e uma função de verificação
-local npcData = {
-    { name = "Lazarus", path = workspace.World5.Lazarus },
-    { name = "NPC 2.0", path = workspace.Enemies["NPC 2.0"] },
-    { name = "NPC", path = workspace.Enemies.NPC },
-    { name = "Doom", path = workspace.Enemies.Doom },
-    { name = "Shop", path = workspace.Catacombs.Shop },
-}
-
--- Tabela para controlar os loops
-local bringing = {} -- nome -> boolean (ativo)
-
--- Função que tenta obter o NPC (com verificação de existência)
-local function getNPC(path)
-    if type(path) == "Instance" and path:IsA("Instance") then
-        return path
-    end
-    -- Se o caminho for uma string, tenta acessar via getfenv (caso o path seja variável)
-    -- Mas aqui os paths são diretos, então só retornamos nil se não for válido
-    return nil
-end
-
--- Função para iniciar o bring
-local function startBring(npcName, path)
-    if bringing[npcName] then return end
-    bringing[npcName] = true
-    debugLog("Iniciando bring de " .. npcName)
-
-    coroutine.wrap(function()
-        while bringing[npcName] do
-            local character = localPlayer.Character
-            if not character then
-                task.wait(0.5)
-                continue
-            end
-            local root = character:FindFirstChild("HumanoidRootPart")
-            if not root then
-                task.wait(0.5)
-                continue
-            end
-
-            local npc = getNPC(path)
-            if not npc then
-                debugLog("NPC " .. npcName .. " não encontrado. Parando bring.")
-                bringing[npcName] = false
-                -- Desmarca o toggle automaticamente (se possível via callback)
-                -- A WindUI não tem método direto, mas podemos notificar o usuário.
-                -- Vamos usar uma notificação simples (se a WindUI suportar)
-                if Window:Notification then
-                    Window:Notification({
-                        Title = "NPC não encontrado",
-                        Description = npcName .. " não está no jogo.",
-                        Duration = 3,
-                    })
-                end
-                break
-            end
-
-            local npcRoot = npc:FindFirstChild("HumanoidRootPart")
-            if not npcRoot then
-                debugLog("NPC " .. npcName .. " não tem HumanoidRootPart")
-                task.wait(0.5)
-                continue
-            end
-
-            -- Teleporta o NPC para o jogador
-            npcRoot.CFrame = root.CFrame
-            task.wait(0.5)
+BringSection:Toggle({
+    Title = "Bring NPC 2.0",
+    Default = false,
+    Callback = function(Value)
+        bringStates["NPC2"] = Value
+        if Value then
+            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC 2.0") end, "NPC2")
         end
-        debugLog("Bring de " .. npcName .. " finalizado.")
-    end)()
-end
+    end,
+})
 
--- Função para parar o bring
-local function stopBring(npcName)
-    if bringing[npcName] then
-        bringing[npcName] = false
-        debugLog("Parando bring de " .. npcName)
-    end
-end
-
--- Adicionar toggles
-for _, data in ipairs(npcData) do
-    local toggle = category:AddToggle({
-        Title = data.name,
-        Description = "Trazer " .. data.name .. " para você",
-        Default = false,
-        Callback = function(value)
-            if value then
-                -- Verifica se o NPC existe antes de iniciar
-                local npc = getNPC(data.path)
-                if not npc then
-                    debugLog("NPC " .. data.name .. " não existe no momento.")
-                    -- Notifica o usuário (se disponível)
-                    if Window:Notification then
-                        Window:Notification({
-                            Title = "NPC não encontrado",
-                            Description = data.name .. " não está disponível agora.",
-                            Duration = 3,
-                        })
-                    end
-                    -- Desmarca o toggle (a WindUI geralmente mantém o estado, mas podemos forçar)
-                    -- Não temos como desmarcar programaticamente, então apenas paramos.
-                    return
-                end
-                startBring(data.name, data.path)
-            else
-                stopBring(data.name)
-            end
+BringSection:Toggle({
+    Title = "Bring NPC",
+    Default = false,
+    Callback = function(Value)
+        bringStates["NPC"] = Value
+        if Value then
+            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC") end, "NPC")
         end
-    })
-end
+    end,
+})
 
-debugLog("Script finalizado com sucesso.")
+BringSection:Toggle({
+    Title = "Bring Doom",
+    Default = false,
+    Callback = function(Value)
+        bringStates["Doom"] = Value
+        if Value then
+            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("Doom") end, "Doom")
+        end
+    end,
+})
+
+BringSection:Toggle({
+    Title = "Bring Shop Catacombs",
+    Default = false,
+    Callback = function(Value)
+        bringStates["Shop"] = Value
+        if Value then
+            bringNPC(function() return workspace:FindFirstChild("Catacombs") and workspace.Catacombs:FindFirstChild("Shop") end, "Shop")
+        end
+    end,
+})
