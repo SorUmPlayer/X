@@ -53,8 +53,9 @@ local Config = {
     Galapagus = false,
     Pandor = false,
     Andreas = false,
+    Raad = false,            -- NOVO BOSS
     ModoTiro = true,
-    Posicao = "Cima", -- NOVO: Cima, Baixo, Atrás
+    Posicao = "Cima",
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -187,6 +188,10 @@ local function getActiveBossTarget()
         local part = getBossPart("Andreas", "Ominitrix_Symbol")
         if part then return part end
     end
+    if Config.Raad then
+        local part = getBossPart("Ra'ad", "Ominitrix_Symbol")
+        if part then return part end
+    end
     return nil
 end
 
@@ -200,7 +205,7 @@ local function startKillBossLoop()
     if killBossConnection then return end
     killBossRunning = true
     killBossConnection = RunService.Heartbeat:Connect(function()
-        if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas) then
+        if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas or Config.Raad) then
             killBossRunning = false
             if killBossConnection then
                 killBossConnection:Disconnect()
@@ -221,7 +226,6 @@ local function startKillBossLoop()
         local _, myRoot = getLocalCharacter()
         if not myRoot then return end
 
-        -- Determina o offset baseado na posição selecionada
         local offset = Vector3.new(0, 0, 0)
         local dist = Config.Distancia
         if Config.Posicao == "Cima" then
@@ -238,7 +242,7 @@ local function startKillBossLoop()
         if multiplier < 1 then multiplier = 1 end
 
         for i = 1, multiplier do
-            if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas) then break end
+            if not (Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas or Config.Raad) then break end
             if Config.ModoTiro then
                 LaserAttack()
                 GunArm()
@@ -252,7 +256,7 @@ local function startKillBossLoop()
     end)
 end
 
-if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas then
+if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas or Config.Raad then
     task.spawn(startKillBossLoop)
 end
 
@@ -291,6 +295,7 @@ local function CriarMenu()
         ToggleGalapagus = "Galapagus",
         TogglePandor = "P'Andor",
         ToggleAndreas = "Andreas",
+        ToggleRaad = "Ra'ad",
         SecInfo = "Informações do Servidor",
         TempoSessao = "Tempo que Player entrou no serve",
     }
@@ -396,7 +401,6 @@ local function CriarMenu()
             print("[Kill Boss] Modo de tiro: " .. (value and "Laser" or "Sonic"))
         end
     })
-    -- NOVO DROPDOWN POSIÇÃO
     TabKill:Dropdown({
         Title = lang.Posicao,
         Desc = lang.DescPosicao,
@@ -416,7 +420,7 @@ local function CriarMenu()
         Callback = function(value)
             Config.Bivalvan = value
             SaveConfig()
-            if value or Config.Galapagus or Config.Pandor or Config.Andreas then
+            if value or Config.Galapagus or Config.Pandor or Config.Andreas or Config.Raad then
                 task.spawn(startKillBossLoop)
             else
                 if killBossConnection then
@@ -432,7 +436,7 @@ local function CriarMenu()
         Callback = function(value)
             Config.Galapagus = value
             SaveConfig()
-            if Config.Bivalvan or value or Config.Pandor or Config.Andreas then
+            if Config.Bivalvan or value or Config.Pandor or Config.Andreas or Config.Raad then
                 task.spawn(startKillBossLoop)
             else
                 if killBossConnection then
@@ -448,7 +452,7 @@ local function CriarMenu()
         Callback = function(value)
             Config.Pandor = value
             SaveConfig()
-            if Config.Bivalvan or Config.Galapagus or value or Config.Andreas then
+            if Config.Bivalvan or Config.Galapagus or value or Config.Andreas or Config.Raad then
                 task.spawn(startKillBossLoop)
             else
                 if killBossConnection then
@@ -464,7 +468,24 @@ local function CriarMenu()
         Callback = function(value)
             Config.Andreas = value
             SaveConfig()
-            if Config.Bivalvan or Config.Galapagus or Config.Pandor or value then
+            if Config.Bivalvan or Config.Galapagus or Config.Pandor or value or Config.Raad then
+                task.spawn(startKillBossLoop)
+            else
+                if killBossConnection then
+                    killBossConnection:Disconnect()
+                    killBossConnection = nil
+                end
+            end
+        end
+    })
+    -- NOVO TOGGLE RA'AD
+    TabKill:Toggle({
+        Title = lang.ToggleRaad,
+        Value = Config.Raad,
+        Callback = function(value)
+            Config.Raad = value
+            SaveConfig()
+            if Config.Bivalvan or Config.Galapagus or Config.Pandor or Config.Andreas or value then
                 task.spawn(startKillBossLoop)
             else
                 if killBossConnection then
@@ -475,31 +496,26 @@ local function CriarMenu()
         end
     })
 
-    -- ====== ABA CONFIG (NOVA) ======
+    -- ====== ABA CONFIG ======
     local TabConfig = Window:Tab({ Title = lang.TabConfig, Icon = "rbxassetid://135710581431595" })
     TabConfig:Section({ Title = lang.SecInfo })
 
-    -- Painel não interativo (sem callback)
     local painel = TabConfig:Paragraph({
         Title = lang.TempoSessao,
-        Desc = "00:00:00" -- será atualizado
+        Desc = "00:00:00"
     })
 
-    -- Atualizar o tempo a cada segundo
     task.spawn(function()
         while true do
             task.wait(1)
-            local tempoAtual = os.time()
-            local diff = tempoAtual - tempoInicio
+            local diff = os.time() - tempoInicio
             local horas = math.floor(diff / 3600)
             local minutos = math.floor((diff % 3600) / 60)
             local segundos = diff % 60
-            local tempoStr = string.format("%02d:%02d:%02d", horas, minutos, segundos)
-            painel:SetDesc(tempoStr)
+            painel:SetDesc(string.format("%02d:%02d:%02d", horas, minutos, segundos))
         end
     end)
 
-    -- Armazenar o painel para uso futuro (opcional)
     tempoLabel = painel
 end
 
@@ -511,4 +527,4 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-print("Kill Boss - Dimensão 23 carregado. Boss Andreas e posição adicionados.")
+print("Kill Boss - Dimensão 23 carregado. Boss Ra'ad adicionado.")
