@@ -2,11 +2,9 @@ local players = game:GetService("Players")
 local coreGui = game:GetService("CoreGui")
 local lighting = game:GetService("Lighting")
 local tweenService = game:GetService("TweenService")
-local runService = game:GetService("RunService")
-
 local localPlayer = players.LocalPlayer
 
--- Intro Animation Setup
+-- Intro Animation
 local blur = Instance.new("BlurEffect")
 blur.Name = "UIBlurEffect"
 blur.Size = 0
@@ -98,41 +96,47 @@ Window:EditOpenButton({
     Draggable = false
 })
 
--- Structure Tabs
+-- UI Setup
 local MainTab = Window:Tab({ Title = "MAIN", Icon = "rbxassetid://135710581431595" })
 local BringSection = MainTab:Section({ Title = "BRING NPCs" })
 
--- Bring NPC Logic
+-- Bring Controller Logic
 local bringStates = {}
 
-local function bringNPC(path, stateKey)
+local function bringNPC(pathGetter, stateKey)
     task.spawn(function()
         while bringStates[stateKey] do
-            local character = localPlayer.Character
-            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            local char = localPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
             
-            if rootPart then
-                local target = path()
+            if root then
+                local target = pathGetter()
                 if target then
-                    local targetRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Torso") or target.PrimaryPart
+                    local targetRoot = target:FindFirstChild("HumanoidRootPart") 
+                        or target:FindFirstChild("Torso") 
+                        or target.PrimaryPart
+                        or target:FindFirstChildWhichIsA("BasePart")
+                    
                     if targetRoot then
-                        targetRoot.CFrame = rootPart.CFrame * CFrame.new(0, 0, -3)
+                        targetRoot.CFrame = root.CFrame * CFrame.new(0, 0, -3)
                     end
                 end
             end
-            task.wait(0.1)
+            task.wait(0.05)
         end
     end)
 end
 
--- NPC Toggles
+-- Toggles
 BringSection:Toggle({
     Title = "Bring Lazarus",
     Default = false,
     Callback = function(Value)
         bringStates["Lazarus"] = Value
         if Value then
-            bringNPC(function() return workspace:FindFirstChild("World5") and workspace.World5:FindFirstChild("Lazarus") end, "Lazarus")
+            bringNPC(function() 
+                return workspace:FindFirstChild("World5") and workspace.World5:FindFirstChild("Lazarus") 
+            end, "Lazarus")
         end
     end,
 })
@@ -143,7 +147,9 @@ BringSection:Toggle({
     Callback = function(Value)
         bringStates["NPC2"] = Value
         if Value then
-            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC 2.0") end, "NPC2")
+            bringNPC(function() 
+                return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC 2.0") 
+            end, "NPC2")
         end
     end,
 })
@@ -154,7 +160,9 @@ BringSection:Toggle({
     Callback = function(Value)
         bringStates["NPC"] = Value
         if Value then
-            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC") end, "NPC")
+            bringNPC(function() 
+                return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("NPC") 
+            end, "NPC")
         end
     end,
 })
@@ -165,7 +173,9 @@ BringSection:Toggle({
     Callback = function(Value)
         bringStates["Doom"] = Value
         if Value then
-            bringNPC(function() return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("Doom") end, "Doom")
+            bringNPC(function() 
+                return workspace:FindFirstChild("Enemies") and workspace.Enemies:FindFirstChild("Doom") 
+            end, "Doom")
         end
     end,
 })
@@ -176,7 +186,9 @@ BringSection:Toggle({
     Callback = function(Value)
         bringStates["Shop"] = Value
         if Value then
-            bringNPC(function() return workspace:FindFirstChild("Catacombs") and workspace.Catacombs:FindFirstChild("Shop") end, "Shop")
+            bringNPC(function() 
+                return workspace:FindFirstChild("Catacombs") and workspace.Catacombs:FindFirstChild("Shop") 
+            end, "Shop")
         end
     end,
 })
