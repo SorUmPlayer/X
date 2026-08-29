@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Aimbot Câmera estilo "atrás do personagem"
+    SorHub Esport – Blue Lock Rivels + Volleyball Legends
 ]]
 
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -31,7 +32,7 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  REFERÊNCIAS DA BOLA (CACHE)
+--  BLUE LOCK – REFERÊNCIAS DA BOLA
 -- =====================================================
 local bola = nil
 local hitbox = nil
@@ -66,7 +67,7 @@ Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 
 -- =====================================================
---  GETBALL (PARA O BOTÃO DE CONTROLE)
+--  BLUE LOCK – GETBALL
 -- =====================================================
 local function getBall()
     local football = Workspace:FindFirstChild("Football")
@@ -83,7 +84,7 @@ local function getBall()
 end
 
 -- =====================================================
---  POSSE DA BOLA
+--  BLUE LOCK – POSSE
 -- =====================================================
 local function euTenhoBola()
     local meuModel = Workspace:FindFirstChild(player.Name)
@@ -94,7 +95,7 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  VARIÁVEIS DE CONTROLE
+--  BLUE LOCK – VARIÁVEIS
 -- =====================================================
 local aimbotPersonagem = false
 local aimbotCamera = false
@@ -116,7 +117,7 @@ local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
 -- =====================================================
---  CONTROLE DA HITBOX (UNIFICADO)
+--  BLUE LOCK – CONTROLE DA HITBOX
 -- =====================================================
 local function aplicarTamanhoHitbox()
     if not hitbox then return end
@@ -147,7 +148,7 @@ task.spawn(function()
 end)
 
 -- =====================================================
---  CONTROLE BOLA – BOTÃO FLUTUANTE
+--  BLUE LOCK – CONTROLE BOLA (BOTÃO FLUTUANTE)
 -- =====================================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -233,7 +234,7 @@ local function removerBotaoFlutuante()
 end
 
 -- =====================================================
---  AIMBOT PERSONAGEM (BodyGyro)
+--  BLUE LOCK – AIMBOT PERSONAGEM
 -- =====================================================
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
@@ -272,7 +273,7 @@ local function atualizarAimbotPersonagem()
 end
 
 -- =====================================================
---  AIMBOT CÂMERA (ESTILO "ATRÁS DO PERSONAGEM")
+--  BLUE LOCK – AIMBOT CÂMERA
 -- =====================================================
 local function atualizarAimbotCamera()
     if isControlActive then return end
@@ -283,18 +284,16 @@ local function atualizarAimbotCamera()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Calcula a direção para a bola (mesmo usado no BodyGyro)
     local posBola = hitbox.Position
     local posJogador = hrp.Position
     local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
 
-    -- Coloca a câmera atrás do personagem, olhando para ele
     local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
 
 -- =====================================================
---  ESP
+--  BLUE LOCK – ESP
 -- =====================================================
 local function atualizarESP()
     if euTenhoBola() or not mostrarESP or not hitbox then
@@ -319,7 +318,7 @@ local function atualizarESP()
 end
 
 -- =====================================================
---  LOOP PRINCIPAL
+--  BLUE LOCK – LOOP
 -- =====================================================
 RunService.Heartbeat:Connect(function()
     atualizarAimbotPersonagem()
@@ -328,7 +327,102 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (UMA ÚNICA ABA)
+--  VOLLEYBALL LEGENDS – VARIÁVEIS
+-- =====================================================
+local vbHitboxEnabled = false
+local vbHitboxSize = 15
+local vbMinSize = 1
+local vbMaxSize = 50
+local vbOriginalProps = {}
+
+-- =====================================================
+--  VOLLEYBALL LEGENDS – FUNÇÕES
+-- =====================================================
+local function getBallParts()
+    local ballParts = {}
+    for _, item in ipairs(workspace:GetChildren()) do
+        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
+            if item:IsA("BasePart") then
+                table.insert(ballParts, item)
+            else
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("BasePart") then
+                        table.insert(ballParts, child)
+                    end
+                end
+            end
+        end
+    end
+    return ballParts
+end
+
+local function restoreVbOriginals()
+    for part, props in pairs(vbOriginalProps) do
+        if part and part.Parent then
+            part.Size = props.Size
+            part.Transparency = props.Transparency
+            part.CanCollide = props.CanCollide
+            part.CanTouch = props.CanTouch
+        end
+    end
+    table.clear(vbOriginalProps)
+end
+
+local function aplicarVbHitbox()
+    if not vbHitboxEnabled then
+        restoreVbOriginals()
+        return
+    end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local bodyParts = {
+        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
+        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
+        hrp
+    }
+
+    local balls = getBallParts()
+    for _, part in ipairs(balls) do
+        if not vbOriginalProps[part] then
+            vbOriginalProps[part] = {
+                Size = part.Size,
+                Transparency = part.Transparency,
+                CanCollide = part.CanCollide,
+                CanTouch = part.CanTouch
+            }
+        end
+
+        part.Size = Vector3.new(vbHitboxSize, vbHitboxSize, vbHitboxSize)
+        part.Transparency = 0.5
+        part.CanCollide = false
+        part.CanTouch = true
+        if pcall(function() return part.CanQuery end) then
+            part.CanQuery = true
+        end
+
+        local distance = (hrp.Position - part.Position).Magnitude
+        if distance <= (vbHitboxSize / 2) + 3 then
+            for _, bPart in ipairs(bodyParts) do
+                if bPart and firetouchinterest then
+                    firetouchinterest(bPart, part, 0)
+                    firetouchinterest(bPart, part, 1)
+                end
+            end
+        end
+    end
+end
+
+-- Loop do Volleyball
+RunService.Heartbeat:Connect(function()
+    aplicarVbHitbox()
+end)
+
+-- =====================================================
+--  WINDUI – INTERFACE PRINCIPAL
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -340,10 +434,10 @@ if not loaded or not WindUI then
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivels",
+    Title = "⚽ SorHub Esport",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
-    Folder = "BlueLockHub",
+    Folder = "SorHub",
     Size = UDim2.fromOffset(480, 420),
     Transparent = true,
     Theme = "Dark",
@@ -353,10 +447,13 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-local MainTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
+-- =====================================================
+--  TAB 1: BLUE LOCK RIVELS
+-- =====================================================
+local BlueLockTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
 
 -- Seção Controle de Bola
-local secControleBola = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+local secControleBola = BlueLockTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 
 secControleBola:Input({
     Title = "Velocidade da Bola",
@@ -384,7 +481,7 @@ secControleBola:Toggle({
 })
 
 -- Seção Aimbot
-local secAimbot = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
+local secAimbot = BlueLockTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 
 secAimbot:Toggle({
     Title = "Aimbot Personagem (Grudado)",
@@ -403,7 +500,7 @@ secAimbot:Toggle({
 })
 
 -- Seção Reach
-local secReach = MainTab:Section({ Title = "Reach (Magnet)", TextXAlignment = "Left" })
+local secReach = BlueLockTab:Section({ Title = "Reach (Magnet)", TextXAlignment = "Left" })
 
 secReach:Slider({
     Title = "Alcance",
@@ -440,7 +537,7 @@ secReach:Toggle({
 })
 
 -- Seção Extras
-local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
+local secExtras = BlueLockTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 
 secExtras:Button({
     Title = "Infinite Stamina",
@@ -503,10 +600,48 @@ secExtras:Button({
     end
 })
 
+-- =====================================================
+--  TAB 2: VOLLEYBALL LEGENDS
+-- =====================================================
+local VolleyballTab = Window:Tab({ Title = "Volleyball Legends", Icon = "sports-volleyball" })
+
+local secVb = VolleyballTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
+
+secVb:Toggle({
+    Title = "Ativar Hitbox",
+    Desc = "Aumenta a hitbox da bola para pegar mais fácil",
+    Callback = function(v)
+        vbHitboxEnabled = v
+        if not v then
+            restoreVbOriginals()
+        end
+    end
+})
+
+secVb:Slider({
+    Title = "Tamanho da Hitbox",
+    Desc = "Tamanho da hitbox da bola (1 a 50)",
+    Step = 1,
+    Value = { Min = 1, Max = 50, Default = 15 },
+    Callback = function(v)
+        vbHitboxSize = v
+    end
+})
+
+local secVbInfo = VolleyballTab:Section({ Title = "Informação", TextXAlignment = "Left" })
+
+secVbInfo:Label({
+    Title = "Ative a Hitbox e ajuste o tamanho",
+    Desc = "Funciona com bolas CLIENT_BALL_"
+})
+
+-- =====================================================
+--  NOTIFICAÇÃO
+-- =====================================================
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivels",
-        Text = "Aimbot câmera estilo antigo integrado!",
+        Title = "SorHub Esport",
+        Text = "Hub carregado! Blue Lock + Volleyball",
         Duration = 4
     })
 end)
