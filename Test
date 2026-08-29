@@ -2,14 +2,20 @@
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- Configurações
+local LocalPlayer = Players.LocalPlayer
+
+-- Estado do Script
 local HitboxEnabled = false
 local HitboxSize = 15
 local MinSize = 1
 local MaxSize = 50
 
--- Remove UI antiga
+-- Tabela para salvar propriedades originais das bolas
+local originalProps = {}
+
+-- Destrói UI antiga
 if CoreGui:FindFirstChild("BallHitboxUI") then
     CoreGui.BallHitboxUI:Destroy()
 end
@@ -21,8 +27,8 @@ ScreenGui.Parent = CoreGui
 
 -- Frame Voador (Janela Arrastável)
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 110)
-Frame.Position = UDim2.new(0.5, -100, 0.4, 0)
+Frame.Size = UDim2.new(0, 210, 0, 115)
+Frame.Position = UDim2.new(0.5, -105, 0.4, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Frame.BorderSizePixel = 0
 Frame.Active = true
@@ -31,7 +37,17 @@ Frame.Parent = ScreenGui
 local FrameCorner = Instance.new("UICorner", Frame)
 FrameCorner.CornerRadius = UDim.new(0, 8)
 
--- Arrastar Janela (Voador)
+-- Cabeçalho / Arrastar Janela
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 22)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "  Hitbox Ball Fix"
+TitleLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 13
+TitleLabel.Parent = Frame
+
 local dragging, dragStart, startPos
 Frame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -54,35 +70,24 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Botão ON / OFF
+-- Botão Ligar / Desligar
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0.9, 0, 0, 32)
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.12, 0)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.24, 0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
 ToggleBtn.Text = "Hitbox: OFF"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.SourceSansBold
-ToggleBtn.TextSize = 15
+ToggleBtn.TextSize = 14
 ToggleBtn.Parent = Frame
 
 local BtnCorner = Instance.new("UICorner", ToggleBtn)
 BtnCorner.CornerRadius = UDim.new(0, 6)
 
-ToggleBtn.MouseButton1Click:Connect(function()
-    HitboxEnabled = not HitboxEnabled
-    if HitboxEnabled then
-        ToggleBtn.Text = "Hitbox: ON"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-    else
-        ToggleBtn.Text = "Hitbox: OFF"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    end
-end)
-
 -- Slider (1 a 50)
 local SliderLabel = Instance.new("TextLabel")
-SliderLabel.Size = UDim2.new(0.9, 0, 0, 20)
-SliderLabel.Position = UDim2.new(0.05, 0, 0.48, 0)
+SliderLabel.Size = UDim2.new(0.9, 0, 0, 18)
+SliderLabel.Position = UDim2.new(0.05, 0, 0.58, 0)
 SliderLabel.BackgroundTransparency = 1
 SliderLabel.Text = "Tamanho: " .. HitboxSize
 SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -92,7 +97,7 @@ SliderLabel.Parent = Frame
 
 local SliderTrack = Instance.new("Frame")
 SliderTrack.Size = UDim2.new(0.9, 0, 0, 6)
-SliderTrack.Position = UDim2.new(0.05, 0, 0.72, 0)
+SliderTrack.Position = UDim2.new(0.05, 0, 0.78, 0)
 SliderTrack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 SliderTrack.Parent = Frame
 
@@ -108,7 +113,7 @@ SliderKnob.Parent = SliderTrack
 local KnobCorner = Instance.new("UICorner", SliderKnob)
 KnobCorner.CornerRadius = UDim.new(1, 0)
 
--- Lógica Slider
+-- Lógica do Slider
 local sliding = false
 local function updateSlider(input)
     local percentage = math.clamp((input.Position.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X, 0, 1)
@@ -136,20 +141,98 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Loop da Hitbox Dinâmica (detecta CLIENT_BALL_...)
-task.spawn(function()
-    while task.wait(0.1) do
-        if HitboxEnabled then
-            for _, item in ipairs(workspace:GetChildren()) do
-                if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
-                    local parts = item:IsA("BasePart") and {item} or item:GetDescendants()
-                    for _, part in ipairs(parts) do
-                        if part:IsA("BasePart") then
-                            part.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
-                            part.Transparency = 0.5
-                            part.CanCollide = false
-                        end
+----------------------------------------------------------------
+-- Lógica da Hitbox & Toque
+----------------------------------------------------------------
+
+-- Função para restaurar o estado original da bola quando desligar
+local function restoreOriginals()
+    for part, props in pairs(originalProps) do
+        if part and part.Parent then
+            part.Size = props.Size
+            part.Transparency = props.Transparency
+            part.CanCollide = props.CanCollide
+            part.CanTouch = props.CanTouch
+        end
+    end
+    table.clear(originalProps)
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    HitboxEnabled = not HitboxEnabled
+    if HitboxEnabled then
+        ToggleBtn.Text = "Hitbox: ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+    else
+        ToggleBtn.Text = "Hitbox: OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        restoreOriginals()
+    end
+end)
+
+-- Encontra partes da bola cliente
+local function getBallParts()
+    local ballParts = {}
+    for _, item in ipairs(workspace:GetChildren()) do
+        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
+            if item:IsA("BasePart") then
+                table.insert(ballParts, item)
+            else
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("BasePart") then
+                        table.insert(ballParts, child)
                     end
+                end
+            end
+        end
+    end
+    return ballParts
+end
+
+-- Loop de verificação rápida (Heartbeat)
+RunService.Heartbeat:Connect(function()
+    if not HitboxEnabled then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Partes do corpo para forçar toque
+    local bodyParts = {
+        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
+        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
+        hrp
+    }
+
+    local balls = getBallParts()
+    for _, part in ipairs(balls) do
+        -- Salva propriedades originais na primeira vez
+        if not originalProps[part] then
+            originalProps[part] = {
+                Size = part.Size,
+                Transparency = part.Transparency,
+                CanCollide = part.CanCollide,
+                CanTouch = part.CanTouch
+            }
+        end
+
+        -- Aplica alterações de tamanho e permissão de toque
+        part.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+        part.Transparency = 0.5
+        part.CanCollide = false
+        part.CanTouch = true
+        if pcall(function() return part.CanQuery end) then
+            part.CanQuery = true
+        end
+
+        -- Se o jogador estiver dentro do raio da Hitbox, dispara o evento de toque
+        local distance = (hrp.Position - part.Position).Magnitude
+        if distance <= (HitboxSize / 2) + 3 then
+            for _, bPart in ipairs(bodyParts) do
+                if bPart and firetouchinterest then
+                    firetouchinterest(bPart, part, 0)
+                    firetouchinterest(bPart, part, 1)
                 end
             end
         end
