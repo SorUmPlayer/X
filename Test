@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Com botão flutuante Aimbot e Tempo do Aimbot
+    Blue Lock Rivels Hub – Aimbot Câmera estilo "atrás do personagem"
 ]]
 
 local Players = game:GetService("Players")
@@ -108,31 +108,6 @@ local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
 
--- =====================================================
---  NOVAS VARIÁVEIS: BOTÃO FLUTUANTE AIMBOT + TEMPO
--- =====================================================
-local aimbotButtonActive = false
-local aimbotButtonGui = nil
-local aimbotToggleButton = nil
-
--- Tabela de mapeamento do slider "Tempo do Aimbot"
-local tempoMapping = {
-    [0] = 0,      -- 0 = sem tempo
-    [1] = 0.1,    -- 0.1 segundo
-    [2] = 0.2,    -- 0.2 segundos
-    [3] = 0.25,   -- 0.25 segundos
-    [4] = 0.40,   -- 0.40 segundos
-    [5] = 0.60,   -- 0.60 segundos
-    [6] = 0.70,   -- 0.70 segundos
-    [7] = 1.0,    -- 1 segundo
-    [8] = 2.0,    -- 2 segundos
-    [9] = 3.0,    -- 3 segundos
-    [10] = 4.0,   -- 4 segundos
-}
-local aimbotTempo = 0  -- valor padrão (sem delay)
-local aimbotDelayActive = false
-local aimbotDelayTimer = 0
-
 local gyro = nil
 local selectedTeam = nil
 
@@ -147,6 +122,7 @@ local vbHitboxEnabled = false
 local vbHitboxSize = 15
 local vbOriginalProps = {}
 
+-- Função para restaurar a bola ao estado normal quando desligar
 local function restoreVbOriginals()
     for part, props in pairs(vbOriginalProps) do
         if part and part.Parent then
@@ -159,6 +135,7 @@ local function restoreVbOriginals()
     table.clear(vbOriginalProps)
 end
 
+-- Busca todas as partes da bola com padrão de nome "CLIENT_BALL_"
 local function getVbBallParts()
     local ballParts = {}
     for _, item in ipairs(Workspace:GetChildren()) do
@@ -177,6 +154,7 @@ local function getVbBallParts()
     return ballParts
 end
 
+-- Loop contínuo para atualizar a Hitbox e disparar o toque
 RunService.Heartbeat:Connect(function()
     if not vbHitboxEnabled then return end
 
@@ -340,69 +318,7 @@ local function removerBotaoFlutuante()
 end
 
 -- =====================================================
---  BOTÃO FLUTUANTE AIMBOT (CÂMERA)
--- =====================================================
-local function toggleAimbotButton()
-    aimbotButtonActive = not aimbotButtonActive
-    
-    if aimbotButtonActive then
-        if aimbotToggleButton then
-            aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            aimbotToggleButton.Text = "Aimbot [ON]"
-        end
-        aimbotCamera = true
-    else
-        if aimbotToggleButton then
-            aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            aimbotToggleButton.Text = "Aimbot [OFF]"
-        end
-        aimbotCamera = false
-    end
-end
-
-local function criarBotaoFlutuanteAimbot()
-    if aimbotButtonGui then return end
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "AimbotButtonGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 160, 0, 40)
-    btn.Position = UDim2.new(0.5, -80, 0.2, 0)  -- posição um pouco abaixo do botão de controle
-    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    btn.Text = "Aimbot [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 15
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-
-    btn.MouseButton1Click:Connect(toggleAimbotButton)
-
-    aimbotToggleButton = btn
-    aimbotButtonGui = screenGui
-end
-
-local function removerBotaoFlutuanteAimbot()
-    if aimbotButtonActive then
-        toggleAimbotButton()  -- desativa se estiver ativo
-    end
-    if aimbotButtonGui then
-        aimbotButtonGui:Destroy()
-        aimbotButtonGui = nil
-        aimbotToggleButton = nil
-    end
-end
-
--- =====================================================
---  AIMBOT PERSONAGEM (BodyGyro) com delay
+--  AIMBOT PERSONAGEM (BodyGyro)
 -- =====================================================
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
@@ -418,7 +334,6 @@ local function atualizarAimbotPersonagem()
             gyro:Destroy()
             gyro = nil
         end
-        aimbotDelayActive = false
         return
     end
 
@@ -426,26 +341,6 @@ local function atualizarAimbotPersonagem()
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
-    -- Lógica do delay do Aimbot
-    local tempoDelay = tempoMapping[aimbotTempo] or 0
-
-    if tempoDelay > 0 then
-        if not aimbotDelayActive then
-            aimbotDelayActive = true
-            aimbotDelayTimer = tick()
-        end
-        
-        if tick() - aimbotDelayTimer < tempoDelay then
-            -- Ainda no delay, não aplica o gyro (deixa o personagem parado)
-            return
-        else
-            -- Delay passou, pode aplicar o gyro
-            aimbotDelayActive = false
-        end
-    else
-        aimbotDelayActive = false
-    end
 
     if not gyro then
         gyro = Instance.new("BodyGyro")
@@ -473,10 +368,12 @@ local function atualizarAimbotCamera()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    -- Calcula a direção para a bola (mesmo usado no BodyGyro)
     local posBola = hitbox.Position
     local posJogador = hrp.Position
     local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
 
+    -- Coloca a câmera atrás do personagem, olhando para ele
     local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
@@ -516,7 +413,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI
+--  INTERFACE WINDUI (UMA ÚNICA ABA)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -532,7 +429,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(480, 480),
+    Size = UDim2.fromOffset(480, 420),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -560,7 +457,7 @@ secControleBola:Input({
 })
 
 secControleBola:Toggle({
-    Title = "Botão Flutuante (Controle Bola)",
+    Title = "Botão Flutuante",
     Desc = "Abre o botão arrastável na tela (ON/OFF)",
     Callback = function(v)
         if v then
@@ -587,31 +484,6 @@ secAimbot:Toggle({
     Desc = "Câmera atrás do personagem olhando para a bola",
     Callback = function(v)
         aimbotCamera = v
-    end
-})
-
--- NOVO: Toggle para Botão Flutuante do Aimbot
-secAimbot:Toggle({
-    Title = "Botão Flutuante (Aimbot)",
-    Desc = "Abre um botão arrastável para ativar/desativar o Aimbot Câmera",
-    Callback = function(v)
-        if v then
-            criarBotaoFlutuanteAimbot()
-        else
-            removerBotaoFlutuanteAimbot()
-        end
-    end
-})
-
--- NOVO: Slider "Tempo do Aimbot"
-secAimbot:Slider({
-    Title = "Tempo do Aimbot",
-    Desc = "[0=0s][1=0.1s][2=0.2s][3=0.25s][4=0.40s][5=0.60s][6=0.70s][7=1s][8=2s][9=3s][10=4s]",
-    Step = 1,
-    Value = { Min = 0, Max = 10, Default = 0 },
-    Callback = function(v)
-        aimbotTempo = v
-        aimbotDelayActive = false  -- reseta o delay ao mudar
     end
 })
 
@@ -716,6 +588,14 @@ secExtras:Button({
     end
 })
 
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "Blue Lock Rivels",
+        Text = "Aimbot câmera estilo antigo integrado!",
+        Duration = 4
+    })
+end)
+
 -- =====================================================
 --  ABA VOLLEYBALL LEGENDS
 -- =====================================================
@@ -743,11 +623,3 @@ secVb:Slider({
         vbHitboxSize = v
     end
 })
-
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivels",
-        Text = "Botão flutuante Aimbot + Tempo do Aimbot adicionados!",
-        Duration = 4
-    })
-end)
