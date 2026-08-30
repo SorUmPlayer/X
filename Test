@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Visão de jogo estável
+    Blue Lock Rivels Hub – Detecção automática de time
 ]]
 
 local Players = game:GetService("Players")
@@ -31,7 +31,7 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  REFERÊNCIAS DA BOLA (CACHE) – CORRIGIDO
+--  REFERÊNCIAS DA BOLA (CACHE)
 -- =====================================================
 local bola = nil
 local hitbox = nil
@@ -50,16 +50,6 @@ local function atualizarReferenciaBola()
             end
         elseif child.Name == "Football" then
             bola = child
-            local hb = bola:FindFirstChild("Hitbox")
-            hitbox = (hb and hb:IsA("BasePart")) and hb or bola
-            bolaValida = true
-            return
-        end
-    end
-    -- Fallback: procura qualquer parte com "Ball" no nome
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and string.lower(obj.Name):find("ball") then
-            bola = obj
             local hb = bola:FindFirstChild("Hitbox")
             hitbox = (hb and hb:IsA("BasePart")) and hb or bola
             bolaValida = true
@@ -89,34 +79,6 @@ local function getBall()
             return ballAnims:FindFirstChildWhichIsA("BasePart") or ballAnims.PrimaryPart
         end
     end
-    -- Fallback: usa a bola global
-    return bola
-end
-
--- =====================================================
---  FUNÇÃO PARA OBTER A BOLA ATIVA (A CADA FRAME)
--- =====================================================
-local function obterBolaAtual()
-    -- Tenta a bola solta
-    local football = Workspace:FindFirstChild("Football")
-    if football then
-        return football
-    end
-    -- Tenta em qualquer modelo de jogador
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") then
-            local f = child:FindFirstChild("Football")
-            if f then
-                return f
-            end
-        end
-    end
-    -- Fallback: qualquer parte com "ball"
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and string.lower(obj.Name):find("ball") then
-            return obj
-        end
-    end
     return nil
 end
 
@@ -128,15 +90,21 @@ local function euTenhoBola()
     if meuModel and meuModel:FindFirstChild("Football") then
         return true
     end
-    -- Fallback: distância
-    local hitboxLocal = hitbox
-    if hitboxLocal and player.Character then
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            return (hrp.Position - hitboxLocal.Position).Magnitude < 2.5
+    return false
+end
+
+-- =====================================================
+--  DETECÇÃO DE TIME AUTOMÁTICO
+-- =====================================================
+local function getMyTeam()
+    local values = player:FindFirstChild("Values")
+    if values then
+        local teamVal = values:FindFirstChild("Team")
+        if teamVal then
+            return tostring(teamVal.Value)
         end
     end
-    return false
+    return nil
 end
 
 -- =====================================================
@@ -477,10 +445,10 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
+--  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
 -- =====================================================
 
--- 1. ESP Players
+-- 1. ESP Players (time automático)
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
     local highlight = Instance.new("Highlight")
@@ -496,23 +464,21 @@ local function criarDestaqueJogador(jogador)
 end
 
 local function atualizarCoresESP()
+    local myTeam = getMyTeam()
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player and outro.Character then
             local highlight = playerHighlights[outro]
             if highlight then
-                local timeInimigo = true
+                local timeOutro = nil
                 local values = outro:FindFirstChild("Values")
                 if values then
                     local teamVal = values:FindFirstChild("Team")
                     if teamVal then
-                        local teamOutro = tostring(teamVal.Value)
-                        local teamSelected = tostring(selectedTeam)
-                        if teamOutro == teamSelected then
-                            timeInimigo = false
-                        end
+                        timeOutro = tostring(teamVal.Value)
                     end
                 end
-                highlight.FillColor = timeInimigo and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+                local isEnemy = (myTeam ~= nil and timeOutro ~= myTeam) or (myTeam == nil)
+                highlight.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
             end
         end
     end
@@ -542,7 +508,31 @@ local function atualizarESPPlayers()
     atualizarCoresESP()
 end
 
--- 2. Visão da bola (linha verde – CORRIGIDA)
+-- 2. Visão da bola (inimigo com bola)
+local function getInimigoComBola()
+    local myTeam = getMyTeam()
+    if not myTeam then return nil end
+
+    for _, outro in ipairs(Players:GetPlayers()) do
+        if outro ~= player then
+            local char = outro.Character
+            if char then
+                -- Verifica se tem Football no character (posse direta)
+                if char:FindFirstChild("Football") then
+                    local values = outro:FindFirstChild("Values")
+                    if values then
+                        local teamVal = values:FindFirstChild("Team")
+                        if teamVal and tostring(teamVal.Value) ~= myTeam then
+                            return outro
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 local function criarLinhaVisao()
     if not linhaVisao then
         linhaVisao = Instance.new("Part")
@@ -564,47 +554,18 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Obtém a bola atual
-    local ball = obterBolaAtual()
-    if not ball then
+    if not bolaValida or not bola then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
     end
 
-    -- Encontra o jogador (inimigo) que está com a bola
-    local inimigoComBola = nil
-    for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player and outro.Character then
-            -- Verifica se o personagem tem um filho "Football"
-            local football = outro.Character:FindFirstChild("Football")
-            if football then
-                -- Verifica se a bola corresponde (opcional, mas bom)
-                inimigoComBola = outro
-                break
-            end
-        end
-    end
-
-    -- Se não encontrou, verifica por distância (fallback)
-    if not inimigoComBola and hitbox then
-        local posBola = hitbox.Position
-        for _, outro in ipairs(Players:GetPlayers()) do
-            if outro ~= player and outro.Character then
-                local hrp = outro.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and (hrp.Position - posBola).Magnitude < 3 then
-                    inimigoComBola = outro
-                    break
-                end
-            end
-        end
-    end
-
-    if not inimigoComBola then
+    local inimigo = getInimigoComBola()
+    if not inimigo then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
     end
 
-    local char = inimigoComBola.Character
+    local char = inimigo.Character
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local origem = head or hrp or char.PrimaryPart
@@ -626,7 +587,7 @@ local function atualizarVisaoBola()
         direcao = direcao.Unit
     end
 
-    local posInicio = ball.Position
+    local posInicio = bola.Position
     local posFim = posInicio + direcao * 25
 
     criarLinhaVisao()
@@ -637,7 +598,7 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- 3. Advinha Chute (linha amarela + círculo – CORRIGIDO)
+-- 3. Advinha Chute (independente de time)
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -676,14 +637,13 @@ local function atualizarAdvinhaChute()
         return
     end
 
-    local ball = obterBolaAtual()
-    if not ball then
+    if not bolaValida or not bola then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
-    local vel = ball.AssemblyLinearVelocity
+    local vel = bola.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
@@ -691,7 +651,7 @@ local function atualizarAdvinhaChute()
     end
 
     local gravidade = Vector3.new(0, -50, 0)
-    local pos = ball.Position
+    local pos = bola.Position
     local v = vel
     local dt = 0.02
     local maxPassos = 500
@@ -974,7 +934,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos (selecione o time abaixo)",
+    Desc = "Verde = seu time | Vermelho = inimigos (detectado automaticamente)",
     Callback = function(v)
         espPlayersEnabled = v
         if not v then
@@ -988,7 +948,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
+    Desc = "Linha verde horizontal (mais grossa) mostrando para onde o inimigo com a bola está olhando",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -1000,7 +960,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Trajetória da bola e círculo amarelo no chão indicando onde vai cair",
+    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão (mais visível)",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
@@ -1066,12 +1026,11 @@ secExtras:Button({
 })
 
 secExtras:Dropdown({
-    Title = "Time",
-    Desc = "Selecione seu time para o ESP",
+    Title = "Time (para fazer gol)",
+    Desc = "Selecione seu time para o gol (não afeta o ESP automático)",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
-        atualizarCoresESP()
     end
 })
 
@@ -1143,7 +1102,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Visão de Bola e Advinha Chute corrigidos!",
+        Text = "Visão de jogo corrigida com detecção automática de time!",
         Duration = 4
     })
 end)
