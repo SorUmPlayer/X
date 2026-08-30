@@ -1,5 +1,9 @@
 --[[
-    Blue Lock Rivels Hub – Aimbot Câmera + Botão Voador + Delay
+    Blue Lock Rivels Hub – 3 Hitboxes + ESP
+    - Hitbox da Bola (Reach) – alcance invisível na bola
+    - Hitbox do Jogador – alcance ao redor do personagem
+    - Tamanho Visual da Bola – aumenta o tamanho visível da bola
+    - ESP para cada uma (esferas coloridas)
 ]]
 
 local Players = game:GetService("Players")
@@ -36,6 +40,7 @@ end
 local bola = nil
 local hitbox = nil
 local bolaValida = false
+local bolaVisualParts = {} -- para alterar o tamanho visual
 
 local function atualizarReferenciaBola()
     for _, child in ipairs(Workspace:GetChildren()) do
@@ -46,6 +51,13 @@ local function atualizarReferenciaBola()
                 local hb = bola:FindFirstChild("Hitbox")
                 hitbox = (hb and hb:IsA("BasePart")) and hb or bola
                 bolaValida = true
+                -- Guarda partes visuais (todas as BasePart que não são a hitbox)
+                bolaVisualParts = {}
+                for _, part in ipairs(bola:GetDescendants()) do
+                    if part:IsA("BasePart") and part ~= hitbox then
+                        table.insert(bolaVisualParts, part)
+                    end
+                end
                 return
             end
         elseif child.Name == "Football" then
@@ -53,12 +65,19 @@ local function atualizarReferenciaBola()
             local hb = bola:FindFirstChild("Hitbox")
             hitbox = (hb and hb:IsA("BasePart")) and hb or bola
             bolaValida = true
+            bolaVisualParts = {}
+            for _, part in ipairs(bola:GetDescendants()) do
+                if part:IsA("BasePart") and part ~= hitbox then
+                    table.insert(bolaVisualParts, part)
+                end
+            end
             return
         end
     end
     bola = nil
     hitbox = nil
     bolaValida = false
+    bolaVisualParts = {}
 end
 
 Workspace.ChildAdded:Connect(atualizarReferenciaBola)
@@ -98,9 +117,23 @@ end
 -- =====================================================
 local aimbotPersonagem = false
 local aimbotCamera = false
-local reachAtivo = false
-local reachDistancia = 20
 local mostrarESP = false
+
+-- Variáveis das 3 Hitboxes
+local hitboxBolaAtivo = false
+local hitboxBolaTamanho = 20
+
+local hitboxJogadorAtivo = false
+local hitboxJogadorTamanho = 15
+
+local tamanhoVisualAtivo = false
+local tamanhoVisualMultiplicador = 1.5 -- fator de escala (ex: 1.5x)
+
+-- Armazenar tamanhos originais das partes visuais
+local visualOriginalSizes = {}
+
+-- Hitbox do Jogador: SelectionSphere no personagem
+local jogadorSphere = nil
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -108,20 +141,26 @@ local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
 
--- =====================================================
---  NOVO: BOTÃO VOADOR DA CÂMERA
--- =====================================================
+-- Botão Câmera
 local cameraButtonActive = false
 local cameraScreenGui = nil
 local cameraToggleButton = nil
 
--- =====================================================
---  NOVO: SLIDER DE TEMPO DO AIMBOT
--- =====================================================
+-- Delay do Aimbot
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
 local aimbotDelayValue = 0
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
+
+local gyro = nil
+local selectedTeam = nil
+
+-- ESP: esferas
+local espBolaSphere = nil
+local espJogadorSphere = nil
+
+local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
+local hitboxOriginalTransparency = 0
 
 -- =====================================================
 --  LÓGICA DE BLOQUEIO DO AIMBOT (DELAY)
@@ -148,125 +187,132 @@ local function shouldAimbotWork()
 end
 
 -- =====================================================
---  VARIÁVEIS DO VOLLEYBALL LEGENDS (já existentes)
+--  HITBOX DO JOGADOR (DETECÇÃO DE TOQUE)
 -- =====================================================
-local gyro = nil
-local selectedTeam = nil
-local espSphere = nil
-local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
-local hitboxOriginalTransparency = 0
-
--- Variáveis Volleyball Legends
-local vbHitboxEnabled = false
-local vbHitboxSize = 15
-local vbOriginalProps = {}
-
--- =====================================================
---  FUNÇÕES DO VOLLEYBALL LEGENDS
--- =====================================================
-local function restoreVbOriginals()
-    for part, props in pairs(vbOriginalProps) do
-        if part and part.Parent then
-            part.Size = props.Size
-            part.Transparency = props.Transparency
-            part.CanCollide = props.CanCollide
-            part.CanTouch = props.CanTouch
+local function aplicarHitboxJogador()
+    if not hitboxJogadorAtivo then
+        if jogadorSphere then
+            jogadorSphere:Destroy()
+            jogadorSphere = nil
         end
+        return
     end
-    table.clear(vbOriginalProps)
-end
-
-local function getVbBallParts()
-    local ballParts = {}
-    for _, item in ipairs(Workspace:GetChildren()) do
-        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
-            if item:IsA("BasePart") then
-                table.insert(ballParts, item)
-            else
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("BasePart") then
-                        table.insert(ballParts, child)
-                    end
-                end
-            end
-        end
-    end
-    return ballParts
-end
-
-RunService.Heartbeat:Connect(function()
-    if not vbHitboxEnabled then return end
 
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local bodyParts = {
-        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
-        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
-        hrp
-    }
+    -- Criar/atualizar a esfera visual ao redor do jogador
+    if not jogadorSphere then
+        jogadorSphere = Instance.new("SelectionSphere")
+        jogadorSphere.Name = "JogadorHitboxESP"
+        jogadorSphere.Adornee = hrp
+        jogadorSphere.Parent = hrp
+        jogadorSphere.Color3 = Color3.fromRGB(0, 100, 255) -- azul
+        jogadorSphere.Transparency = 0.5
+    end
 
-    local balls = getVbBallParts()
-    for _, part in ipairs(balls) do
-        if not vbOriginalProps[part] then
-            vbOriginalProps[part] = {
-                Size = part.Size,
-                Transparency = part.Transparency,
-                CanCollide = part.CanCollide,
-                CanTouch = part.CanTouch
-            }
-        end
+    local scale = hitboxJogadorTamanho / 2.5
+    jogadorSphere.Scale = Vector3.new(scale, scale, scale)
 
-        part.Size = Vector3.new(vbHitboxSize, vbHitboxSize, vbHitboxSize)
-        part.Transparency = 0.5
-        part.CanCollide = false
-        part.CanTouch = true
-        if pcall(function() return part.CanQuery end) then
-            part.CanQuery = true
-        end
-
-        local distance = (hrp.Position - part.Position).Magnitude
-        if distance <= (vbHitboxSize / 2) + 3 then
-            for _, bPart in ipairs(bodyParts) do
-                if bPart and firetouchinterest then
-                    firetouchinterest(bPart, part, 0)
-                    firetouchinterest(bPart, part, 1)
-                end
+    -- Verificar colisão com a bola
+    if hitbox and bolaValida then
+        local dist = (hrp.Position - hitbox.Position).Magnitude
+        if dist <= hitboxJogadorTamanho then
+            -- Força o toque para pegar a bola
+            if firetouchinterest then
+                firetouchinterest(hrp, hitbox, 0)
+                task.wait()
+                firetouchinterest(hrp, hitbox, 1)
             end
         end
     end
-end)
+end
 
 -- =====================================================
---  CONTROLE DA HITBOX (UNIFICADO)
+--  TAMANHO VISUAL DA BOLA
 -- =====================================================
-local function aplicarTamanhoHitbox()
-    if not hitbox then return end
-
-    local tenho = euTenhoBola()
-    local tamanhoDesejado
-    local transparenciaDesejada
-
-    if tenho or not reachAtivo then
-        tamanhoDesejado = hitboxOriginalSize
-        transparenciaDesejada = hitboxOriginalTransparency
-    else
-        tamanhoDesejado = Vector3.new(reachDistancia, reachDistancia, reachDistancia)
-        transparenciaDesejada = 1
+local function aplicarTamanhoVisual()
+    if not tamanhoVisualAtivo then
+        -- Restaura tamanhos originais
+        for part, size in pairs(visualOriginalSizes) do
+            if part and part.Parent then
+                part.Size = size
+            end
+        end
+        visualOriginalSizes = {}
+        return
     end
 
-    if hitbox.Size ~= tamanhoDesejado or hitbox.Transparency ~= transparenciaDesejada then
-        hitbox.Size = tamanhoDesejado
-        hitbox.Transparency = transparenciaDesejada
+    if not bolaValida or not bola then return end
+
+    -- Atualiza partes visuais
+    for _, part in ipairs(bolaVisualParts) do
+        if part and part:IsA("BasePart") then
+            if not visualOriginalSizes[part] then
+                visualOriginalSizes[part] = part.Size
+            end
+            local newSize = visualOriginalSizes[part] * tamanhoVisualMultiplicador
+            part.Size = newSize
+        end
     end
 end
 
+-- =====================================================
+--  HITBOX DA BOLA (REACH) + ESP
+-- =====================================================
+local function aplicarHitboxBola()
+    if not hitbox then return end
+
+    if not hitboxBolaAtivo or euTenhoBola() then
+        if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
+            hitbox.Size = hitboxOriginalSize
+            hitbox.Transparency = hitboxOriginalTransparency
+        end
+        if espBolaSphere then
+            espBolaSphere:Destroy()
+            espBolaSphere = nil
+        end
+        return
+    end
+
+    -- Aplica tamanho e transparência (invisível)
+    local novoSize = Vector3.new(hitboxBolaTamanho, hitboxBolaTamanho, hitboxBolaTamanho)
+    if hitbox.Size ~= novoSize then
+        hitbox.Size = novoSize
+        hitbox.Transparency = 1
+    end
+
+    -- ESP da bola (verde)
+    if mostrarESP then
+        if not espBolaSphere then
+            espBolaSphere = Instance.new("SelectionSphere")
+            espBolaSphere.Name = "BolaHitboxESP"
+            espBolaSphere.Adornee = hitbox
+            espBolaSphere.Parent = hitbox
+            espBolaSphere.Color3 = Color3.fromRGB(0, 255, 0) -- verde
+            espBolaSphere.Transparency = 0.6
+        end
+        local scale = hitboxBolaTamanho / 2.5
+        espBolaSphere.Scale = Vector3.new(scale, scale, scale)
+    else
+        if espBolaSphere then
+            espBolaSphere:Destroy()
+            espBolaSphere = nil
+        end
+    end
+end
+
+-- =====================================================
+--  LOOP PRINCIPAL (UNIFICA TUDO)
+-- =====================================================
 task.spawn(function()
     while true do
-        task.wait(0.3)
-        aplicarTamanhoHitbox()
+        task.wait(0.1) -- loop rápido para detecção do jogador
+        aplicarHitboxBola()
+        aplicarHitboxJogador()
+        aplicarTamanhoVisual()
     end
 end)
 
@@ -330,461 +376,3 @@ local function criarBotaoFlutuante()
     btn.Text = "Control BALL [OFF]"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-
-    btn.MouseButton1Click:Connect(toggleControl)
-
-    toggleButton = btn
-    controlScreenGui = screenGui
-end
-
-local function removerBotaoFlutuante()
-    if isControlActive then
-        toggleControl()
-    end
-    if controlScreenGui then
-        controlScreenGui:Destroy()
-        controlScreenGui = nil
-        toggleButton = nil
-    end
-end
-
--- =====================================================
---  NOVO: BOTÃO VOADOR DA CÂMERA (LÓGICA)
--- =====================================================
-local function toggleCameraButton()
-    cameraButtonActive = not cameraButtonActive
-    
-    if cameraButtonActive then
-        if cameraToggleButton then
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            cameraToggleButton.Text = "Aimbot Cam [ON]"
-        end
-        aimbotCamera = true
-    else
-        if cameraToggleButton then
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            cameraToggleButton.Text = "Aimbot Cam [OFF]"
-        end
-        aimbotCamera = false
-    end
-end
-
-local function criarBotaoCameraFlutuante()
-    if cameraScreenGui then return end
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CameraAimbotGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 180, 0, 45)
-    btn.Position = UDim2.new(0.5, -90, 0.15, 0) -- posição diferente do botão de controle
-    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    btn.Text = "Aimbot Cam [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-
-    btn.MouseButton1Click:Connect(toggleCameraButton)
-
-    cameraToggleButton = btn
-    cameraScreenGui = screenGui
-end
-
-local function removerBotaoCameraFlutuante()
-    if cameraButtonActive then
-        toggleCameraButton() -- desativa primeiro
-    end
-    if cameraScreenGui then
-        cameraScreenGui:Destroy()
-        cameraScreenGui = nil
-        cameraToggleButton = nil
-    end
-end
-
--- =====================================================
---  AIMBOT PERSONAGEM (COM DELAY)
--- =====================================================
-local function ativarAimbotPersonagem(estado)
-    aimbotPersonagem = estado
-    if not estado and gyro then
-        gyro:Destroy()
-        gyro = nil
-    end
-end
-
-local function atualizarAimbotPersonagem()
-    if not aimbotPersonagem then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    -- Verifica se o aimbot deve funcionar (com delay)
-    if not shouldAimbotWork() then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    if not bolaValida or not hitbox then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    if not gyro then
-        gyro = Instance.new("BodyGyro")
-        gyro.Parent = hrp
-        gyro.D = 1000
-        gyro.P = 10000
-        gyro.MaxTorque = Vector3.new(8000, 8000, 8000)
-    end
-
-    local posBola = hitbox.Position
-    local posJogador = hrp.Position
-    local direcao = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-    gyro.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
-end
-
--- =====================================================
---  AIMBOT CÂMERA (COM DELAY)
--- =====================================================
-local function atualizarAimbotCamera()
-    if isControlActive then return end
-    if not aimbotCamera then return end
-
-    -- Verifica se o aimbot deve funcionar (com delay)
-    if not shouldAimbotWork() then
-        return
-    end
-
-    if not bolaValida or not hitbox then return end
-
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local posBola = hitbox.Position
-    local posJogador = hrp.Position
-    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-
-    local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
-    camera.CFrame = CFrame.new(camPos, hrp.Position)
-end
-
--- =====================================================
---  ESP
--- =====================================================
-local function atualizarESP()
-    if euTenhoBola() or not mostrarESP or not hitbox then
-        if espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-        return
-    end
-
-    if not espSphere then
-        espSphere = Instance.new("SelectionSphere")
-        espSphere.Name = "ReachESP"
-        espSphere.Adornee = hitbox
-        espSphere.Parent = hitbox
-        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-        espSphere.Transparency = 0.6
-    end
-
-    local scale = reachDistancia / 2.5
-    espSphere.Scale = Vector3.new(scale, scale, scale)
-end
-
--- =====================================================
---  LOOP PRINCIPAL
--- =====================================================
-RunService.Heartbeat:Connect(function()
-    atualizarAimbotPersonagem()
-    atualizarAimbotCamera()
-    atualizarESP()
-end)
-
--- =====================================================
---  INTERFACE WINDUI
--- =====================================================
-local WindUI
-local loaded, _ = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-
-if not loaded or not WindUI then
-    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-end
-
-local Window = WindUI:CreateWindow({
-    Title = "🍊 SorHub Esport",
-    Icon = "rbxassetid://10723343321",
-    Author = "Sor_Gostoso",
-    Folder = "SorHub",
-    Size = UDim2.fromOffset(480, 480),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
-
-local MainTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
-
--- Seção Controle de Bola
-local secControleBola = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
-
-secControleBola:Input({
-    Title = "Velocidade da Bola",
-    Desc = "Escreva velocidade da bola",
-    Value = "65",
-    Placeholder = "Digite a velocidade...",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val then
-            velocidadeBola = val
-        end
-    end
-})
-
-secControleBola:Toggle({
-    Title = "Botão Flutuante",
-    Desc = "Abre o botão arrastável na tela (ON/OFF)",
-    Callback = function(v)
-        if v then
-            criarBotaoFlutuante()
-        else
-            removerBotaoFlutuante()
-        end
-    end
-})
-
--- =====================================================
---  SEÇÃO AIMBOT (ATUALIZADA)
--- =====================================================
-local secAimbot = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-
-secAimbot:Toggle({
-    Title = "Aimbot Personagem (Grudado)",
-    Desc = "Corpo vira para a bola",
-    Callback = function(v)
-        ativarAimbotPersonagem(v)
-    end
-})
-
-secAimbot:Toggle({
-    Title = "Aimbot Câmera (Estilo antigo)",
-    Desc = "Câmera atrás do personagem olhando para a bola",
-    Callback = function(v)
-        aimbotCamera = v
-        -- Se o botão flutuante estiver ativo, sincroniza
-        if cameraToggleButton then
-            if v then
-                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-                cameraToggleButton.Text = "Aimbot Cam [ON]"
-                cameraButtonActive = true
-            else
-                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-                cameraToggleButton.Text = "Aimbot Cam [OFF]"
-                cameraButtonActive = false
-            end
-        end
-    end
-})
-
--- NOVO: Botão Voador da Câmera
-secAimbot:Toggle({
-    Title = "Botão Voador (Câmera)",
-    Desc = "Cria um botão flutuante para ativar/desativar a câmera",
-    Callback = function(v)
-        if v then
-            criarBotaoCameraFlutuante()
-        else
-            removerBotaoCameraFlutuante()
-        end
-    end
-})
-
--- NOVO: Slider de Tempo do Aimbot
-secAimbot:Slider({
-    Title = "Tempo do Aimbot (Delay)",
-    Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
-    Step = 1,
-    Value = { Min = 0, Max = 10, Default = 0 },
-    Callback = function(v)
-        aimbotDelayValue = aimbotDelayValues[v] or 0
-    end
-})
-
--- =====================================================
---  SEÇÃO REACH
--- =====================================================
-local secReach = MainTab:Section({ Title = "Reach (Magnet)", TextXAlignment = "Left" })
-
-secReach:Slider({
-    Title = "Alcance",
-    Desc = "Distância para pegar a bola",
-    Step = 1,
-    Value = { Min = 1, Max = 40, Default = 20 },
-    Callback = function(v)
-        reachDistancia = v
-        if espSphere then
-            espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
-        end
-    end
-})
-
-secReach:Toggle({
-    Title = "Ativar Reach",
-    Desc = "Aumenta a hitbox (invisível)",
-    Callback = function(v)
-        reachAtivo = v
-        aplicarTamanhoHitbox()
-    end
-})
-
-secReach:Toggle({
-    Title = "Mostrar Área (ESP)",
-    Desc = "Círculo verde em volta da bola",
-    Callback = function(v)
-        mostrarESP = v
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-    end
-})
-
--- =====================================================
---  SEÇÃO EXTRAS
--- =====================================================
-local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
-
-secExtras:Button({
-    Title = "Infinite Stamina",
-    Desc = "Stamina infinita",
-    Callback = function()
-        task.spawn(function()
-            while true do
-                if player:FindFirstChild("PlayerStats") and player.PlayerStats:FindFirstChild("Stamina") then
-                    player.PlayerStats.Stamina.Value = 100
-                end
-                task.wait()
-            end
-        end)
-    end
-})
-
-secExtras:Dropdown({
-    Title = "Time",
-    Desc = "Selecione para o gol",
-    Options = {"Home", "Away"},
-    Callback = function(opt)
-        selectedTeam = opt
-    end
-})
-
-secExtras:Button({
-    Title = "Fazer Gol",
-    Desc = "Marca um gol",
-    Callback = function()
-        if not selectedTeam then return end
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        local posOriginal = hrp.Position
-        local posGol = selectedTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
-
-        hrp.CFrame = CFrame.new(posGol)
-        task.wait(0.2)
-        local args = { [1] = 110, [4] = posGol }
-        local ballService = ReplicatedStorage:FindFirstChild("Packages")
-        if ballService then
-            ballService = ballService:FindFirstChild("Knit")
-            if ballService then
-                ballService = ballService:FindFirstChild("Services")
-                if ballService then
-                    ballService = ballService:FindFirstChild("BallService")
-                    if ballService then
-                        local shoot = ballService:FindFirstChild("RE")
-                        if shoot then
-                            shoot:FireServer(unpack(args))
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.2)
-        hrp.CFrame = CFrame.new(posOriginal)
-    end
-})
-
--- =====================================================
---  ABA VOLLEYBALL LEGENDS
--- =====================================================
-local VbTab = Window:Tab({ Title = "Volleyball Legends", Icon = "trophy" })
-
-local secVb = VbTab:Section({ Title = "Volleyball Legends", TextXAlignment = "Left" })
-
-secVb:Toggle({
-    Title = "Hitbox",
-    Desc = "Ativa/Desativa Hitbox na bola (CLIENT_BALL_...)",
-    Callback = function(v)
-        vbHitboxEnabled = v
-        if not v then
-            restoreVbOriginals()
-        end
-    end
-})
-
-secVb:Slider({
-    Title = "Tamanho Hitbox",
-    Desc = "Ajusta o tamanho de 1 a 50",
-    Step = 1,
-    Value = { Min = 1, Max = 50, Default = 15 },
-    Callback = function(v)
-        vbHitboxSize = v
-    end
-})
-
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivels",
-        Text = "Botão Voador + Delay adicionados!",
-        Duration = 4
-    })
-end)
