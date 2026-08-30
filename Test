@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – com Botão Voador (Câmera) e Timer do Aimbot
+    Blue Lock Rivels Hub – Aimbot Câmera + Botão Voador + Delay
 ]]
 
 local Players = game:GetService("Players")
@@ -108,101 +108,136 @@ local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
 
+-- =====================================================
+--  NOVO: BOTÃO VOADOR DA CÂMERA
+-- =====================================================
+local cameraButtonActive = false
+local cameraScreenGui = nil
+local cameraToggleButton = nil
+
+-- =====================================================
+--  NOVO: SLIDER DE TEMPO DO AIMBOT
+-- =====================================================
+local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+local aimbotDelayValue = 0
+local aimbotBlocked = false
+local aimbotBlockedUntil = 0
+
+-- =====================================================
+--  LÓGICA DE BLOQUEIO DO AIMBOT (DELAY)
+-- =====================================================
+local function shouldAimbotWork()
+    local tenho = euTenhoBola()
+    
+    if tenho then
+        aimbotBlocked = true
+        aimbotBlockedUntil = tick() + aimbotDelayValue
+        return false
+    end
+    
+    if aimbotBlocked then
+        if tick() >= aimbotBlockedUntil then
+            aimbotBlocked = false
+            return true
+        else
+            return false
+        end
+    end
+    
+    return true
+end
+
+-- =====================================================
+--  VARIÁVEIS DO VOLLEYBALL LEGENDS (já existentes)
+-- =====================================================
 local gyro = nil
 local selectedTeam = nil
-
 local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
--- =====================================================
---  NOVO: VARIÁVEIS DO TIMER DO AIMBOT
--- =====================================================
-local aimbotDelay = 0  -- em segundos
-local aimbotTimerStart = 0
-local aimbotTimerRunning = false
-
--- Mapeamento do slider
-local delayMap = {
-    [0] = 0,
-    [1] = 0.1,
-    [2] = 0.2,
-    [3] = 0.25,
-    [4] = 0.40,
-    [5] = 0.60,
-    [6] = 0.70,
-    [7] = 1,
-    [8] = 2,
-    [9] = 3,
-    [10] = 4
-}
+-- Variáveis Volleyball Legends
+local vbHitboxEnabled = false
+local vbHitboxSize = 15
+local vbOriginalProps = {}
 
 -- =====================================================
---  NOVO: BOTÃO VOADOR (CÂMERA)
+--  FUNÇÕES DO VOLLEYBALL LEGENDS
 -- =====================================================
-local cameraButtonGui = nil
-local cameraToggleButton = nil
-local isCameraButtonActive = false
-
-local function toggleCameraAimbot()
-    isCameraButtonActive = not isCameraButtonActive
-    aimbotCamera = isCameraButtonActive  -- sincroniza com o toggle da GUI
-
-    if cameraToggleButton then
-        if isCameraButtonActive then
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            cameraToggleButton.Text = "Aimbot Câmera [ON]"
-        else
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            cameraToggleButton.Text = "Aimbot Câmera [OFF]"
+local function restoreVbOriginals()
+    for part, props in pairs(vbOriginalProps) do
+        if part and part.Parent then
+            part.Size = props.Size
+            part.Transparency = props.Transparency
+            part.CanCollide = props.CanCollide
+            part.CanTouch = props.CanTouch
         end
     end
-
-    -- Atualiza o toggle na GUI também (se existir referência)
-    -- Não temos referência direta, mas o valor é sincronizado pela variável aimbotCamera
+    table.clear(vbOriginalProps)
 end
 
-local function criarBotaoCamera()
-    if cameraButtonGui then return end
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CameraAimbotGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 180, 0, 45)
-    btn.Position = UDim2.new(0.5, -90, 0.6, 0) -- posição diferente do outro botão
-    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    btn.Text = "Aimbot Câmera [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-
-    btn.MouseButton1Click:Connect(toggleCameraAimbot)
-
-    cameraToggleButton = btn
-    cameraButtonGui = screenGui
-end
-
-local function removerBotaoCamera()
-    if cameraButtonGui then
-        -- Se estiver ativo, desativa antes de remover
-        if isCameraButtonActive then
-            toggleCameraAimbot()
+local function getVbBallParts()
+    local ballParts = {}
+    for _, item in ipairs(Workspace:GetChildren()) do
+        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
+            if item:IsA("BasePart") then
+                table.insert(ballParts, item)
+            else
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("BasePart") then
+                        table.insert(ballParts, child)
+                    end
+                end
+            end
         end
-        cameraButtonGui:Destroy()
-        cameraButtonGui = nil
-        cameraToggleButton = nil
     end
+    return ballParts
 end
+
+RunService.Heartbeat:Connect(function()
+    if not vbHitboxEnabled then return end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local bodyParts = {
+        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
+        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
+        hrp
+    }
+
+    local balls = getVbBallParts()
+    for _, part in ipairs(balls) do
+        if not vbOriginalProps[part] then
+            vbOriginalProps[part] = {
+                Size = part.Size,
+                Transparency = part.Transparency,
+                CanCollide = part.CanCollide,
+                CanTouch = part.CanTouch
+            }
+        end
+
+        part.Size = Vector3.new(vbHitboxSize, vbHitboxSize, vbHitboxSize)
+        part.Transparency = 0.5
+        part.CanCollide = false
+        part.CanTouch = true
+        if pcall(function() return part.CanQuery end) then
+            part.CanQuery = true
+        end
+
+        local distance = (hrp.Position - part.Position).Magnitude
+        if distance <= (vbHitboxSize / 2) + 3 then
+            for _, bPart in ipairs(bodyParts) do
+                if bPart and firetouchinterest then
+                    firetouchinterest(bPart, part, 0)
+                    firetouchinterest(bPart, part, 1)
+                end
+            end
+        end
+    end
+end)
 
 -- =====================================================
 --  CONTROLE DA HITBOX (UNIFICADO)
@@ -322,16 +357,75 @@ local function removerBotaoFlutuante()
 end
 
 -- =====================================================
---  AIMBOT PERSONAGEM (BodyGyro COM DELAY)
+--  NOVO: BOTÃO VOADOR DA CÂMERA (LÓGICA)
+-- =====================================================
+local function toggleCameraButton()
+    cameraButtonActive = not cameraButtonActive
+    
+    if cameraButtonActive then
+        if cameraToggleButton then
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            cameraToggleButton.Text = "Aimbot Cam [ON]"
+        end
+        aimbotCamera = true
+    else
+        if cameraToggleButton then
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            cameraToggleButton.Text = "Aimbot Cam [OFF]"
+        end
+        aimbotCamera = false
+    end
+end
+
+local function criarBotaoCameraFlutuante()
+    if cameraScreenGui then return end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CameraAimbotGui"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.15, 0) -- posição diferente do botão de controle
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Aimbot Cam [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(toggleCameraButton)
+
+    cameraToggleButton = btn
+    cameraScreenGui = screenGui
+end
+
+local function removerBotaoCameraFlutuante()
+    if cameraButtonActive then
+        toggleCameraButton() -- desativa primeiro
+    end
+    if cameraScreenGui then
+        cameraScreenGui:Destroy()
+        cameraScreenGui = nil
+        cameraToggleButton = nil
+    end
+end
+
+-- =====================================================
+--  AIMBOT PERSONAGEM (COM DELAY)
 -- =====================================================
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
-    if not estado then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        aimbotTimerRunning = false
+    if not estado and gyro then
+        gyro:Destroy()
+        gyro = nil
     end
 end
 
@@ -341,33 +435,11 @@ local function atualizarAimbotPersonagem()
             gyro:Destroy()
             gyro = nil
         end
-        aimbotTimerRunning = false
         return
     end
 
-    -- Condições para ativar o aimbot
-    local podeAtivar = not euTenhoBola() and bolaValida and hitbox ~= nil
-
-    if not podeAtivar then
-        -- Se não pode ativar, reseta o timer e remove o gyro
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        aimbotTimerRunning = false
-        return
-    end
-
-    -- Se pode ativar, inicia o timer se não estiver rodando
-    if not aimbotTimerRunning then
-        aimbotTimerRunning = true
-        aimbotTimerStart = tick()
-    end
-
-    -- Verifica se o delay já passou
-    local elapsed = tick() - aimbotTimerStart
-    if elapsed < aimbotDelay then
-        -- Ainda em delay, não ativa o gyro
+    -- Verifica se o aimbot deve funcionar (com delay)
+    if not shouldAimbotWork() then
         if gyro then
             gyro:Destroy()
             gyro = nil
@@ -375,7 +447,14 @@ local function atualizarAimbotPersonagem()
         return
     end
 
-    -- Delay passou, ativa o gyro
+    if not bolaValida or not hitbox then
+        if gyro then
+            gyro:Destroy()
+            gyro = nil
+        end
+        return
+    end
+
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -396,11 +475,18 @@ local function atualizarAimbotPersonagem()
 end
 
 -- =====================================================
---  AIMBOT CÂMERA (ESTILO "ATRÁS DO PERSONAGEM")
+--  AIMBOT CÂMERA (COM DELAY)
 -- =====================================================
 local function atualizarAimbotCamera()
     if isControlActive then return end
-    if not aimbotCamera or euTenhoBola() or not bolaValida or not hitbox then return end
+    if not aimbotCamera then return end
+
+    -- Verifica se o aimbot deve funcionar (com delay)
+    if not shouldAimbotWork() then
+        return
+    end
+
+    if not bolaValida or not hitbox then return end
 
     local char = player.Character
     if not char then return end
@@ -466,7 +552,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(480, 500),
+    Size = UDim2.fromOffset(480, 480),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -477,9 +563,7 @@ local Window = WindUI:CreateWindow({
 
 local MainTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
 
--- =====================================================
---  SEÇÃO CONTROLE DE BOLA
--- =====================================================
+-- Seção Controle de Bola
 local secControleBola = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 
 secControleBola:Input({
@@ -508,13 +592,13 @@ secControleBola:Toggle({
 })
 
 -- =====================================================
---  SEÇÃO AIMBOT (COM NOVIDADES)
+--  SEÇÃO AIMBOT (ATUALIZADA)
 -- =====================================================
 local secAimbot = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 
 secAimbot:Toggle({
     Title = "Aimbot Personagem (Grudado)",
-    Desc = "Corpo vira para a bola (com delay configurável)",
+    Desc = "Corpo vira para a bola",
     Callback = function(v)
         ativarAimbotPersonagem(v)
     end
@@ -525,31 +609,30 @@ secAimbot:Toggle({
     Desc = "Câmera atrás do personagem olhando para a bola",
     Callback = function(v)
         aimbotCamera = v
-        -- Se o botão flutuante estiver visível, sincroniza
-        if isCameraButtonActive ~= v then
-            isCameraButtonActive = v
-            if cameraToggleButton then
-                if v then
-                    cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-                    cameraToggleButton.Text = "Aimbot Câmera [ON]"
-                else
-                    cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-                    cameraToggleButton.Text = "Aimbot Câmera [OFF]"
-                end
+        -- Se o botão flutuante estiver ativo, sincroniza
+        if cameraToggleButton then
+            if v then
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+                cameraToggleButton.Text = "Aimbot Cam [ON]"
+                cameraButtonActive = true
+            else
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+                cameraToggleButton.Text = "Aimbot Cam [OFF]"
+                cameraButtonActive = false
             end
         end
     end
 })
 
--- NOVO: Toggle para botão voador da câmera
+-- NOVO: Botão Voador da Câmera
 secAimbot:Toggle({
     Title = "Botão Voador (Câmera)",
-    Desc = "Mostra botão flutuante para ativar/desativar a câmera",
+    Desc = "Cria um botão flutuante para ativar/desativar a câmera",
     Callback = function(v)
         if v then
-            criarBotaoCamera()
+            criarBotaoCameraFlutuante()
         else
-            removerBotaoCamera()
+            removerBotaoCameraFlutuante()
         end
     end
 })
@@ -557,15 +640,11 @@ secAimbot:Toggle({
 -- NOVO: Slider de Tempo do Aimbot
 secAimbot:Slider({
     Title = "Tempo do Aimbot (Delay)",
-    Desc = "Delay antes do corpo virar (evita chute para trás)",
+    Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
     Step = 1,
     Value = { Min = 0, Max = 10, Default = 0 },
     Callback = function(v)
-        aimbotDelay = delayMap[v] or 0
-        -- Reinicia o timer se estiver rodando
-        if aimbotTimerRunning then
-            aimbotTimerStart = tick()
-        end
+        aimbotDelayValue = aimbotDelayValues[v] or 0
     end
 })
 
@@ -675,92 +754,11 @@ secExtras:Button({
 })
 
 -- =====================================================
---  ABA VOLLEYBALL LEGENDS (mantida intacta)
+--  ABA VOLLEYBALL LEGENDS
 -- =====================================================
 local VbTab = Window:Tab({ Title = "Volleyball Legends", Icon = "trophy" })
 
 local secVb = VbTab:Section({ Title = "Volleyball Legends", TextXAlignment = "Left" })
-
--- Variáveis da hitbox do VB (já existentes no script)
-local vbHitboxEnabled = false
-local vbHitboxSize = 15
-local vbOriginalProps = {}
-
-local function restoreVbOriginals()
-    for part, props in pairs(vbOriginalProps) do
-        if part and part.Parent then
-            part.Size = props.Size
-            part.Transparency = props.Transparency
-            part.CanCollide = props.CanCollide
-            part.CanTouch = props.CanTouch
-        end
-    end
-    table.clear(vbOriginalProps)
-end
-
-local function getVbBallParts()
-    local ballParts = {}
-    for _, item in ipairs(Workspace:GetChildren()) do
-        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
-            if item:IsA("BasePart") then
-                table.insert(ballParts, item)
-            else
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("BasePart") then
-                        table.insert(ballParts, child)
-                    end
-                end
-            end
-        end
-    end
-    return ballParts
-end
-
--- Loop do VB (já existente)
-RunService.Heartbeat:Connect(function()
-    if not vbHitboxEnabled then return end
-
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local bodyParts = {
-        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
-        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
-        hrp
-    }
-
-    local balls = getVbBallParts()
-    for _, part in ipairs(balls) do
-        if not vbOriginalProps[part] then
-            vbOriginalProps[part] = {
-                Size = part.Size,
-                Transparency = part.Transparency,
-                CanCollide = part.CanCollide,
-                CanTouch = part.CanTouch
-            }
-        end
-
-        part.Size = Vector3.new(vbHitboxSize, vbHitboxSize, vbHitboxSize)
-        part.Transparency = 0.5
-        part.CanCollide = false
-        part.CanTouch = true
-        if pcall(function() return part.CanQuery end) then
-            part.CanQuery = true
-        end
-
-        local distance = (hrp.Position - part.Position).Magnitude
-        if distance <= (vbHitboxSize / 2) + 3 then
-            for _, bPart in ipairs(bodyParts) do
-                if bPart and firetouchinterest then
-                    firetouchinterest(bPart, part, 0)
-                    firetouchinterest(bPart, part, 1)
-                end
-            end
-        end
-    end
-end)
 
 secVb:Toggle({
     Title = "Hitbox",
@@ -785,8 +783,8 @@ secVb:Slider({
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "SorHub Esport",
-        Text = "Atualizado com Botão Voador e Timer!",
+        Title = "Blue Lock Rivels",
+        Text = "Botão Voador + Delay adicionados!",
         Duration = 4
     })
 end)
