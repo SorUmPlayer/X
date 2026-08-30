@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Visão de jogo corrigida (linha horizontal)
+    Blue Lock Rivels Hub – Visão de jogo melhorada
 ]]
 
 local Players = game:GetService("Players")
@@ -434,7 +434,7 @@ end
 --  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
 -- =====================================================
 
--- 1. ESP Players
+-- 1. ESP Players (CORRIGIDO)
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
     local highlight = Instance.new("Highlight")
@@ -458,8 +458,13 @@ local function atualizarCoresESP()
                 local values = outro:FindFirstChild("Values")
                 if values then
                     local teamVal = values:FindFirstChild("Team")
-                    if teamVal and selectedTeam and teamVal.Value == selectedTeam then
-                        timeInimigo = false
+                    if teamVal then
+                        -- Converte ambos para string para comparação segura
+                        local teamOutro = tostring(teamVal.Value)
+                        local teamSelected = tostring(selectedTeam)
+                        if teamOutro == teamSelected then
+                            timeInimigo = false
+                        end
                     end
                 end
                 highlight.FillColor = timeInimigo and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
@@ -492,17 +497,17 @@ local function atualizarESPPlayers()
     atualizarCoresESP()
 end
 
--- 2. Visão da bola (linha verde – CORRIGIDA: horizontal)
+-- 2. Visão da bola (linha verde – mais grossa e brilhante)
 local function criarLinhaVisao()
     if not linhaVisao then
         linhaVisao = Instance.new("Part")
         linhaVisao.Name = "LinhaVisao"
         linhaVisao.Anchored = true
         linhaVisao.CanCollide = false
-        linhaVisao.Transparency = 0.3
+        linhaVisao.Transparency = 0.2          -- mais visível
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(0.2, 0.2, 10)
+        linhaVisao.Size = Vector3.new(0.5, 0.5, 25) -- mais grossa e mais longa
         linhaVisao.Parent = Workspace
     end
     return linhaVisao
@@ -519,7 +524,6 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Encontra o jogador (inimigo) que está com a bola
     local inimigoComBola = nil
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player and outro.Character then
@@ -545,14 +549,12 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Obter direção horizontal (ignorar componente Y para evitar inclinação)
     local direcao = Vector3.new(1, 0, 0)
     if head then
         direcao = head.CFrame.LookVector
     elseif hrp then
         direcao = hrp.CFrame.LookVector
     end
-    -- Forçar Y=0 e normalizar para manter a linha no chão
     direcao = Vector3.new(direcao.X, 0, direcao.Z)
     if direcao.Magnitude < 0.001 then
         direcao = Vector3.new(1, 0, 0)
@@ -561,27 +563,27 @@ local function atualizarVisaoBola()
     end
 
     local posInicio = bola.Position
-    local posFim = posInicio + direcao * 15 -- comprimento fixo
+    local posFim = posInicio + direcao * 25
 
     criarLinhaVisao()
     local meio = (posInicio + posFim) / 2
     local distancia = (posInicio - posFim).Magnitude
     if distancia < 0.1 then distancia = 0.1 end
-    linhaVisao.Size = Vector3.new(0.2, 0.2, distancia)
+    linhaVisao.Size = Vector3.new(0.5, 0.5, distancia)
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- 3. Advinha Chute (linha amarela + círculo)
+-- 3. Advinha Chute (linha amarela + círculo – mais grossos)
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
         linhaChute.Name = "LinhaChute"
         linhaChute.Anchored = true
         linhaChute.CanCollide = false
-        linhaChute.Transparency = 0.4
+        linhaChute.Transparency = 0.2
         linhaChute.Color = Color3.fromRGB(255, 255, 0)
         linhaChute.Material = Enum.Material.Neon
-        linhaChute.Size = Vector3.new(0.2, 0.2, 10)
+        linhaChute.Size = Vector3.new(0.5, 0.5, 25)
         linhaChute.Parent = Workspace
     end
     return linhaChute
@@ -593,11 +595,11 @@ local function criarCirculoChute()
         circuloChute.Name = "CirculoChute"
         circuloChute.Anchored = true
         circuloChute.CanCollide = false
-        circuloChute.Transparency = 0.4
+        circuloChute.Transparency = 0.2
         circuloChute.Color = Color3.fromRGB(255, 255, 0)
         circuloChute.Material = Enum.Material.Neon
         circuloChute.Shape = Enum.PartType.Cylinder
-        circuloChute.Size = Vector3.new(2, 0.1, 2)
+        circuloChute.Size = Vector3.new(4, 0.1, 4) -- maior
         circuloChute.Parent = Workspace
     end
     return circuloChute
@@ -658,9 +660,9 @@ local function atualizarAdvinhaChute()
 
     criarLinhaChute()
     if distancia > 0.1 then
-        linhaChute.Size = Vector3.new(0.2, 0.2, distancia)
+        linhaChute.Size = Vector3.new(0.5, 0.5, distancia)
         linhaChute.CFrame = CFrame.lookAt(meio, fim)
-        linhaChute.Transparency = 0.4
+        linhaChute.Transparency = 0.2
     else
         linhaChute.Transparency = 1
     end
@@ -668,9 +670,9 @@ local function atualizarAdvinhaChute()
     if v.Y < -0.5 then
         criarCirculoChute()
         circuloChute.Position = posFinal
-        local tamanho = math.clamp(vel.Magnitude / 10, 1, 5)
+        local tamanho = math.clamp(vel.Magnitude / 8, 3, 8) -- maior
         circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
-        circuloChute.Transparency = 0.3
+        circuloChute.Transparency = 0.2
     else
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
     end
@@ -811,7 +813,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 650), -- Hub grande
+    Size = UDim2.fromOffset(500, 650),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -907,7 +909,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos",
+    Desc = "Verde = seu time | Vermelho = inimigos (selecione o time abaixo)",
     Callback = function(v)
         espPlayersEnabled = v
         if not v then
@@ -921,7 +923,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
+    Desc = "Linha verde horizontal (mais grossa) mostrando para onde o inimigo com a bola está olhando",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -933,7 +935,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Mostra a trajetória da bola e onde ela vai cair (círculo amarelo)",
+    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão (mais visível)",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
@@ -1000,7 +1002,7 @@ secExtras:Button({
 
 secExtras:Dropdown({
     Title = "Time",
-    Desc = "Selecione para o gol",
+    Desc = "Selecione seu time para o ESP",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
@@ -1076,7 +1078,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Visão de bola corrigida (linha horizontal) + Hub grande!",
+        Text = "ESP corrigido + linhas mais visíveis!",
         Duration = 4
     })
 end)
