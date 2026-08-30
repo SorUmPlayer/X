@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Visão de jogo corrigida (linha estável + círculo amarelo)
+    Blue Lock Rivels Hub – Visão de jogo corrigida (linha horizontal)
 ]]
 
 local Players = game:GetService("Players")
@@ -434,7 +434,7 @@ end
 --  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
 -- =====================================================
 
--- 1. ESP Players (sem alterações)
+-- 1. ESP Players
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
     local highlight = Instance.new("Highlight")
@@ -492,7 +492,7 @@ local function atualizarESPPlayers()
     atualizarCoresESP()
 end
 
--- 2. Visão da bola (linha verde – ESTÁVEL)
+-- 2. Visão da bola (linha verde – CORRIGIDA: horizontal)
 local function criarLinhaVisao()
     if not linhaVisao then
         linhaVisao = Instance.new("Part")
@@ -502,7 +502,7 @@ local function criarLinhaVisao()
         linhaVisao.Transparency = 0.3
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(0.2, 0.2, 10) -- comprimento padrão
+        linhaVisao.Size = Vector3.new(0.2, 0.2, 10)
         linhaVisao.Parent = Workspace
     end
     return linhaVisao
@@ -545,9 +545,20 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Direção do olhar (usa cabeça se existir)
-    local direcao = head and head.CFrame.LookVector or (hrp and hrp.CFrame.LookVector or Vector3.new(1,0,0))
-    if direcao.Magnitude == 0 then direcao = Vector3.new(1,0,0) end
+    -- Obter direção horizontal (ignorar componente Y para evitar inclinação)
+    local direcao = Vector3.new(1, 0, 0)
+    if head then
+        direcao = head.CFrame.LookVector
+    elseif hrp then
+        direcao = hrp.CFrame.LookVector
+    end
+    -- Forçar Y=0 e normalizar para manter a linha no chão
+    direcao = Vector3.new(direcao.X, 0, direcao.Z)
+    if direcao.Magnitude < 0.001 then
+        direcao = Vector3.new(1, 0, 0)
+    else
+        direcao = direcao.Unit
+    end
 
     local posInicio = bola.Position
     local posFim = posInicio + direcao * 15 -- comprimento fixo
@@ -560,7 +571,7 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- 3. Advinha Chute (linha amarela + círculo – CORRIGIDO)
+-- 3. Advinha Chute (linha amarela + círculo)
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -607,21 +618,18 @@ local function atualizarAdvinhaChute()
 
     local vel = bola.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then
-        -- Bola parada → esconde tudo
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
-    -- Simulação de trajetória com passos pequenos
-    local gravidade = Vector3.new(0, -50, 0) -- gravidade do jogo (ajuste)
+    local gravidade = Vector3.new(0, -50, 0)
     local pos = bola.Position
     local v = vel
     local dt = 0.02
     local maxPassos = 500
-    local chaoY = 0 -- assumindo chão em y=0
+    local chaoY = 0
 
-    -- Armazena pontos para desenhar a linha
     local pontos = {}
     table.insert(pontos, pos)
 
@@ -640,11 +648,9 @@ local function atualizarAdvinhaChute()
         return
     end
 
-    -- Posição final (impacto no chão)
     local posFinal = pontos[#pontos]
     posFinal = Vector3.new(posFinal.X, chaoY, posFinal.Z)
 
-    -- Desenha a linha (só se houver mais de 2 pontos)
     local inicio = pontos[1]
     local fim = pontos[#pontos]
     local meio = (inicio + fim) / 2
@@ -656,14 +662,12 @@ local function atualizarAdvinhaChute()
         linhaChute.CFrame = CFrame.lookAt(meio, fim)
         linhaChute.Transparency = 0.4
     else
-        linhaChute.Transparency = 1 -- invisível se muito curta
+        linhaChute.Transparency = 1
     end
 
-    -- Círculo no impacto (somente se a bola estiver descendo)
     if v.Y < -0.5 then
         criarCirculoChute()
         circuloChute.Position = posFinal
-        -- Tamanho do círculo baseado na velocidade horizontal (quanto maior, maior o círculo)
         local tamanho = math.clamp(vel.Magnitude / 10, 1, 5)
         circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
         circuloChute.Transparency = 0.3
@@ -791,7 +795,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI
+--  INTERFACE WINDUI (HUB GRANDE)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -807,7 +811,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(480, 550),
+    Size = UDim2.fromOffset(500, 650), -- Hub grande
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -898,9 +902,7 @@ secAimbot:Slider({
     end
 })
 
--- =====================================================
---  SEÇÃO VISÃO DE JOGO
--- =====================================================
+-- Seção Visão de jogo
 local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
 
 secVisao:Toggle({
@@ -919,7 +921,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde mostrando para onde o inimigo com a bola está olhando",
+    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -1074,7 +1076,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Visão de jogo corrigida! (linha estável + círculo amarelo)",
+        Text = "Visão de bola corrigida (linha horizontal) + Hub grande!",
         Duration = 4
     })
 end)
