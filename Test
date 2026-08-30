@@ -1,9 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – 3 Hitboxes + ESP
-    - Hitbox da Bola (Reach) – alcance invisível na bola
-    - Hitbox do Jogador – alcance ao redor do personagem
-    - Tamanho Visual da Bola – aumenta o tamanho visível da bola
-    - ESP para cada uma (esferas coloridas)
+    Blue Lock Rivels Hub – Hitboxes e ESP corrigidos
 ]]
 
 local Players = game:GetService("Players")
@@ -40,18 +36,35 @@ end
 local bola = nil
 local hitbox = nil
 local bolaValida = false
-local bolaVisualParts = {} -- para alterar o tamanho visual
+local bolaVisualParts = {}
 
 local function atualizarReferenciaBola()
+    -- Procura a bola solta
+    local football = Workspace:FindFirstChild("Football")
+    if football then
+        bola = football
+        local hb = bola:FindFirstChild("Hitbox")
+        hitbox = (hb and hb:IsA("BasePart")) and hb or bola
+        bolaValida = true
+        -- Guarda partes visuais (todas as BasePart que não são a hitbox)
+        bolaVisualParts = {}
+        for _, part in ipairs(bola:GetDescendants()) do
+            if part:IsA("BasePart") and part ~= hitbox then
+                table.insert(bolaVisualParts, part)
+            end
+        end
+        return
+    end
+
+    -- Procura a bola em posse de algum jogador
     for _, child in ipairs(Workspace:GetChildren()) do
         if child:IsA("Model") then
-            local football = child:FindFirstChild("Football")
-            if football then
-                bola = football
+            local f = child:FindFirstChild("Football")
+            if f then
+                bola = f
                 local hb = bola:FindFirstChild("Hitbox")
                 hitbox = (hb and hb:IsA("BasePart")) and hb or bola
                 bolaValida = true
-                -- Guarda partes visuais (todas as BasePart que não são a hitbox)
                 bolaVisualParts = {}
                 for _, part in ipairs(bola:GetDescendants()) do
                     if part:IsA("BasePart") and part ~= hitbox then
@@ -60,20 +73,10 @@ local function atualizarReferenciaBola()
                 end
                 return
             end
-        elseif child.Name == "Football" then
-            bola = child
-            local hb = bola:FindFirstChild("Hitbox")
-            hitbox = (hb and hb:IsA("BasePart")) and hb or bola
-            bolaValida = true
-            bolaVisualParts = {}
-            for _, part in ipairs(bola:GetDescendants()) do
-                if part:IsA("BasePart") and part ~= hitbox then
-                    table.insert(bolaVisualParts, part)
-                end
-            end
-            return
         end
     end
+
+    -- Se não achou, invalida
     bola = nil
     hitbox = nil
     bolaValida = false
@@ -127,13 +130,13 @@ local hitboxJogadorAtivo = false
 local hitboxJogadorTamanho = 15
 
 local tamanhoVisualAtivo = false
-local tamanhoVisualMultiplicador = 1.5 -- fator de escala (ex: 1.5x)
+local tamanhoVisualMultiplicador = 1.5
 
 -- Armazenar tamanhos originais das partes visuais
 local visualOriginalSizes = {}
 
--- Hitbox do Jogador: SelectionSphere no personagem
-local jogadorSphere = nil
+-- Hitbox do Jogador: SelectionBox no personagem
+local jogadorBox = nil
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -155,9 +158,8 @@ local aimbotBlockedUntil = 0
 local gyro = nil
 local selectedTeam = nil
 
--- ESP: esferas
-local espBolaSphere = nil
-local espJogadorSphere = nil
+-- ESP: SelectionBox para a bola
+local espBolaBox = nil
 
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
@@ -191,9 +193,9 @@ end
 -- =====================================================
 local function aplicarHitboxJogador()
     if not hitboxJogadorAtivo then
-        if jogadorSphere then
-            jogadorSphere:Destroy()
-            jogadorSphere = nil
+        if jogadorBox then
+            jogadorBox:Destroy()
+            jogadorBox = nil
         end
         return
     end
@@ -203,18 +205,25 @@ local function aplicarHitboxJogador()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Criar/atualizar a esfera visual ao redor do jogador
-    if not jogadorSphere then
-        jogadorSphere = Instance.new("SelectionSphere")
-        jogadorSphere.Name = "JogadorHitboxESP"
-        jogadorSphere.Adornee = hrp
-        jogadorSphere.Parent = hrp
-        jogadorSphere.Color3 = Color3.fromRGB(0, 100, 255) -- azul
-        jogadorSphere.Transparency = 0.5
+    -- Criar/atualizar a box visual ao redor do jogador (ESP)
+    if mostrarESP then
+        if not jogadorBox then
+            jogadorBox = Instance.new("SelectionBox")
+            jogadorBox.Name = "JogadorHitboxESP"
+            jogadorBox.Adornee = hrp
+            jogadorBox.Parent = hrp
+            jogadorBox.Color3 = Color3.fromRGB(0, 100, 255) -- azul
+            jogadorBox.Transparency = 0.6
+        end
+        -- Ajusta o tamanho da caixa
+        local size = hitboxJogadorTamanho * 2
+        jogadorBox.Size = Vector3.new(size, size, size)
+    else
+        if jogadorBox then
+            jogadorBox:Destroy()
+            jogadorBox = nil
+        end
     end
-
-    local scale = hitboxJogadorTamanho / 2.5
-    jogadorSphere.Scale = Vector3.new(scale, scale, scale)
 
     -- Verificar colisão com a bola
     if hitbox and bolaValida then
@@ -266,13 +275,14 @@ local function aplicarHitboxBola()
     if not hitbox then return end
 
     if not hitboxBolaAtivo or euTenhoBola() then
+        -- Restaura tamanho original
         if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = hitboxOriginalSize
             hitbox.Transparency = hitboxOriginalTransparency
         end
-        if espBolaSphere then
-            espBolaSphere:Destroy()
-            espBolaSphere = nil
+        if espBolaBox then
+            espBolaBox:Destroy()
+            espBolaBox = nil
         end
         return
     end
@@ -284,22 +294,22 @@ local function aplicarHitboxBola()
         hitbox.Transparency = 1
     end
 
-    -- ESP da bola (verde)
+    -- ESP da bola (verde) com SelectionBox
     if mostrarESP then
-        if not espBolaSphere then
-            espBolaSphere = Instance.new("SelectionSphere")
-            espBolaSphere.Name = "BolaHitboxESP"
-            espBolaSphere.Adornee = hitbox
-            espBolaSphere.Parent = hitbox
-            espBolaSphere.Color3 = Color3.fromRGB(0, 255, 0) -- verde
-            espBolaSphere.Transparency = 0.6
+        if not espBolaBox then
+            espBolaBox = Instance.new("SelectionBox")
+            espBolaBox.Name = "BolaHitboxESP"
+            espBolaBox.Adornee = hitbox
+            espBolaBox.Parent = hitbox
+            espBolaBox.Color3 = Color3.fromRGB(0, 255, 0) -- verde
+            espBolaBox.Transparency = 0.5
         end
-        local scale = hitboxBolaTamanho / 2.5
-        espBolaSphere.Scale = Vector3.new(scale, scale, scale)
+        local size = hitboxBolaTamanho * 2
+        espBolaBox.Size = Vector3.new(size, size, size)
     else
-        if espBolaSphere then
-            espBolaSphere:Destroy()
-            espBolaSphere = nil
+        if espBolaBox then
+            espBolaBox:Destroy()
+            espBolaBox = nil
         end
     end
 end
@@ -309,7 +319,7 @@ end
 -- =====================================================
 task.spawn(function()
     while true do
-        task.wait(0.1) -- loop rápido para detecção do jogador
+        task.wait(0.1)
         aplicarHitboxBola()
         aplicarHitboxJogador()
         aplicarTamanhoVisual()
@@ -662,7 +672,7 @@ secAimbot:Slider({
 })
 
 -- =====================================================
---  NOVA SEÇÃO: HITBOX (3 OPÇÕES)
+--  SEÇÃO HITBOX (3 OPÇÕES) CORRIGIDA
 -- =====================================================
 local secHitbox = MainTab:Section({ Title = "Hitbox (3 em 1)", TextXAlignment = "Left" })
 
@@ -691,9 +701,9 @@ secHitbox:Toggle({
     Desc = "Cria uma esfera ao redor do personagem para coletar a bola",
     Callback = function(v)
         hitboxJogadorAtivo = v
-        if not v and jogadorSphere then
-            jogadorSphere:Destroy()
-            jogadorSphere = nil
+        if not v and jogadorBox then
+            jogadorBox:Destroy()
+            jogadorBox = nil
         end
     end
 })
@@ -736,20 +746,20 @@ secHitbox:Slider({
     end
 })
 
--- ESP Global (mostra ambas hitboxes)
+-- ESP Global
 secHitbox:Toggle({
     Title = "Mostrar Área (ESP)",
     Desc = "Círculo verde na bola + azul no jogador",
     Callback = function(v)
         mostrarESP = v
         if not v then
-            if espBolaSphere then
-                espBolaSphere:Destroy()
-                espBolaSphere = nil
+            if espBolaBox then
+                espBolaBox:Destroy()
+                espBolaBox = nil
             end
-            if espJogadorSphere then
-                espJogadorSphere:Destroy()
-                espJogadorSphere = nil
+            if jogadorBox then
+                jogadorBox:Destroy()
+                jogadorBox = nil
             end
         end
     end
@@ -931,7 +941,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "3 Hitboxes + ESP integrados!",
+        Text = "Hitboxes e ESP corrigidos!",
         Duration = 4
     })
 end)
