@@ -1,31 +1,24 @@
--- Carregamento seguro da WindUI com Fallback
-local WindUI
-local success, err = pcall(function()
-    return loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
-end)
-
-if not success or not WindUI then
-    success, WindUI = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end)
-end
-
-if not success or not WindUI then
-    warn("[ERRO] Falha ao carregar a WindUI. Verifique sua conexão ou executor.")
-    return
-end
-
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
+
+-- Carregamento seguro da WindUI
+local WindUI
+pcall(function()
+    WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+end)
+if not WindUI then
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+end
+
 local selectedEggName = nil
-local tpSpeed = 150
+local tpSpeed = 80 -- Velocidade padrão mais segura contra kicks
 local isTeleporting = false
 local returnCFrame = CFrame.new(509, 71, -372)
 
--- Função para listar os ovos da pasta no Workspace
+-- Pega a lista de ovos da pasta
 local function getEggList()
     local list = {}
     local area = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -34,21 +27,39 @@ local function getEggList()
             table.insert(list, child.Name)
         end
     end
-    if #list == 0 then
-        table.insert(list, "Nenhum ovo encontrado")
-    end
+    if #list == 0 then table.insert(list, "Nenhum ovo encontrado") end
     return list
 end
 
--- TweenTeleport com Noclip
-local function tweenTo(targetCFrame)
+-- Teleporte seguro pelo ar (evita chão e anti-cheat)
+local function safeTweenTo(targetCFrame)
     local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not hrp then return end
 
-    local distance = (hrp.Position - targetCFrame.Position).Magnitude
-    local duration = distance / math.max(tpSpeed, 1)
+    -- Margem de +3 studs na altura para não entrar no chão
+    local finalCFrame = targetCFrame + Vector3.new(0, 3, 0)
+    
+    local startPos = hrp.Position
+    local endPos = finalCFrame.Position
+    
+    -- Calcula uma altura segura acima da origem e do destino (+15 studs)
+    local safeY = math.max(startPos.Y, endPos.Y) + 15
 
+    -- Waypoints: Subir -> Ir pelo alto -> Descer no alvo
+    local waypoints = {
+        CFrame.new(startPos.X, safeY, startPos.Z),
+        CFrame.new(endPos.X, safeY, endPos.Z),
+        finalCFrame
+    }
+
+    -- Ajusta gravidade e estado para evitar detecção de física do Roblox
+    local oldGravity = workspace.Gravity
+    workspace.Gravity = 0
+    if humanoid then humanoid.PlatformStand = true end
+
+    -- Noclip durante o percurso
     local noclipConn = RunService.Stepped:Connect(function()
         if player.Character then
             for _, part in ipairs(player.Character:GetDescendants()) do
@@ -59,16 +70,27 @@ local function tweenTo(targetCFrame)
         end
     end)
 
-    local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
+    -- Executa o trajeto em etapas
+    for _, wpCFrame in ipairs(waypoints) do
+        local dist = (hrp.Position - wpCFrame.Position).Magnitude
+        local duration = dist / math.max(tpSpeed, 1)
 
+        if duration > 0.02 then
+            local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = wpCFrame})
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end
+
+    -- Restaura físicas normais
     noclipConn:Disconnect()
+    workspace.Gravity = oldGravity
+    if humanoid then humanoid.PlatformStand = false end
 end
 
--- Disparo do ProximityPrompt
+-- Acionar ProximityPrompt
 local function triggerPrompt(targetObj)
-    task.wait(0.2)
+    task.wait(0.3)
     if not targetObj then return end
     local prompt = targetObj:FindFirstChildOfClass("ProximityPrompt", true)
     if prompt then
@@ -82,12 +104,9 @@ local function triggerPrompt(targetObj)
     end
 end
 
--- Ciclo Principal (TP -> Coletar -> Retornar)
+-- Ciclo Principal
 local function startCycle()
-    if isTeleporting then 
-        WindUI:Notify({ Title = "Aviso", Content = "Teleporte já em andamento!", Duration = 2 })
-        return 
-    end
+    if isTeleporting then return end
 
     if not selectedEggName or selectedEggName == "" or selectedEggName == "Nenhum ovo encontrado" then
         WindUI:Notify({ Title = "Erro", Content = "Selecione um ovo no Dropdown!", Duration = 3 })
@@ -112,15 +131,15 @@ local function startCycle()
     end
 
     if targetCFrame then
-        WindUI:Notify({ Title = "Teleporte", Content = "Indo até o ovo...", Duration = 2 })
-        tweenTo(targetCFrame)
+        WindUI:Notify({ Title = "Teleporte", Content = "Viajando pelo ar até o ovo...", Duration = 2 })
+        safeTweenTo(targetCFrame)
 
-        WindUI:Notify({ Title = "Coletor", Content = "Pegando ProximityPrompt...", Duration = 2 })
+        WindUI:Notify({ Title = "Coleta", Content = "Ativando ProximityPrompt...", Duration = 2 })
         triggerPrompt(eggTarget)
         task.wait(0.5)
 
-        WindUI:Notify({ Title = "Retorno", Content = "Voltando para (509, 71, -372)...", Duration = 2 })
-        tweenTo(returnCFrame)
+        WindUI:Notify({ Title = "Retorno", Content = "Voltando para a base...", Duration = 2 })
+        safeTweenTo(returnCFrame)
 
         WindUI:Notify({ Title = "Sucesso", Content = "Ciclo Concluído!", Duration = 3 })
     end
@@ -128,11 +147,11 @@ local function startCycle()
     isTeleporting = false
 end
 
--- Criando Interface WindUI
+-- Interface WindUI
 local Window = WindUI:CreateWindow({
-    Title = "Egg Collector",
+    Title = "Egg Collector Safe",
     Icon = "egg",
-    Folder = "EggCollector_Data",
+    Folder = "EggCollector_Safe",
     Size = UDim2.fromOffset(360, 320),
     Transparent = true,
     Theme = "Dark"
@@ -150,7 +169,7 @@ local EggDropdown = Tab:Dropdown({
 })
 
 Tab:Button({
-    Title = "🔄 Recarregar Dropdown",
+    Title = "🔄 Recarregar Lista de Ovos",
     Callback = function()
         local newList = getEggList()
         if EggDropdown.SetValues then
@@ -158,18 +177,17 @@ Tab:Button({
         elseif EggDropdown.Refresh then
             EggDropdown:Refresh(newList)
         end
-        WindUI:Notify({ Title = "Atualizado", Content = "Lista de ovos recarregada!", Duration = 2 })
+        WindUI:Notify({ Title = "Atualizado", Content = "Lista atualizada!", Duration = 2 })
     end
 })
 
--- Ajuste de estrutura do Slider conforme a documentação oficial do WindUI
 Tab:Slider({
-    Title = "Velocidade do Tween",
-    Step = 1,
+    Title = "Velocidade do Tween (Recomendado: 60-120)",
+    Step = 5,
     Value = {
         Min = 10,
         Max = 500,
-        Default = 150
+        Default = 80
     },
     Callback = function(val)
         tpSpeed = val
@@ -177,11 +195,11 @@ Tab:Slider({
 })
 
 Tab:Button({
-    Title = "🚀 Iniciar Ciclo",
+    Title = "🚀 Iniciar Ciclo Seguro",
     Callback = startCycle
 })
 
--- Botão Voado (Flutuante e Arrastável)
+-- Botão Voado / Flutuante
 local parentGui = (gethui and gethui()) or player:WaitForChild("PlayerGui")
 if parentGui:FindFirstChild("EggTP_FloatingGui") then
     parentGui.EggTP_FloatingGui:Destroy()
@@ -193,7 +211,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = parentGui
 
 local floatButton = Instance.new("TextButton")
-floatButton.Size = UDim2.new(0, 110, 0, 38)
+floatButton.Size = UDim2.new(0, 120, 0, 40)
 floatButton.Position = UDim2.new(0.05, 0, 0.3, 0)
 floatButton.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 floatButton.TextColor3 = Color3.fromRGB(255, 255, 255)
