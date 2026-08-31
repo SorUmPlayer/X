@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Detecção automática de time
+    Blue Lock Rivels Hub – Detecção de time via TextChatService
 ]]
 
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -94,17 +95,26 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME AUTOMÁTICO
+--  DETECÇÃO DE TIME VIA TextChatService
 -- =====================================================
-local function getMyTeam()
-    local values = player:FindFirstChild("Values")
-    if values then
-        local teamVal = values:FindFirstChild("Team")
-        if teamVal then
-            return tostring(teamVal.Value)
+local function getPlayerTeam(playerObject)
+    for channelName, channel in pairs(TextChatService.TextChannels) do
+        if string.match(channelName, "^RBXTeam") then
+            local participant = channel:FindFirstChild(playerObject.Name)
+            if participant then
+                return channelName
+            end
         end
     end
     return nil
+end
+
+local function getMyTeam()
+    return getPlayerTeam(player)
+end
+
+local function isSameTeam(playerA, playerB)
+    return getPlayerTeam(playerA) == getPlayerTeam(playerB)
 end
 
 -- =====================================================
@@ -445,10 +455,10 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
+--  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
 -- =====================================================
 
--- 1. ESP Players (time automático)
+-- 1. ESP Players (usa TextChatService para time)
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
     local highlight = Instance.new("Highlight")
@@ -469,15 +479,7 @@ local function atualizarCoresESP()
         if outro ~= player and outro.Character then
             local highlight = playerHighlights[outro]
             if highlight then
-                local timeOutro = nil
-                local values = outro:FindFirstChild("Values")
-                if values then
-                    local teamVal = values:FindFirstChild("Team")
-                    if teamVal then
-                        timeOutro = tostring(teamVal.Value)
-                    end
-                end
-                local isEnemy = (myTeam ~= nil and timeOutro ~= myTeam) or (myTeam == nil)
+                local isEnemy = not isSameTeam(player, outro)
                 highlight.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
             end
         end
@@ -510,22 +512,12 @@ end
 
 -- 2. Visão da bola (inimigo com bola)
 local function getInimigoComBola()
-    local myTeam = getMyTeam()
-    if not myTeam then return nil end
-
     for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player then
+        if outro ~= player and isSameTeam(player, outro) == false then
             local char = outro.Character
             if char then
-                -- Verifica se tem Football no character (posse direta)
                 if char:FindFirstChild("Football") then
-                    local values = outro:FindFirstChild("Values")
-                    if values then
-                        local teamVal = values:FindFirstChild("Team")
-                        if teamVal and tostring(teamVal.Value) ~= myTeam then
-                            return outro
-                        end
-                    end
+                    return outro
                 end
             end
         end
@@ -598,7 +590,7 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- 3. Advinha Chute (independente de time)
+-- 3. Advinha Chute
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -822,7 +814,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (HUB GRANDE)
+--  INTERFACE WINDUI
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -934,7 +926,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos (detectado automaticamente)",
+    Desc = "Verde = seu time | Vermelho = inimigos (detectado pelo TextChatService)",
     Callback = function(v)
         espPlayersEnabled = v
         if not v then
@@ -948,7 +940,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde horizontal (mais grossa) mostrando para onde o inimigo com a bola está olhando",
+    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -960,7 +952,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão (mais visível)",
+    Desc = "Trajetória da bola e círculo amarelo no chão",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
@@ -1027,7 +1019,7 @@ secExtras:Button({
 
 secExtras:Dropdown({
     Title = "Time (para fazer gol)",
-    Desc = "Selecione seu time para o gol (não afeta o ESP automático)",
+    Desc = "Selecione seu time para o gol",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
@@ -1102,7 +1094,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Visão de jogo corrigida com detecção automática de time!",
+        Text = "ESP corrigido com TextChatService!",
         Duration = 4
     })
 end)
