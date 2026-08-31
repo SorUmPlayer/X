@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – ESP com detecção automática de time (Valores + TextChatService)
+    Blue Lock Rivels Hub – Detecção de time automática (Home/Away)
 ]]
 
 local Players = game:GetService("Players")
@@ -7,7 +7,6 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -95,44 +94,26 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME (Valores + TextChatService)
+--  DETECÇÃO DE TIME AUTOMÁTICO (Home/Away)
 -- =====================================================
-local function getPlayerTeam(playerObject)
-    -- 1. Tenta pelo Values.Team (mais confiável)
-    local values = playerObject:FindFirstChild("Values")
+local myTeam = nil
+
+local function atualizarMyTeam()
+    local values = player:FindFirstChild("Values")
     if values then
         local teamVal = values:FindFirstChild("Team")
         if teamVal then
-            return tostring(teamVal.Value)
+            myTeam = tostring(teamVal.Value)
+            return
         end
     end
-
-    -- 2. Fallback: TextChatService
-    for channelName, channel in pairs(TextChatService.TextChannels) do
-        if string.match(channelName, "^RBXTeam") then
-            local participant = channel:FindFirstChild(playerObject.Name)
-            if participant then
-                return channelName
-            end
-        end
-    end
-
-    return nil -- não detectado
+    myTeam = nil
 end
 
-local function getMyTeam()
-    return getPlayerTeam(player)
-end
-
-local function isSameTeam(playerA, playerB)
-    local teamA = getPlayerTeam(playerA)
-    local teamB = getPlayerTeam(playerB)
-    if teamA and teamB then
-        return teamA == teamB
-    end
-    -- Se não conseguiu detectar, assume que são inimigos (evita todos verdes)
-    return false
-end
+atualizarMyTeam()
+-- Atualiza quando o time mudar (se possível)
+player.ChildAdded:Connect(atualizarMyTeam)
+player.ChildRemoved:Connect(atualizarMyTeam)
 
 -- =====================================================
 --  VARIÁVEIS DE CONTROLE
@@ -472,16 +453,21 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
+--  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
 -- =====================================================
 
--- 1. ESP Players (usa detecção melhorada)
+-- 1. ESP Players (com detecção automática de time)
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
+    -- Remove highlight antigo se existir
+    if playerHighlights[jogador] then
+        playerHighlights[jogador]:Destroy()
+        playerHighlights[jogador] = nil
+    end
     local highlight = Instance.new("Highlight")
     highlight.Name = "ESPHighlight"
     highlight.Adornee = jogador.Character
-    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+    highlight.FillColor = Color3.fromRGB(0, 255, 0) -- padrão
     highlight.FillTransparency = 0.5
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.OutlineTransparency = 0.3
@@ -491,11 +477,23 @@ local function criarDestaqueJogador(jogador)
 end
 
 local function atualizarCoresESP()
+    if not myTeam then
+        atualizarMyTeam()
+        if not myTeam then return end
+    end
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player and outro.Character then
             local highlight = playerHighlights[outro]
             if highlight then
-                local isEnemy = not isSameTeam(player, outro)
+                local teamOutro = nil
+                local values = outro:FindFirstChild("Values")
+                if values then
+                    local teamVal = values:FindFirstChild("Team")
+                    if teamVal then
+                        teamOutro = tostring(teamVal.Value)
+                    end
+                end
+                local isEnemy = (teamOutro ~= myTeam)
                 highlight.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
             end
         end
@@ -511,14 +509,16 @@ local function atualizarESPPlayers()
         return
     end
 
+    -- Adiciona destaques para jogadores que não têm
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player and outro.Character and not playerHighlights[outro] then
             criarDestaqueJogador(outro)
         end
     end
 
+    -- Remove destaques de jogadores que saíram ou morreram
     for jogador, highlight in pairs(playerHighlights) do
-        if not jogador.Parent or not jogador.Character then
+        if not jogador.Parent or not jogador.Character or not jogador.Character.Parent then
             highlight:Destroy()
             playerHighlights[jogador] = nil
         end
@@ -526,14 +526,49 @@ local function atualizarESPPlayers()
     atualizarCoresESP()
 end
 
--- 2. Visão da bola (inimigo com bola)
+-- Atualiza o ESP quando jogadores entram ou saem
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    if espPlayersEnabled then
+        atualizarESPPlayers()
+    end
+end)
+Players.PlayerRemoving:Connect(function()
+    if espPlayersEnabled then
+        atualizarESPPlayers()
+    end
+end)
+
+-- Atualiza o time do jogador quando mudar (se possível)
+player.ChildAdded:Connect(function()
+    atualizarMyTeam()
+    if espPlayersEnabled then
+        atualizarCoresESP()
+    end
+end)
+
+-- =====================================================
+--  VISÃO DA BOLA (inimigo com bola)
+-- =====================================================
 local function getInimigoComBola()
+    if not myTeam then
+        atualizarMyTeam()
+        if not myTeam then return nil end
+    end
+
     for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player and isSameTeam(player, outro) == false then
+        if outro ~= player then
             local char = outro.Character
             if char then
+                -- Verifica se tem Football no character (posse direta)
                 if char:FindFirstChild("Football") then
-                    return outro
+                    local values = outro:FindFirstChild("Values")
+                    if values then
+                        local teamVal = values:FindFirstChild("Team")
+                        if teamVal and tostring(teamVal.Value) ~= myTeam then
+                            return outro
+                        end
+                    end
                 end
             end
         end
@@ -606,7 +641,9 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- 3. Advinha Chute
+-- =====================================================
+--  ADVINHA CHUTE
+-- =====================================================
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -830,7 +867,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI
+--  INTERFACE WINDUI (HUB GRANDE)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -942,7 +979,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos (detecção automática por Values.Team)",
+    Desc = "Verde = seu time | Vermelho = inimigos (detectado automaticamente)",
     Callback = function(v)
         espPlayersEnabled = v
         if not v then
@@ -950,6 +987,9 @@ secVisao:Toggle({
                 if highlight then highlight:Destroy() end
             end
             playerHighlights = {}
+        else
+            -- Força atualização imediata
+            atualizarESPPlayers()
         end
     end
 })
@@ -968,7 +1008,7 @@ secVisao:Toggle({
 
 secVisao:Toggle({
     Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Trajetória da bola e círculo amarelo no chão",
+    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
@@ -1035,7 +1075,7 @@ secExtras:Button({
 
 secExtras:Dropdown({
     Title = "Time (para fazer gol)",
-    Desc = "Selecione seu time para o gol",
+    Desc = "Selecione seu time para o gol (não afeta o ESP automático)",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
@@ -1107,28 +1147,10 @@ secVb:Slider({
     end
 })
 
--- =====================================================
---  NOTIFICAÇÃO DO TIME DETECTADO
--- =====================================================
-local myTeam = getMyTeam()
-if myTeam then
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Time Detectado",
-        Text = "Seu time: " .. myTeam,
-        Duration = 4
-    })
-else
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Time Não Detectado",
-        Text = "Não foi possível detectar seu time. Todos serão considerados inimigos.",
-        Duration = 4
-    })
-end
-
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "ESP corrigido com detecção automática!",
-        Duration = 3
+        Text = "ESP corrigido (time automático Home/Away)!",
+        Duration = 4
     })
 end)
