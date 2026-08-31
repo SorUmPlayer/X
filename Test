@@ -1,123 +1,172 @@
--- Carregamento seguro da WindUI
-local WindUI
-local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
-end)
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
-if not success or not WindUI then
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end
+local player = Players.LocalPlayer
 
--- Função para localizar o alvo com tempo de espera
-local function getTarget()
-    local area = workspace:WaitForChild("AreaEggSlotsClient", 5)
-    if not area then return nil end
-    
-    -- Busca pelo ID específico
-    local target = area:FindFirstChild("02057d36e0954bb79f2f3c0eec10b213")
-    
-    -- Caso o ID mude/não exista, pega o primeiro slot disponível na pasta
-    if not target then
-        target = area:GetChildren()[1]
-    end
-    
-    return target
-end
+-- Carregamento WindUI
+local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 
--- Função de Teleporte
-local function teleportToTarget()
-    local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    local hrp = character:WaitForChild("HumanoidRootPart", 5)
-    local targetObject = getTarget()
+-- Variáveis de controle
+local selectedEggName = nil
+local tpSpeed = 150 -- Velocidade padrão (Studs por segundo)
+local isTeleporting = false
+local returnPos = CFrame.new(509, 71, -372)
 
-    if hrp and targetObject then
-        if targetObject:IsA("Model") then
-            hrp.CFrame = targetObject:GetPivot()
-        elseif targetObject:IsA("BasePart") then
-            hrp.CFrame = targetObject.CFrame
-        else
-            WindUI:Notify({ Title = "Erro", Content = "Objeto não tem posição física.", Duration = 3 })
+-- Função para listar os ovos da pasta
+local function getEggList()
+    local area = workspace:FindFirstChild("AreaEggSlotsClient")
+    local list = {}
+    if area then
+        for _, child in pairs(area:GetChildren()) do
+            table.insert(list, child.Name)
         end
-    else
-        WindUI:Notify({ Title = "Aviso", Content = "Alvo ou HumanoidRootPart não encontrado!", Duration = 3 })
+    end
+    if #list == 0 then
+        table.insert(list, "Nenhum ovo encontrado")
+    end
+    return list
+end
+
+-- Função de TweenTeleport com Noclip
+local function tweenTo(targetCFrame)
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = character.HumanoidRootPart
+
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    local time = distance / math.max(tpSpeed, 1)
+
+    -- Ativa Noclip durante o percurso para não trancar em paredes/chão
+    local noclipConn = RunService.Stepped:Connect(function()
+        if player.Character then
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+
+    local tweenInfo = TweenInfo.new(time, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    
+    tween:Play()
+    tween.Completed:Wait()
+
+    noclipConn:Disconnect()
+end
+
+-- Função para ativar ProximityPrompt no local
+local function triggerPrompt(targetObj)
+    task.wait(0.2)
+    local prompt = targetObj:FindFirstChildOfClass("ProximityPrompt", true)
+    
+    if prompt then
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
+        else
+            -- Fallback padrão caso o executor não suporta fireproximityprompt
+            prompt:InputHoldBegin()
+            task.wait(prompt.HoldDuration)
+            prompt:InputHoldEnd()
+        end
     end
 end
 
--- Criando Janela WindUI
+-- Função que executa a sequência completa
+local function startCycle()
+    if isTeleporting then 
+        WindUI:Notify({ Title = "Aviso", Content = "Teleporte já em andamento!", Duration = 2 })
+        return 
+    end
+
+    if not selectedEggName or selectedEggName == "Nenhum ovo encontrado" then
+        WindUI:Notify({ Title = "Erro", Content = "Selecione um ovo válido no Dropdown!", Duration = 3 })
+        return
+    end
+
+    local area = workspace:FindFirstChild("AreaEggSlotsClient")
+    local eggTarget = area and area:FindFirstChild(selectedEggName)
+
+    if not eggTarget then
+        WindUI:Notify({ Title = "Erro", Content = "Ovo não encontrado no Workspace!", Duration = 3 })
+        return
+    end
+
+    isTeleporting = true
+
+    -- Descobre a CFrame do Alvo
+    local targetCFrame
+    if eggTarget:IsA("Model") then
+        targetCFrame = eggTarget:GetPivot()
+    elseif eggTarget:IsA("BasePart") then
+        targetCFrame = eggTarget.CFrame
+    end
+
+    if targetCFrame then
+        -- 1. Tween até o Ovo
+        WindUI:Notify({ Title = "Teleporte", Content = "Indo até o Ovo...", Duration = 2 })
+        tweenTo(targetCFrame)
+
+        -- 2. Ativa o ProximityPrompt
+        WindUI:Notify({ Title = "Coletor", Content = "Coletando ovo...", Duration = 2 })
+        triggerPrompt(eggTarget)
+        task.wait(0.5)
+
+        -- 3. Tween de Volta para (509, 71, -372)
+        WindUI:Notify({ Title = "Retorno", Content = "Voltando para a base...", Duration = 2 })
+        tweenTo(returnPos)
+
+        WindUI:Notify({ Title = "Sucesso", Content = "Ciclo concluído!", Duration = 3 })
+    end
+
+    isTeleporting = false
+end
+
+-- Interface WindUI
 local Window = WindUI:CreateWindow({
-    Title = "Egg Teleport",
-    Icon = "map-pin",
-    Folder = "EggTP_Config",
-    Size = UDim2.fromOffset(300, 180)
+    Title = "Egg Auto-Collector",
+    Icon = "egg",
+    Folder = "EggCollector_Config",
+    Size = UDim2.fromOffset(360, 280)
 })
 
 local Tab = Window:Tab({ Title = "Principal", Icon = "navigation" })
 
-Tab:Button({
-    Title = "Teleportar para Egg Slot",
-    Callback = teleportToTarget
+-- Dropdown com lista de ovos
+local EggDropdown = Tab:Dropdown({
+    Title = "Selecione o Ovo",
+    Values = getEggList(),
+    Value = "",
+    Callback = function(val)
+        selectedEggName = val
+    end
 })
 
--- Botão Flutuante
-local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-if playerGui:FindFirstChild("EggTP_ScreenGui") then
-    playerGui.EggTP_ScreenGui:Destroy()
-end
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "EggTP_ScreenGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
-
-local floatButton = Instance.new("TextButton")
-floatButton.Size = UDim2.new(0, 110, 0, 38)
-floatButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-floatButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-floatButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-floatButton.Text = "⚡ TP Egg"
-floatButton.Font = Enum.Font.SourceSansBold
-floatButton.TextSize = 14
-floatButton.Parent = screenGui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = floatButton
-
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(80, 80, 120)
-stroke.Thickness = 1.5
-stroke.Parent = floatButton
-
--- Sistema de Drag manual (mais seguro que Draggable = true)
-local UserInputService = game:GetService("UserInputService")
-local dragging, dragInput, dragStart, startPos
-
-floatButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = floatButton.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
+-- Botão para atualizar lista do Dropdown
+Tab:Button({
+    Title = "🔄 Atualizar Lista de Ovos",
+    Callback = function()
+        local newList = getEggList()
+        EggDropdown:SetValues(newList)
+        WindUI:Notify({ Title = "Atualizado", Content = "Lista de ovos recarregada!", Duration = 2 })
     end
-end)
+})
 
-floatButton.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
+-- Slider de Velocidade (0 - 500)
+Tab:Slider({
+    Title = "Velocidade do Tween",
+    Min = 10,
+    Max = 500,
+    Default = 150,
+    Callback = function(val)
+        tpSpeed = val
     end
-end)
+})
 
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        floatButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-floatButton.MouseButton1Click:Connect(teleportToTarget)
+-- Botão para Iniciar o Ciclo
+Tab:Button({
+    Title = "🚀 Iniciar Ciclo (TP -> Coletar -> Retornar)",
+    Callback = startCycle
+})
