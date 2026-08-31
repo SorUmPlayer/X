@@ -1,63 +1,65 @@
---[[
-  COMO CONFIGURAR:
-  1. Crie um RemoteEvent dentro de ReplicatedStorage (ex: "TeleportEvent").
-  2. Crie um ScreenGui com um TextButton (ex: "TeleportButton") dentro de StarterGui.
-  3. Insira um LocalScript no botão com o código abaixo.
-  4. Insira um Script em ServerScriptService com o código do servidor.
---]]
+local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 
--- ============ LOCALSCRIPT (dentro do botão) ============
-local player = game.Players.LocalPlayer
-local remote = game.ReplicatedStorage:WaitForChild("TeleportEvent") -- Ajuste o nome
+-- Procura o objeto no Workspace
+local targetObject = workspace:FindFirstChild("AreaEggSlotsClient") 
+    and workspace.AreaEggSlotsClient:FindFirstChild("02057d36e0954bb79f2f3c0eec10b213")
 
-local button = script.Parent -- O TextButton
-
-button.MouseButton1Click:Connect(function()
-    -- Verifica se o personagem existe
-    local character = player.Character
-    if not character or not character.Parent then
-        return
-    end
+-- Função para realizar o teleporte
+local function teleportToTarget()
+    local character = game.Players.LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
     
-    -- Dispara o evento para o servidor
-    remote:FireServer()
-end)
--- ============ SCRIPT (em ServerScriptService) ============
-local remote = game.ReplicatedStorage:WaitForChild("TeleportEvent")
-local targetPart = workspace.AreaEggSlotsClient["02057d36e0954bb79f2f3c0eec10b213"]
-
-remote.OnServerEvent:Connect(function(player)
-    if not targetPart or not targetPart:IsA("BasePart") then
-        warn("Parte alvo não encontrada ou não é uma BasePart")
-        return
-    end
-    
-    local character = player.Character
-    if not character or not character.Parent then
-        return
-    end
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then
-        return
-    end
-    
-    -- Posiciona o personagem no centro da parte + 3 studs acima (para não ficar dentro)
-    local teleportPos = targetPart.Position + Vector3.new(0, 3, 0)
-    
-    -- Move a raiz (primary part) do personagem
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if rootPart then
-        rootPart.CFrame = CFrame.new(teleportPos)
-    else
-        -- Fallback: move todas as partes (não recomendado)
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Position = teleportPos
-            end
+    if hrp and targetObject then
+        -- Teleporta para a CFrame do objeto ou para a posição (se for Model ou Part)
+        if targetObject:IsA("Model") then
+            hrp.CFrame = targetObject:GetPivot()
+        elseif targetObject:IsA("BasePart") then
+            hrp.CFrame = targetObject.CFrame
+        else
+            WindUI:Notify({ Title = "Erro", Content = "Objeto não possui posição física válida.", Duration = 3 })
         end
+    else
+        WindUI:Notify({ Title = "Erro", Content = "Objeto ou Jogador não encontrado!", Duration = 3 })
     end
-    
-    -- Opcional: mensagem de confirmação
-    -- player:WaitForChild("PlayerGui"):FindFirstChild("Feedback") etc.
-end)
+end
+
+-- Janela Principal
+local Window = WindUI:CreateWindow({
+    Title = "Teleport Tool",
+    Icon = "map-pin",
+    Author = "Script",
+    Folder = "TP_Config",
+    Size = UDim2.fromOffset(320, 200),
+    Transparent = true
+})
+
+local Tab = Window:Tab({ Title = "Teleport", Icon = "navigation" })
+
+-- Botão de Teleporte na UI Principal
+Tab:Button({
+    Title = "Teleportar para AreaEgg",
+    Callback = teleportToTarget
+})
+
+-- Criação do Botão Flutuante (Draggable ScreenGui)
+local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui", playerGui)
+screenGui.Name = "FloatingTPGui"
+screenGui.ResetOnSpawn = false
+
+local floatButton = Instance.new("TextButton", screenGui)
+floatButton.Size = UDim2.new(0, 120, 0, 40)
+floatButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+floatButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+floatButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+floatButton.Text = "TP Egg Slot"
+floatButton.Font = Enum.Font.SourceSansBold
+floatButton.TextSize = 14
+floatButton.Active = true
+floatButton.Draggable = true -- Torna o botão arrastável/voado pela tela
+
+local UICorner = Instance.new("UICorner", floatButton)
+UICorner.CornerRadius = UDim.new(0, 8)
+
+-- Ação ao clicar no botão flutuante
+floatButton.MouseButton1Click:Connect(teleportToTarget)
