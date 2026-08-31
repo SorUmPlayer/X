@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Detecção de time via TextChatService
+    Blue Lock Rivels Hub – ESP com detecção automática de time (Valores + TextChatService)
 ]]
 
 local Players = game:GetService("Players")
@@ -95,9 +95,19 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME VIA TextChatService
+--  DETECÇÃO DE TIME (Valores + TextChatService)
 -- =====================================================
 local function getPlayerTeam(playerObject)
+    -- 1. Tenta pelo Values.Team (mais confiável)
+    local values = playerObject:FindFirstChild("Values")
+    if values then
+        local teamVal = values:FindFirstChild("Team")
+        if teamVal then
+            return tostring(teamVal.Value)
+        end
+    end
+
+    -- 2. Fallback: TextChatService
     for channelName, channel in pairs(TextChatService.TextChannels) do
         if string.match(channelName, "^RBXTeam") then
             local participant = channel:FindFirstChild(playerObject.Name)
@@ -106,7 +116,8 @@ local function getPlayerTeam(playerObject)
             end
         end
     end
-    return nil
+
+    return nil -- não detectado
 end
 
 local function getMyTeam()
@@ -114,7 +125,13 @@ local function getMyTeam()
 end
 
 local function isSameTeam(playerA, playerB)
-    return getPlayerTeam(playerA) == getPlayerTeam(playerB)
+    local teamA = getPlayerTeam(playerA)
+    local teamB = getPlayerTeam(playerB)
+    if teamA and teamB then
+        return teamA == teamB
+    end
+    -- Se não conseguiu detectar, assume que são inimigos (evita todos verdes)
+    return false
 end
 
 -- =====================================================
@@ -458,7 +475,7 @@ end
 --  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
 -- =====================================================
 
--- 1. ESP Players (usa TextChatService para time)
+-- 1. ESP Players (usa detecção melhorada)
 local function criarDestaqueJogador(jogador)
     if not jogador.Character then return end
     local highlight = Instance.new("Highlight")
@@ -474,7 +491,6 @@ local function criarDestaqueJogador(jogador)
 end
 
 local function atualizarCoresESP()
-    local myTeam = getMyTeam()
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player and outro.Character then
             local highlight = playerHighlights[outro]
@@ -926,7 +942,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos (detectado pelo TextChatService)",
+    Desc = "Verde = seu time | Vermelho = inimigos (detecção automática por Values.Team)",
     Callback = function(v)
         espPlayersEnabled = v
         if not v then
@@ -1091,10 +1107,28 @@ secVb:Slider({
     end
 })
 
+-- =====================================================
+--  NOTIFICAÇÃO DO TIME DETECTADO
+-- =====================================================
+local myTeam = getMyTeam()
+if myTeam then
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "Time Detectado",
+        Text = "Seu time: " .. myTeam,
+        Duration = 4
+    })
+else
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "Time Não Detectado",
+        Text = "Não foi possível detectar seu time. Todos serão considerados inimigos.",
+        Duration = 4
+    })
+end
+
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "ESP corrigido com TextChatService!",
-        Duration = 4
+        Text = "ESP corrigido com detecção automática!",
+        Duration = 3
     })
 end)
