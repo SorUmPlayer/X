@@ -1,5 +1,6 @@
+
 --[[
-    Blue Lock Rivels Hub – Detecção de time automática (Home/Away)
+    Blue Lock Rivels Hub – Sem ESP Players
 ]]
 
 local Players = game:GetService("Players")
@@ -94,26 +95,18 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME AUTOMÁTICO (Home/Away)
+--  DETECÇÃO DE TIME AUTOMÁTICO
 -- =====================================================
-local myTeam = nil
-
-local function atualizarMyTeam()
+local function getMyTeam()
     local values = player:FindFirstChild("Values")
     if values then
         local teamVal = values:FindFirstChild("Team")
         if teamVal then
-            myTeam = tostring(teamVal.Value)
-            return
+            return tostring(teamVal.Value)
         end
     end
-    myTeam = nil
+    return nil
 end
-
-atualizarMyTeam()
--- Atualiza quando o time mudar (se possível)
-player.ChildAdded:Connect(atualizarMyTeam)
-player.ChildRemoved:Connect(atualizarMyTeam)
 
 -- =====================================================
 --  VARIÁVEIS DE CONTROLE
@@ -142,14 +135,10 @@ local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 
 -- =====================================================
---  VISÃO DE JOGO – NOVAS VARIÁVEIS
+--  VISÃO DE JOGO
 -- =====================================================
-local espPlayersEnabled = false
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
-
--- Objetos para ESP Players
-local playerHighlights = {}
 
 -- Objetos para Visão da Bola (linha verde)
 local linhaVisao = nil
@@ -453,114 +442,18 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
+--  FUNÇÕES DA VISÃO DE JOGO
 -- =====================================================
 
--- 1. ESP Players (com detecção automática de time)
-local function criarDestaqueJogador(jogador)
-    if not jogador.Character then return end
-    -- Remove highlight antigo se existir
-    if playerHighlights[jogador] then
-        playerHighlights[jogador]:Destroy()
-        playerHighlights[jogador] = nil
-    end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESPHighlight"
-    highlight.Adornee = jogador.Character
-    highlight.FillColor = Color3.fromRGB(0, 255, 0) -- padrão
-    highlight.FillTransparency = 0.5
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.OutlineTransparency = 0.3
-    highlight.Parent = jogador.Character
-    playerHighlights[jogador] = highlight
-    return highlight
-end
-
-local function atualizarCoresESP()
-    if not myTeam then
-        atualizarMyTeam()
-        if not myTeam then return end
-    end
-    for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player and outro.Character then
-            local highlight = playerHighlights[outro]
-            if highlight then
-                local teamOutro = nil
-                local values = outro:FindFirstChild("Values")
-                if values then
-                    local teamVal = values:FindFirstChild("Team")
-                    if teamVal then
-                        teamOutro = tostring(teamVal.Value)
-                    end
-                end
-                local isEnemy = (teamOutro ~= myTeam)
-                highlight.FillColor = isEnemy and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
-            end
-        end
-    end
-end
-
-local function atualizarESPPlayers()
-    if not espPlayersEnabled then
-        for jogador, highlight in pairs(playerHighlights) do
-            if highlight then highlight:Destroy() end
-        end
-        playerHighlights = {}
-        return
-    end
-
-    -- Adiciona destaques para jogadores que não têm
-    for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player and outro.Character and not playerHighlights[outro] then
-            criarDestaqueJogador(outro)
-        end
-    end
-
-    -- Remove destaques de jogadores que saíram ou morreram
-    for jogador, highlight in pairs(playerHighlights) do
-        if not jogador.Parent or not jogador.Character or not jogador.Character.Parent then
-            highlight:Destroy()
-            playerHighlights[jogador] = nil
-        end
-    end
-    atualizarCoresESP()
-end
-
--- Atualiza o ESP quando jogadores entram ou saem
-Players.PlayerAdded:Connect(function()
-    task.wait(0.5)
-    if espPlayersEnabled then
-        atualizarESPPlayers()
-    end
-end)
-Players.PlayerRemoving:Connect(function()
-    if espPlayersEnabled then
-        atualizarESPPlayers()
-    end
-end)
-
--- Atualiza o time do jogador quando mudar (se possível)
-player.ChildAdded:Connect(function()
-    atualizarMyTeam()
-    if espPlayersEnabled then
-        atualizarCoresESP()
-    end
-end)
-
--- =====================================================
---  VISÃO DA BOLA (inimigo com bola)
--- =====================================================
+-- 1. Encontrar inimigo com a bola
 local function getInimigoComBola()
-    if not myTeam then
-        atualizarMyTeam()
-        if not myTeam then return nil end
-    end
+    local myTeam = getMyTeam()
+    if not myTeam then return nil end
 
     for _, outro in ipairs(Players:GetPlayers()) do
         if outro ~= player then
             local char = outro.Character
             if char then
-                -- Verifica se tem Football no character (posse direta)
                 if char:FindFirstChild("Football") then
                     local values = outro:FindFirstChild("Values")
                     if values then
@@ -576,6 +469,7 @@ local function getInimigoComBola()
     return nil
 end
 
+-- 2. Visão da bola (linha verde horizontal)
 local function criarLinhaVisao()
     if not linhaVisao then
         linhaVisao = Instance.new("Part")
@@ -641,9 +535,7 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
 end
 
--- =====================================================
---  ADVINHA CHUTE
--- =====================================================
+-- 3. Advinha Chute (linha amarela + círculo)
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -861,13 +753,12 @@ RunService.Heartbeat:Connect(function()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     atualizarESP()
-    atualizarESPPlayers()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (HUB GRANDE)
+--  INTERFACE WINDUI
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -883,7 +774,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 650),
+    Size = UDim2.fromOffset(500, 600),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -974,25 +865,8 @@ secAimbot:Slider({
     end
 })
 
--- Seção Visão de jogo
+-- Seção Visão de jogo (sem ESP Players)
 local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
-
-secVisao:Toggle({
-    Title = "ESP Players",
-    Desc = "Verde = seu time | Vermelho = inimigos (detectado automaticamente)",
-    Callback = function(v)
-        espPlayersEnabled = v
-        if not v then
-            for jogador, highlight in pairs(playerHighlights) do
-                if highlight then highlight:Destroy() end
-            end
-            playerHighlights = {}
-        else
-            -- Força atualização imediata
-            atualizarESPPlayers()
-        end
-    end
-})
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
@@ -1075,7 +949,7 @@ secExtras:Button({
 
 secExtras:Dropdown({
     Title = "Time (para fazer gol)",
-    Desc = "Selecione seu time para o gol (não afeta o ESP automático)",
+    Desc = "Selecione seu time para o gol",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
@@ -1150,7 +1024,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "ESP corrigido (time automático Home/Away)!",
-        Duration = 4
+        Text = "ESP Players removido!",
+        Duration = 3
     })
 end)
