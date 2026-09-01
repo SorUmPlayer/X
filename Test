@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Com Força da Bola
+    Blue Lock Rivels Hub – Força da Bola com loft corrigido
 ]]
 
 local Players = game:GetService("Players")
@@ -123,7 +123,7 @@ local hitboxPersonagemTamanho = 5
 -- Força da Bola
 local forcaBolaEnabled = false
 local forcaBolaVelocidade = 100
-local tinhaBola = false -- para detectar mudança de posse
+local tinhaBola = false
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -325,7 +325,7 @@ local function aplicarHitboxPersonagem()
 end
 
 -- =====================================================
---  FORÇA DA BOLA
+--  FORÇA DA BOLA (CORRIGIDA COM LOFT)
 -- =====================================================
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
@@ -336,16 +336,19 @@ local function aplicarForcaBola()
     -- Detecta mudança de posse (perdeu a bola)
     if tinhaBola and not tenho then
         -- Jogador acabou de chutar/perder a bola
-        -- Aplica força na direção da câmera
+        -- Direção da câmera (horizontal)
         local dir = camera.CFrame.LookVector
-        -- Ignora componente Y para manter no chão
-        dir = Vector3.new(dir.X, 0, dir.Z)
+        dir = Vector3.new(dir.X, 0, dir.Z) -- ignora inclinação vertical
         if dir.Magnitude < 0.1 then
             dir = Vector3.new(1, 0, 0)
         else
             dir = dir.Unit
         end
-        bola.AssemblyLinearVelocity = dir * forcaBolaVelocidade
+        
+        -- Aplica velocidade horizontal + loft (componente Y positiva)
+        -- O loft garante que a bola suba e não vá direto para o chão
+        local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
+        bola.AssemblyLinearVelocity = vel
     end
     
     tinhaBola = tenho
@@ -842,7 +845,7 @@ RunService.Heartbeat:Connect(function()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
     aplicarHitboxPersonagem()
-    aplicarForcaBola() -- Força da Bola
+    aplicarForcaBola()
 end)
 
 -- =====================================================
@@ -1040,14 +1043,12 @@ secHitbox:Toggle({
     end
 })
 
--- =====================================================
---  SEÇÃO EXTRAS (COM FORÇA DA BOLA)
--- =====================================================
+-- Seção Extras
 local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 
 secExtras:Toggle({
     Title = "Força da Bola",
-    Desc = "Ao chutar, a bola sai com potência máxima (independente da força do chute)",
+    Desc = "Ao chutar, a bola sai com potência máxima + loft (sobe)",
     Callback = function(v)
         forcaBolaEnabled = v
     end
@@ -1155,7 +1156,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Força da Bola adicionada!",
+        Text = "Força da Bola com loft corrigido!",
         Duration = 4
     })
 end)
