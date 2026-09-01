@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Hitbox do Personagem por software (sem teleporte)
+    Blue Lock Rivels Hub – Com Força da Bola
 ]]
 
 local Players = game:GetService("Players")
@@ -116,9 +116,14 @@ local reachAtivo = false
 local reachDistancia = 20
 local mostrarESP = false
 
--- Hitbox do Personagem (nova abordagem)
+-- Hitbox do Personagem
 local hitboxPersonagemAtivo = false
 local hitboxPersonagemTamanho = 5
+
+-- Força da Bola
+local forcaBolaEnabled = false
+local forcaBolaVelocidade = 100
+local tinhaBola = false -- para detectar mudança de posse
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -297,11 +302,11 @@ task.spawn(function()
 end)
 
 -- =====================================================
---  HITBOX DO PERSONAGEM (POR SOFTWARE – SEM PARTE FÍSICA)
+--  HITBOX DO PERSONAGEM (POR SOFTWARE)
 -- =====================================================
 local function aplicarHitboxPersonagem()
     if not hitboxPersonagemAtivo then return end
-    if euTenhoBola() then return end  -- se já tem a bola, não precisa forçar
+    if euTenhoBola() then return end
     if not bolaValida or not hitbox then return end
 
     local char = player.Character
@@ -309,16 +314,41 @@ local function aplicarHitboxPersonagem()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Verifica a distância entre o personagem e a hitbox da bola
     local dist = (hrp.Position - hitbox.Position).Magnitude
     if dist <= hitboxPersonagemTamanho then
-        -- Força o toque entre o HRP e a hitbox da bola
         if firetouchinterest then
-            firetouchinterest(hrp, hitbox, 0)  -- início do toque
-            task.wait(0.01)                   -- pequeno delay para garantir
-            firetouchinterest(hrp, hitbox, 1)  -- fim do toque
+            firetouchinterest(hrp, hitbox, 0)
+            task.wait(0.01)
+            firetouchinterest(hrp, hitbox, 1)
         end
     end
+end
+
+-- =====================================================
+--  FORÇA DA BOLA
+-- =====================================================
+local function aplicarForcaBola()
+    if not forcaBolaEnabled then return end
+    if not bolaValida or not bola then return end
+
+    local tenho = euTenhoBola()
+    
+    -- Detecta mudança de posse (perdeu a bola)
+    if tinhaBola and not tenho then
+        -- Jogador acabou de chutar/perder a bola
+        -- Aplica força na direção da câmera
+        local dir = camera.CFrame.LookVector
+        -- Ignora componente Y para manter no chão
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.1 then
+            dir = Vector3.new(1, 0, 0)
+        else
+            dir = dir.Unit
+        end
+        bola.AssemblyLinearVelocity = dir * forcaBolaVelocidade
+    end
+    
+    tinhaBola = tenho
 end
 
 -- =====================================================
@@ -665,6 +695,38 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
+--  COMANDO DE CHAT: Força da bola
+-- =====================================================
+local function onChatMessage(msg)
+    local lower = msg:lower()
+    if lower:match("^força da bola") then
+        local num = msg:match("^força da bola (%d+)")
+        if num then
+            local val = tonumber(num)
+            if val and val > 0 and val <= 200 then
+                forcaBolaVelocidade = val
+                player:Chat("Força da bola ajustada para " .. val)
+            else
+                player:Chat("Use um número entre 1 e 200.")
+            end
+        else
+            player:Chat("Use: Força da bola [número]")
+        end
+    end
+end
+
+local function setupChatCommand()
+    local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatService then
+        local onMessage = chatService:FindFirstChild("OnMessage")
+        if onMessage then
+            onMessage.OnClientEvent:Connect(onChatMessage)
+        end
+    end
+end
+setupChatCommand()
+
+-- =====================================================
 --  AIMBOT PERSONAGEM (COM DELAY)
 -- =====================================================
 local function ativarAimbotPersonagem(estado)
@@ -779,7 +841,8 @@ RunService.Heartbeat:Connect(function()
     atualizarESP()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
-    aplicarHitboxPersonagem() -- hitbox do personagem por software
+    aplicarHitboxPersonagem()
+    aplicarForcaBola() -- Força da Bola
 end)
 
 -- =====================================================
@@ -799,7 +862,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 650),
+    Size = UDim2.fromOffset(500, 680),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -917,9 +980,7 @@ secVisao:Toggle({
     end
 })
 
--- =====================================================
---  SEÇÃO HITBOX DE COLETA (NOVA)
--- =====================================================
+-- Seção Hitbox de Coleta
 local secHitbox = MainTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
 
 secHitbox:Toggle({
@@ -979,8 +1040,28 @@ secHitbox:Toggle({
     end
 })
 
--- Seção Extras
+-- =====================================================
+--  SEÇÃO EXTRAS (COM FORÇA DA BOLA)
+-- =====================================================
 local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
+
+secExtras:Toggle({
+    Title = "Força da Bola",
+    Desc = "Ao chutar, a bola sai com potência máxima (independente da força do chute)",
+    Callback = function(v)
+        forcaBolaEnabled = v
+    end
+})
+
+secExtras:Slider({
+    Title = "Força Máxima",
+    Desc = "Velocidade da bola ao chutar (10 a 200)",
+    Step = 1,
+    Value = { Min = 10, Max = 200, Default = 100 },
+    Callback = function(v)
+        forcaBolaVelocidade = v
+    end
+})
 
 secExtras:Button({
     Title = "Infinite Stamina",
@@ -1074,7 +1155,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Hitbox do Personagem corrigida (sem teleporte)!",
+        Text = "Força da Bola adicionada!",
         Duration = 4
     })
 end)
