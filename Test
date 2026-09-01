@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Hitbox do Personagem com Part invisível (SEM AFUNDAR)
+    Blue Lock Rivels Hub – Hitbox do Personagem + ESP no chão
 ]]
 
 local Players = game:GetService("Players")
@@ -94,7 +94,7 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME AUTOMÁTICO
+--  DETECÇÃO DE TIME AUTOMÁTICO (para Visão da Bola)
 -- =====================================================
 local function getMyTeam()
     local values = player:FindFirstChild("Values")
@@ -116,11 +116,6 @@ local reachAtivo = false
 local reachDistancia = 20
 local mostrarESP = false
 
-local personagemHitboxAtivo = false
-local personagemHitboxTamanho = 15
-local personagemHitboxPart = nil
-local personagemHitboxWeld = nil
-
 local velocidadeBola = 65
 local isControlActive = false
 local controlConnection = nil
@@ -137,6 +132,15 @@ local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5
 local aimbotDelayValue = 0
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
+
+-- =====================================================
+--  HITBOX DO PERSONAGEM (NOVO)
+-- =====================================================
+local personagemHitboxAtivo = false
+local personagemHitboxTamanho = 5
+local personagemEspAtivo = false
+local personagemOriginalSizes = {} -- guarda tamanhos originais das partes
+local personagemEspCirculo = nil   -- círculo no chão
 
 -- =====================================================
 --  VISÃO DE JOGO
@@ -187,100 +191,6 @@ local hitboxOriginalTransparency = 0
 local vbHitboxEnabled = false
 local vbHitboxSize = 15
 local vbOriginalProps = {}
-
--- =====================================================
---  HITBOX DO PERSONAGEM (PART INVISÍVEL)
--- =====================================================
-local function criarHitboxPersonagem()
-    -- Remove a antiga se existir
-    if personagemHitboxPart then
-        personagemHitboxPart:Destroy()
-        personagemHitboxPart = nil
-        personagemHitboxWeld = nil
-    end
-
-    local char = player.Character
-    if not char then return nil end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-
-    -- Cria a esfera invisível
-    local part = Instance.new("Part")
-    part.Name = "HitboxPersonagem"
-    part.Shape = Enum.PartType.Ball
-    part.Size = Vector3.new(personagemHitboxTamanho, personagemHitboxTamanho, personagemHitboxTamanho)
-    part.Transparency = 1 -- invisível
-    part.CanCollide = false
-    part.CanTouch = true
-    part.Anchored = false
-    part.Parent = char
-
-    -- Weld para fixar no HumanoidRootPart
-    local weld = Instance.new("Weld")
-    weld.Part0 = hrp
-    weld.Part1 = part
-    weld.C0 = CFrame.new(0, 0, 0)
-    weld.Parent = part
-
-    personagemHitboxPart = part
-    personagemHitboxWeld = weld
-
-    -- Detectar toque com a bola
-    part.Touched:Connect(function(otherPart)
-        if not personagemHitboxAtivo then return end
-        -- Se tocou na bola (ou hitbox da bola)
-        local bolaObj = otherPart.Parent
-        if bolaObj and (bolaObj.Name == "Football" or bolaObj.Name == "Hitbox") then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp and firetouchinterest then
-                -- Simula o toque do jogador com a bola
-                firetouchinterest(hrp, otherPart, 0)
-                task.wait(0.05)
-                firetouchinterest(hrp, otherPart, 1)
-            end
-        end
-    end)
-
-    return part
-end
-
-local function atualizarHitboxPersonagem()
-    if not personagemHitboxAtivo then
-        if personagemHitboxPart then
-            personagemHitboxPart:Destroy()
-            personagemHitboxPart = nil
-            personagemHitboxWeld = nil
-        end
-        return
-    end
-
-    -- Se não existe, cria
-    if not personagemHitboxPart or not personagemHitboxPart.Parent then
-        criarHitboxPersonagem()
-        return
-    end
-
-    -- Atualiza tamanho
-    local tamanho = math.clamp(personagemHitboxTamanho, 1, 30)
-    local novoSize = Vector3.new(tamanho, tamanho, tamanho)
-    if personagemHitboxPart.Size ~= novoSize then
-        personagemHitboxPart.Size = novoSize
-    end
-end
-
--- Reconectar quando o personagem renascer
-player.CharacterAdded:Connect(function()
-    -- Espera o personagem carregar
-    task.wait(1)
-    if personagemHitboxAtivo then
-        criarHitboxPersonagem()
-    end
-end)
-
--- Inicializa
-task.wait(1)
-atualizarHitboxPersonagem()
 
 -- =====================================================
 --  FUNÇÕES DO VOLLEYBALL LEGENDS
@@ -361,9 +271,9 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  CONTROLE DA HITBOX DA BOLA
+--  CONTROLE DA HITBOX DA BOLA (REACH)
 -- =====================================================
-local function aplicarTamanhoHitboxBola()
+local function aplicarTamanhoHitbox()
     if not hitbox then return end
 
     local tenho = euTenhoBola()
@@ -384,14 +294,163 @@ local function aplicarTamanhoHitboxBola()
     end
 end
 
--- Loop de reset (hitbox da bola + personagem)
 task.spawn(function()
     while true do
         task.wait(0.3)
-        aplicarTamanhoHitboxBola()
-        atualizarHitboxPersonagem()
+        aplicarTamanhoHitbox()
     end
 end)
+
+-- =====================================================
+--  FUNÇÕES DA HITBOX DO PERSONAGEM
+-- =====================================================
+local function salvarTamanhosOriginais(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "Head" then -- evita cabeça para não bugar
+            if not personagemOriginalSizes[part] then
+                personagemOriginalSizes[part] = part.Size
+            end
+        end
+    end
+end
+
+local function aplicarHitboxPersonagem(tamanho)
+    local char = player.Character
+    if not char then return
+    end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "Head" then
+            if personagemOriginalSizes[part] then
+                local escala = tamanho / 1.4 -- proporcional ao tamanho original médio
+                part.Size = personagemOriginalSizes[part] * escala
+                -- A transparência pode ser ajustada para visualização, mas deixamos normal
+            end
+        end
+    end
+end
+
+local function restaurarHitboxPersonagem()
+    for part, originalSize in pairs(personagemOriginalSizes) do
+        if part and part.Parent then
+            part.Size = originalSize
+        end
+    end
+    personagemOriginalSizes = {}
+end
+
+local function ativarHitboxPersonagem(estado)
+    personagemHitboxAtivo = estado
+    if estado then
+        local char = player.Character
+        if char then
+            salvarTamanhosOriginais(char)
+            aplicarHitboxPersonagem(personagemHitboxTamanho)
+        end
+    else
+        restaurarHitboxPersonagem()
+    end
+end
+
+-- Atualiza quando o personagem spawna
+player.CharacterAdded:Connect(function(char)
+    if personagemHitboxAtivo then
+        task.wait(0.5) -- espera carregar
+        salvarTamanhosOriginais(char)
+        aplicarHitboxPersonagem(personagemHitboxTamanho)
+    end
+end)
+
+-- =====================================================
+--  ESP DA HITBOX DO PERSONAGEM (CÍRCULO NO CHÃO)
+-- =====================================================
+local function criarCirculoPersonagem()
+    if not personagemEspCirculo then
+        personagemEspCirculo = Instance.new("Part")
+        personagemEspCirculo.Name = "PersonagemHitboxESP"
+        personagemEspCirculo.Anchored = true
+        personagemEspCirculo.CanCollide = false
+        personagemEspCirculo.Transparency = 0.3
+        personagemEspCirculo.Color = Color3.fromRGB(255, 200, 0) -- amarelo
+        personagemEspCirculo.Material = Enum.Material.Neon
+        personagemEspCirculo.Shape = Enum.PartType.Cylinder
+        personagemEspCirculo.Size = Vector3.new(4, 0.1, 4) -- tamanho base
+        personagemEspCirculo.Parent = Workspace
+    end
+    return personagemEspCirculo
+end
+
+local function atualizarEspPersonagem()
+    if not personagemEspAtivo or not personagemHitboxAtivo then
+        if personagemEspCirculo then
+            personagemEspCirculo:Destroy()
+            personagemEspCirculo = nil
+        end
+        return
+    end
+
+    local char = player.Character
+    if not char then
+        if personagemEspCirculo then
+            personagemEspCirculo:Destroy()
+            personagemEspCirculo = nil
+        end
+        return
+    end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        if personagemEspCirculo then
+            personagemEspCirculo:Destroy()
+            personagemEspCirculo = nil
+        end
+        return
+    end
+
+    criarCirculoPersonagem()
+    local pos = hrp.Position
+    pos = Vector3.new(pos.X, 0, pos.Z) -- fixa no chão
+    personagemEspCirculo.Position = pos
+    -- Tamanho baseado no slider
+    local tamanho = personagemHitboxTamanho * 2 -- ajuste para diâmetro
+    personagemEspCirculo.Size = Vector3.new(tamanho, 0.1, tamanho)
+end
+
+-- =====================================================
+--  ESP DA BOLA (REACH) – CÍRCULO NO CHÃO (CORRIGIDO)
+-- =====================================================
+local function criarEspBolaChao()
+    if not espSphere then
+        espSphere = Instance.new("Part")
+        espSphere.Name = "ReachESP_Chao"
+        espSphere.Anchored = true
+        espSphere.CanCollide = false
+        espSphere.Transparency = 0.3
+        espSphere.Color = Color3.fromRGB(0, 255, 0)
+        espSphere.Material = Enum.Material.Neon
+        espSphere.Shape = Enum.PartType.Cylinder
+        espSphere.Size = Vector3.new(4, 0.1, 4)
+        espSphere.Parent = Workspace
+    end
+    return espSphere
+end
+
+local function atualizarEspBolaChao()
+    if not mostrarESP or not reachAtivo or not hitbox then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
+        return
+    end
+
+    criarEspBolaChao()
+    local pos = hitbox.Position
+    pos = Vector3.new(pos.X, 0, pos.Z) -- fixa no chão
+    espSphere.Position = pos
+    local tamanho = reachDistancia * 2 -- diâmetro
+    espSphere.Size = Vector3.new(tamanho, 0.1, tamanho)
+end
 
 -- =====================================================
 --  CONTROLE BOLA – BOTÃO FLUTUANTE
@@ -822,37 +881,13 @@ local function atualizarAimbotCamera()
 end
 
 -- =====================================================
---  ESP (REACH)
--- =====================================================
-local function atualizarESP()
-    if euTenhoBola() or not mostrarESP or not hitbox then
-        if espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-        return
-    end
-
-    if not espSphere then
-        espSphere = Instance.new("SelectionSphere")
-        espSphere.Name = "ReachESP"
-        espSphere.Adornee = hitbox
-        espSphere.Parent = hitbox
-        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-        espSphere.Transparency = 0.6
-    end
-
-    local scale = reachDistancia / 2.5
-    espSphere.Scale = Vector3.new(scale, scale, scale)
-end
-
--- =====================================================
 --  LOOP PRINCIPAL
 -- =====================================================
 RunService.Heartbeat:Connect(function()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
-    atualizarESP()
+    atualizarEspBolaChao()
+    atualizarEspPersonagem()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
 end)
@@ -965,7 +1000,77 @@ secAimbot:Slider({
     end
 })
 
--- Seção Visão de jogo
+-- =====================================================
+--  SEÇÃO HITBOX (NOVA)
+-- =====================================================
+local secHitbox = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
+
+-- Hitbox da Bola (Reach)
+secHitbox:Slider({
+    Title = "Hitbox da Bola (Reach)",
+    Desc = "Aumenta a hitbox da bola (1 a 30)",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = 20 },
+    Callback = function(v)
+        reachDistancia = v
+    end
+})
+
+secHitbox:Toggle({
+    Title = "Ativar Hitbox da Bola",
+    Desc = "Ativa o alcance estendido da bola",
+    Callback = function(v)
+        reachAtivo = v
+        if not v then
+            restaurarHitboxBola()
+        end
+    end
+})
+
+-- Hitbox do Personagem
+secHitbox:Slider({
+    Title = "Hitbox do Personagem",
+    Desc = "Aumenta o tamanho das partes do personagem (1 a 30)",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = 5 },
+    Callback = function(v)
+        personagemHitboxTamanho = v
+        if personagemHitboxAtivo then
+            -- Reaplica com novo tamanho
+            local char = player.Character
+            if char then
+                salvarTamanhosOriginais(char)
+                aplicarHitboxPersonagem(v)
+            end
+        end
+    end
+})
+
+secHitbox:Toggle({
+    Title = "Ativar Hitbox do Personagem",
+    Desc = "Aumenta as partes do personagem (exceto cabeça)",
+    Callback = function(v)
+        ativarHitboxPersonagem(v)
+    end
+})
+
+-- ESP (Visualização)
+secHitbox:Toggle({
+    Title = "Mostrar Área (ESP)",
+    Desc = "Mostra círculos no chão para a hitbox da bola (verde) e do personagem (amarelo)",
+    Callback = function(v)
+        mostrarESP = v
+        personagemEspAtivo = v
+        if not v then
+            if espSphere then espSphere:Destroy() espSphere = nil end
+            if personagemEspCirculo then personagemEspCirculo:Destroy() personagemEspCirculo = nil end
+        end
+    end
+})
+
+-- =====================================================
+--  SEÇÃO VISÃO DE JOGO
+-- =====================================================
 local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
 
 secVisao:Toggle({
@@ -993,77 +1098,8 @@ secVisao:Toggle({
 })
 
 -- =====================================================
---  SEÇÃO HITBOX (BOLA + PERSONAGEM)
+--  SEÇÃO EXTRAS
 -- =====================================================
-local secHitbox = MainTab:Section({ Title = "Hitbox (Bola + Personagem)", TextXAlignment = "Left" })
-
--- Hitbox da Bola (Reach)
-secHitbox:Slider({
-    Title = "Alcance da Bola",
-    Desc = "Tamanho da hitbox da bola (1-30)",
-    Step = 1,
-    Value = { Min = 1, Max = 30, Default = 20 },
-    Callback = function(v)
-        reachDistancia = v
-        if espSphere then
-            espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
-        end
-    end
-})
-
-secHitbox:Toggle({
-    Title = "Ativar Hitbox da Bola",
-    Desc = "Aumenta a hitbox da bola para capturar de longe",
-    Callback = function(v)
-        reachAtivo = v
-        aplicarTamanhoHitboxBola()
-    end
-})
-
-secHitbox:Toggle({
-    Title = "Mostrar Área (ESP)",
-    Desc = "Círculo verde em volta da bola",
-    Callback = function(v)
-        mostrarESP = v
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-    end
-})
-
--- Hitbox do Personagem (NOVO – SEGURO)
-secHitbox:Slider({
-    Title = "Tamanho da Hitbox do Personagem",
-    Desc = "Aumenta a zona de coleta (1-30) - NÃO afunda",
-    Step = 1,
-    Value = { Min = 1, Max = 30, Default = 15 },
-    Callback = function(v)
-        personagemHitboxTamanho = v
-        if personagemHitboxAtivo then
-            atualizarHitboxPersonagem()
-        end
-    end
-})
-
-secHitbox:Toggle({
-    Title = "Ativar Hitbox do Personagem",
-    Desc = "Cria uma esfera invisível ao redor do personagem para coletar a bola (não afunda)",
-    Callback = function(v)
-        personagemHitboxAtivo = v
-        if v then
-            criarHitboxPersonagem()
-        else
-            if personagemHitboxPart then
-                personagemHitboxPart:Destroy()
-                personagemHitboxPart = nil
-                personagemHitboxWeld = nil
-            end
-        end
-    end
-})
-
--- Seção Extras
 local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 
 secExtras:Button({
@@ -1158,7 +1194,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Hitbox do personagem corrigida (não afunda)!",
+        Text = "Hitbox do personagem adicionada!",
         Duration = 4
     })
 end)
