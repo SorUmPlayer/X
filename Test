@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – ESP estável + Reach máximo
+    Blue Lock Rivels Hub – Hitbox do Personagem + Bola
 ]]
 
 local Players = game:GetService("Players")
@@ -83,40 +83,13 @@ local function getBall()
 end
 
 -- =====================================================
---  POSSE DA BOLA (CORRIGIDA – DETECÇÃO DINÂMICA)
+--  POSSE DA BOLA
 -- =====================================================
 local function euTenhoBola()
-    -- 1. Posse direta (Football no character) – MAIS CONFIÁVEL
     local meuModel = Workspace:FindFirstChild(player.Name)
     if meuModel and meuModel:FindFirstChild("Football") then
         return true
     end
-
-    -- 2. Se não tem posse direta, verifica distância e colisão
-    if not hitbox then return false end
-    local char = player.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-
-    local hitboxSize = hitbox.Size
-    local radius = math.max(hitboxSize.X, hitboxSize.Y, hitboxSize.Z) / 2
-    local speed = bola and bola.AssemblyLinearVelocity.Magnitude or 0
-    local speedBonus = math.clamp(speed / 20, 0, 3)
-    local detectionRadius = radius + 1.5 + speedBonus
-
-    if (hrp.Position - hitbox.Position).Magnitude <= detectionRadius then
-        return true
-    end
-
-    -- 3. Colisão real
-    local touchingParts = hitbox:GetTouchingParts()
-    for _, part in ipairs(touchingParts) do
-        if part:IsDescendantOf(char) then
-            return true
-        end
-    end
-
     return false
 end
 
@@ -142,6 +115,9 @@ local aimbotCamera = false
 local reachAtivo = false
 local reachDistancia = 20
 local mostrarESP = false
+
+local personagemHitboxAtivo = false
+local personagemHitboxTamanho = 15
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -209,6 +185,60 @@ local hitboxOriginalTransparency = 0
 local vbHitboxEnabled = false
 local vbHitboxSize = 15
 local vbOriginalProps = {}
+
+-- =====================================================
+--  HITBOX DO PERSONAGEM
+-- =====================================================
+local personagemHitboxPart = nil
+local personagemOriginalSize = nil
+
+local function getPersonagemHitboxPart()
+    local char = player.Character
+    if char then
+        -- Tenta encontrar o HumanoidRootPart (padrão)
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp:IsA("BasePart") then
+            return hrp
+        end
+    end
+    return nil
+end
+
+local function atualizarReferenciaPersonagem()
+    personagemHitboxPart = getPersonagemHitboxPart()
+    if personagemHitboxPart then
+        personagemOriginalSize = personagemHitboxPart.Size
+    else
+        personagemOriginalSize = nil
+    end
+end
+
+-- Atualiza quando o personagem muda
+player.CharacterAdded:Connect(atualizarReferenciaPersonagem)
+player.CharacterRemoving:Connect(function()
+    personagemHitboxPart = nil
+    personagemOriginalSize = nil
+end)
+atualizarReferenciaPersonagem()
+
+local function aplicarHitboxPersonagem()
+    if not personagemHitboxPart then
+        atualizarReferenciaPersonagem()
+        if not personagemHitboxPart then return end
+    end
+
+    if personagemHitboxAtivo then
+        local tamanho = math.clamp(personagemHitboxTamanho, 1, 30)
+        local novoSize = Vector3.new(tamanho, tamanho, tamanho)
+        if personagemHitboxPart.Size ~= novoSize then
+            personagemHitboxPart.Size = novoSize
+        end
+    else
+        if personagemOriginalSize and personagemHitboxPart.Size ~= personagemOriginalSize then
+            personagemHitboxPart.Size = personagemOriginalSize
+        end
+    end
+end
 
 -- =====================================================
 --  FUNÇÕES DO VOLLEYBALL LEGENDS
@@ -289,9 +319,9 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  CONTROLE DA HITBOX (UNIFICADO – CORRIGIDO)
+--  CONTROLE DA HITBOX DA BOLA (UNIFICADO)
 -- =====================================================
-local function aplicarTamanhoHitbox()
+local function aplicarTamanhoHitboxBola()
     if not hitbox then return end
 
     local tenho = euTenhoBola()
@@ -306,18 +336,18 @@ local function aplicarTamanhoHitbox()
         transparenciaDesejada = 1
     end
 
-    -- Aplica SEMPRE, forçando a mudança
     if hitbox.Size ~= tamanhoDesejado or hitbox.Transparency ~= transparenciaDesejada then
         hitbox.Size = tamanhoDesejado
         hitbox.Transparency = transparenciaDesejada
     end
 end
 
--- Loop de reset (0.3s) – agora apenas chama a função unificada
+-- Loop de reset (hitbox da bola + personagem)
 task.spawn(function()
     while true do
         task.wait(0.3)
-        aplicarTamanhoHitbox()
+        aplicarTamanhoHitboxBola()
+        aplicarHitboxPersonagem()
     end
 end)
 
@@ -750,12 +780,10 @@ local function atualizarAimbotCamera()
 end
 
 -- =====================================================
---  ESP (REACH) – CORRIGIDO (NÃO PISCA)
+--  ESP (REACH)
 -- =====================================================
 local function atualizarESP()
-    local deveMostrar = (not euTenhoBola()) and mostrarESP and hitbox and bolaValida
-
-    if not deveMostrar then
+    if euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
@@ -763,7 +791,6 @@ local function atualizarESP()
         return
     end
 
-    -- Cria a esfera apenas uma vez
     if not espSphere then
         espSphere = Instance.new("SelectionSphere")
         espSphere.Name = "ReachESP"
@@ -773,16 +800,8 @@ local function atualizarESP()
         espSphere.Transparency = 0.6
     end
 
-    -- Atualiza a escala se mudou
     local scale = reachDistancia / 2.5
-    if espSphere.Scale.X ~= scale then
-        espSphere.Scale = Vector3.new(scale, scale, scale)
-    end
-
-    -- Garante que o parent está correto (caso a hitbox mude)
-    if espSphere.Parent ~= hitbox then
-        espSphere.Parent = hitbox
-    end
+    espSphere.Scale = Vector3.new(scale, scale, scale)
 end
 
 -- =====================================================
@@ -813,7 +832,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 600),
+    Size = UDim2.fromOffset(500, 650),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -931,41 +950,72 @@ secVisao:Toggle({
     end
 })
 
--- Seção Reach
-local secReach = MainTab:Section({ Title = "Reach (Magnet)", TextXAlignment = "Left" })
+-- =====================================================
+--  SEÇÃO REACH + HITBOX DO PERSONAGEM
+-- =====================================================
+local secHitbox = MainTab:Section({ Title = "Hitbox (Bola + Personagem)", TextXAlignment = "Left" })
 
-secReach:Slider({
-    Title = "Alcance",
-    Desc = "Distância para pegar a bola (1 a 40)",
+-- Hitbox da Bola (Reach)
+secHitbox:Slider({
+    Title = "Alcance da Bola",
+    Desc = "Tamanho da hitbox da bola (1-30)",
     Step = 1,
-    Value = { Min = 1, Max = 40, Default = 20 },
+    Value = { Min = 1, Max = 30, Default = 20 },
     Callback = function(v)
         reachDistancia = v
-        -- Força a atualização imediata
-        aplicarTamanhoHitbox()
         if espSphere then
             espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
         end
     end
 })
 
-secReach:Toggle({
-    Title = "Ativar Reach",
-    Desc = "Aumenta a hitbox (invisível)",
+secHitbox:Toggle({
+    Title = "Ativar Hitbox da Bola",
+    Desc = "Aumenta a hitbox da bola para capturar de longe",
     Callback = function(v)
         reachAtivo = v
-        aplicarTamanhoHitbox()
+        aplicarTamanhoHitboxBola()
     end
 })
 
-secReach:Toggle({
+secHitbox:Toggle({
     Title = "Mostrar Área (ESP)",
-    Desc = "Círculo verde em volta da bola (estável)",
+    Desc = "Círculo verde em volta da bola",
     Callback = function(v)
         mostrarESP = v
         if not v and espSphere then
             espSphere:Destroy()
             espSphere = nil
+        end
+    end
+})
+
+-- Hitbox do Personagem (NOVO)
+secHitbox:Slider({
+    Title = "Tamanho da Hitbox do Personagem",
+    Desc = "Aumenta o HumanoidRootPart (1-30)",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = 15 },
+    Callback = function(v)
+        personagemHitboxTamanho = v
+        if personagemHitboxAtivo then
+            aplicarHitboxPersonagem()
+        end
+    end
+})
+
+secHitbox:Toggle({
+    Title = "Ativar Hitbox do Personagem",
+    Desc = "Aumenta a hitbox do seu personagem para coletar a bola mais facilmente",
+    Callback = function(v)
+        personagemHitboxAtivo = v
+        if not v then
+            -- Restaura o tamanho original
+            if personagemHitboxPart and personagemOriginalSize then
+                personagemHitboxPart.Size = personagemOriginalSize
+            end
+        else
+            aplicarHitboxPersonagem()
         end
     end
 })
@@ -1065,7 +1115,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "ESP estável + Reach máximo corrigido!",
-        Duration = 3
+        Text = "Hitbox do personagem adicionada!",
+        Duration = 4
     })
 end)
