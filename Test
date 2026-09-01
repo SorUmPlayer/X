@@ -1,5 +1,5 @@
 -- ================================================================= --
---                     FAKE VR SYSTEM - WINDUI                       --
+--                   FAKE VR SYSTEM V3 (FIXED)                       --
 -- ================================================================= --
 
 local Players = game:GetService("Players")
@@ -7,167 +7,162 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- 1. DETECÇÃO SEGURA DE PARENT DA UI (Evita crash no CoreGui)
+-- 1. PARENT SEGURO DA UI
 local function GetSafeUIContainer()
     local successHui, hui = pcall(function() return gethui() end)
     if successHui and hui then return hui end
 
     local successCore, core = pcall(function() return game:GetService("CoreGui") end)
-    if successCore and core then
-        local testPermission = pcall(function()
-            local folder = Instance.new("Folder")
-            folder.Parent = core
-            folder:Destroy()
-        end)
-        if testPermission then return core end
-    end
+    if successCore and core then return core end
 
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
 local UIContainer = GetSafeUIContainer()
 
--- 2. CARREGAMENTO SEGURO DA WINDUI
+-- 2. CARREGAMENTO DO WINDUI
 local WindUI = nil
-local loadSuccess = pcall(function()
+pcall(function()
     WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 end)
-
-if not loadSuccess or not WindUI then
+if not WindUI then
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end
 
--- 3. CRIAÇÃO DA JANELA PRINCIPAL
+-- 3. JANELA PRINCIPAL
 local Window = WindUI:CreateWindow({
-    Title = "Fake VR System",
+    Title = "Fake VR System v3",
     Icon = "gamepad-2",
-    Author = "Roblox VR",
-    Folder = "FakeVR_Data"
+    Author = "Script",
+    Folder = "FakeVR_Settings"
 })
 
 local Tab = Window:Tab({ Title = "Controles VR", Icon = "user" })
 
--- Variáveis do VR
+-- Variáveis Globais
 local VR_Enabled = false
 local FirstPerson_Lock = true
-local Sensitivity = 0.05
+local Sensitivity = 0.04
 local LeftX, LeftY = 0, 0
 local RightX, RightY = 0, 0
 local BobStep = 0
 
--- 4. CRIAÇÃO DOS ANALÓGICOS NA TELA
+-- 4. CRIAÇÃO DA TELA DE ANALÓGICOS (POSIÇÃO MAIS ALTA)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FakeVR_Joysticks_Canvas"
+ScreenGui.Name = "FakeVR_Joysticks_v3"
 ScreenGui.DisplayOrder = 99999
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Enabled = false
 ScreenGui.Parent = UIContainer
 
 local function BuildJoystick(position, labelText, name)
-    -- Frame Base (Fundo do Analógico)
-    local OuterFrame = Instance.new("Frame")
-    OuterFrame.Name = name
-    OuterFrame.Size = UDim2.new(0, 140, 0, 140)
-    OuterFrame.Position = position
-    OuterFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    OuterFrame.BackgroundTransparency = 0.3
-    OuterFrame.BorderSizePixel = 2
-    OuterFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-    OuterFrame.Active = true
-    OuterFrame.ZIndex = 1000
-    OuterFrame.Parent = ScreenGui
+    local Frame = Instance.new("Frame")
+    Frame.Name = name
+    Frame.Size = UDim2.new(0, 130, 0, 130)
+    Frame.Position = position -- Posição mais elevada na tela
+    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    Frame.BackgroundTransparency = 0.3
+    Frame.BorderSizePixel = 2
+    Frame.BorderColor3 = Color3.fromRGB(0, 170, 255)
+    Frame.Active = true
+    Frame.ZIndex = 1000
+    Frame.Parent = ScreenGui
 
-    local OuterCorner = Instance.new("UICorner")
-    OuterCorner.CornerRadius = UDim.new(1, 0)
-    OuterCorner.Parent = OuterFrame
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(1, 0)
+    Corner.Parent = Frame
 
-    -- Texto Indicador da Mão
     local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Name = "TitleLabel"
     TitleLabel.Size = UDim2.new(1, 0, 0, 25)
-    TitleLabel.Position = UDim2.new(0, 0, 0, -32)
+    TitleLabel.Position = UDim2.new(0, 0, 0, -30)
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Text = labelText
     TitleLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-    TitleLabel.TextSize = 14
+    TitleLabel.TextSize = 13
     TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.ZIndex = 1001
-    TitleLabel.Parent = OuterFrame
+    TitleLabel.Parent = Frame
 
-    -- Knob (Pino Central do Analógico)
     local Knob = Instance.new("Frame")
     Knob.Name = "Knob"
-    Knob.Size = UDim2.new(0, 50, 0, 50)
-    Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+    Knob.Size = UDim2.new(0, 46, 0, 46)
+    Knob.Position = UDim2.new(0.5, -23, 0.5, -23)
     Knob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     Knob.BorderSizePixel = 0
     Knob.ZIndex = 1002
-    Knob.Parent = OuterFrame
+    Knob.Parent = Frame
 
     local KnobCorner = Instance.new("UICorner")
     KnobCorner.CornerRadius = UDim.new(1, 0)
     KnobCorner.Parent = Knob
 
-    -- Lógica de Arraste (Suporta Mouse e Touch Screen)
-    local Dragging = false
+    -- Sistema Isolado de Toque (Evita interferência entre analógicos)
+    local ActiveTouchInput = nil
     local OutputVector = Vector2.new(0, 0)
 
-    local function ProcessDrag(input)
-        local Center = OuterFrame.AbsolutePosition + (OuterFrame.AbsoluteSize / 2)
+    local function ProcessInput(input)
+        local Center = Frame.AbsolutePosition + (Frame.AbsoluteSize / 2)
         local InputPos = Vector2.new(input.Position.X, input.Position.Y)
         local Delta = InputPos - Center
-        local Radius = OuterFrame.AbsoluteSize.X / 2
+        local Radius = Frame.AbsoluteSize.X / 2
         local Distance = math.min(Delta.Magnitude, Radius)
 
         if Delta.Magnitude > 0 then
             Delta = Delta.Unit * Distance
         end
 
-        Knob.Position = UDim2.new(0.5, Delta.X - 25, 0.5, Delta.Y - 25)
+        Knob.Position = UDim2.new(0.5, Delta.X - 23, 0.5, Delta.Y - 23)
         OutputVector = Delta / Radius
     end
 
-    OuterFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Dragging = true
-            ProcessDrag(input)
+    Frame.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) and not ActiveTouchInput then
+            ActiveTouchInput = input
+            ProcessInput(input)
         end
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            ProcessDrag(input)
+        if input == ActiveTouchInput then
+            ProcessInput(input)
         end
     end)
 
-    local function ResetJoystick(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Dragging = false
-            Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+    local function EndInput(input)
+        if input == ActiveTouchInput then
+            ActiveTouchInput = nil
+            Knob.Position = UDim2.new(0.5, -23, 0.5, -23)
             OutputVector = Vector2.new(0, 0)
         end
     end
 
-    UserInputService.InputEnded:Connect(ResetJoystick)
+    UserInputService.InputEnded:Connect(EndInput)
 
     return function() return OutputVector end
 end
 
--- Instanciando o Analógico Esquerdo e Direito
-local GetLeftInput = BuildJoystick(UDim2.new(0.05, 0, 0.5, 0), "🖐️ MÃO ESQUERDA", "LeftHandJoystick")
-local GetRightInput = BuildJoystick(UDim2.new(0.72, 0, 0.5, 0), "🖐️ MÃO DIREITA", "RightHandJoystick")
+-- Analógicos posicionados na altura de Y = 0.35 (Mais altos)
+local GetLeftInput = BuildJoystick(UDim2.new(0.06, 0, 0.35, 0), "🖐️ MÃO ESQUERDA", "LeftHandJoystick")
+local GetRightInput = BuildJoystick(UDim2.new(0.72, 0, 0.35, 0), "🖐️ MÃO DIREITA", "RightHandJoystick")
 
--- 5. ELEMENTOS DA INTERFACE WINDUI
+-- 5. ELEMENTOS DA WINDUI
 Tab:Toggle({
     Title = "Ativar Fake VR",
-    Desc = "Exibe analógicos e ativa o controle de mãos visível para todos.",
+    Desc = "Habilita a movimentação de mãos e câmera VR.",
     Value = false,
     Callback = function(Value)
         VR_Enabled = Value
         ScreenGui.Enabled = Value
-        
+
+        local Character = LocalPlayer.Character
+        if Character then
+            local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                Humanoid.AutoRotate = not Value
+            end
+        end
+
         if not Value then
-            -- Reseta o zoom da câmera ao desligar
             LocalPlayer.CameraMinZoomDistance = 0.5
             LocalPlayer.CameraMaxZoomDistance = 400
         end
@@ -175,8 +170,8 @@ Tab:Toggle({
 })
 
 Tab:Toggle({
-    Title = "Forçar 1ª Pessoa (Visão VR)",
-    Desc = "Trava a câmera nos olhos do personagem para parecer capacete VR.",
+    Title = "Travar Visão VR (1ª Pessoa)",
+    Desc = "Fixa a câmera no olho do personagem.",
     Value = true,
     Callback = function(Value)
         FirstPerson_Lock = Value
@@ -184,26 +179,26 @@ Tab:Toggle({
 })
 
 Tab:Slider({
-    Title = "Sensibilidade dos Braços",
-    Desc = "Ajusta a velocidade de movimento das mãos.",
+    Title = "Sensibilidade das Mãos",
+    Desc = "Ajusta a velocidade ao mover o analógico.",
     Min = 1,
     Max = 10,
-    Default = 5,
+    Value = 4,
     Callback = function(Value)
         Sensitivity = Value / 100
     end
 })
 
 Tab:Button({
-    Title = "Resetar Posição das Mãos",
-    Desc = "Centraliza os braços caso fiquem torcidos.",
+    Title = "Resetar Posição dos Braços",
+    Desc = "Centraliza as mãos.",
     Callback = function()
         LeftX, LeftY = 0, 0
         RightX, RightY = 0, 0
     end
 })
 
--- 6. REPLICAÇÃO DAS MÃOS NO SERVIDOR (Motor6D C0)
+-- 6. LOOP DE REPLICAÇÃO DAS MÃOS (MOTOR6D)
 RunService.Stepped:Connect(function()
     if not VR_Enabled then return end
 
@@ -213,38 +208,37 @@ RunService.Stepped:Connect(function()
     local LeftInput = GetLeftInput()
     local RightInput = GetRightInput()
 
-    -- Atualiza ângulos
     LeftX = math.clamp(LeftX - (LeftInput.Y * Sensitivity), -2.2, 2.2)
     LeftY = math.clamp(LeftY - (LeftInput.X * Sensitivity), -2.2, 2.2)
 
     RightX = math.clamp(RightX - (RightInput.Y * Sensitivity), -2.2, 2.2)
     RightY = math.clamp(RightY - (RightInput.X * Sensitivity), -2.2, 2.2)
 
-    -- Localiza as juntas para R6 e R15
     local LeftShoulder = Character:FindFirstChild("Left Shoulder", true) or Character:FindFirstChild("LeftShoulder", true)
     local RightShoulder = Character:FindFirstChild("Right Shoulder", true) or Character:FindFirstChild("RightShoulder", true)
 
-    -- Anula as animações padrão do Roblox e aplica a rotação
     if LeftShoulder then
         LeftShoulder.Transform = CFrame.new()
-        LeftShoulder.C0 = CFrame.new(-1, 0.5, 0) 
-            * CFrame.Angles(LeftX, LeftY, 0) 
-            * CFrame.Angles(0, -math.pi/2, 0)
+        LeftShoulder.C0 = CFrame.new(-1, 0.5, 0) * CFrame.Angles(LeftX, LeftY, 0) * CFrame.Angles(0, -math.pi/2, 0)
     end
 
     if RightShoulder then
         RightShoulder.Transform = CFrame.new()
-        RightShoulder.C0 = CFrame.new(1, 0.5, 0) 
-            * CFrame.Angles(RightX, RightY, 0) 
-            * CFrame.Angles(0, math.pi/2, 0)
+        RightShoulder.C0 = CFrame.new(1, 0.5, 0) * CFrame.Angles(RightX, RightY, 0) * CFrame.Angles(0, math.pi/2, 0)
     end
 end)
 
--- 7. MOVIMENTAÇÃO DE CÂMERA VR (Head Bobbing)
+-- 7. CÂMERA E ROTAÇÃO REALISTA DE CABEÇA/CORPO (VR HEAD LOOK)
 RunService.RenderStepped:Connect(function(deltaTime)
     if not VR_Enabled then return end
 
-    -- Trava Primeira Pessoa se Ativado
+    local Character = LocalPlayer.Character
+    if not Character then return end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    local RootPart = Character:FindFirstChild("HumanoidRootPart")
+    local Neck = Character:FindFirstChild("Neck", true)
+
     if FirstPerson_Lock then
         LocalPlayer.CameraMinZoomDistance = 0.5
         LocalPlayer.CameraMaxZoomDistance = 0.5
@@ -253,22 +247,44 @@ RunService.RenderStepped:Connect(function(deltaTime)
         LocalPlayer.CameraMaxZoomDistance = 400
     end
 
-    local Character = LocalPlayer.Character
-    if not Character then return end
+    if Humanoid and RootPart then
+        Humanoid.AutoRotate = false
 
-    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    if not Humanoid or Humanoid.Health <= 0 then return end
+        -- Cálculo do ângulo entre Câmera e Corpo
+        local Camera = workspace.CurrentCamera
+        local _, CamYaw, _ = Camera.CFrame:ToOrientation()
+        local _, RootYaw, _ = RootPart.CFrame:ToOrientation()
 
-    -- Simulação de Passos VR (Câmera balança suavemente ao andar)
-    if Humanoid.MoveDirection.Magnitude > 0 then
-        BobStep = BobStep + (deltaTime * Humanoid.WalkSpeed * 1.3)
-        local CameraBob = Vector3.new(
-            math.cos(BobStep * 0.5) * 0.15,
-            math.abs(math.sin(BobStep)) * 0.2,
-            0
-        )
-        Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(CameraBob, 0.2)
-    else
-        Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(Vector3.new(0, 0, 0), 0.15)
+        local YawDiff = math.deg(CamYaw - RootYaw)
+        YawDiff = (YawDiff + 180) % 360 - 180 -- Normaliza [-180, 180]
+
+        local MaxHeadAngle = 60 -- Limite de giro da cabeça antes do corpo girar
+
+        -- Se olhar além de 60 graus, o corpo roda para acompanhar
+        if math.abs(YawDiff) > MaxHeadAngle then
+            local Overflow = (YawDiff > 0 and (YawDiff - MaxHeadAngle) or (YawDiff + MaxHeadAngle))
+            local NewRootYaw = RootYaw + math.rad(Overflow)
+            RootPart.CFrame = CFrame.new(RootPart.Position) * CFrame.Angles(0, NewRootYaw, 0)
+            YawDiff = math.clamp(YawDiff, -MaxHeadAngle, MaxHeadAngle)
+        end
+
+        -- Aplica rotação ao pescoço (Giro da Cabeça VR)
+        if Neck then
+            Neck.Transform = CFrame.new()
+            Neck.C0 = CFrame.new(0, 1, 0) * CFrame.Angles(0, math.rad(YawDiff), 0)
+        end
+
+        -- Balanço de Caminhada (Head Bobbing)
+        if Humanoid.MoveDirection.Magnitude > 0 then
+            BobStep = BobStep + (deltaTime * Humanoid.WalkSpeed * 1.3)
+            local BobOffset = Vector3.new(
+                math.cos(BobStep * 0.5) * 0.12,
+                math.abs(math.sin(BobStep)) * 0.18,
+                0
+            )
+            Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(BobOffset, 0.2)
+        else
+            Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(Vector3.new(0, 0, 0), 0.15)
+        end
     end
 end)
