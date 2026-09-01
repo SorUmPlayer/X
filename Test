@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Com Curvas na Bola
+    Blue Lock Rivels Hub – Com Curvas na Bola (Dropdown corrigido)
 ]]
 
 local Players = game:GetService("Players")
@@ -125,14 +125,11 @@ local forcaBolaEnabled = false
 local forcaBolaVelocidade = 100
 local tinhaBola = false
 
--- =====================================================
---  CURVAS NA BOLA (NOVO)
--- =====================================================
+-- Curvas na Bola
 local curvaEnabled = false
-local curvaDirection = "Direita"  -- "Direita", "Esquerda", "Aleatório"
-local curvaIntensity = 5          -- 1 a 10
-
-local ultimaCurvaDirection = 1    -- 1 = direita, -1 = esquerda
+local curvaDirection = "Direita"
+local curvaIntensity = 5
+local ultimaCurvaDirection = 1
 
 -- =====================================================
 --  CONTROLE DE BOLA
@@ -901,7 +898,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 720),
+    Size = UDim2.fromOffset(500, 750),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -1080,7 +1077,7 @@ secHitbox:Toggle({
 })
 
 -- =====================================================
---  NOVA SEÇÃO: CURVAS NA BOLA
+--  SEÇÃO CURVAS NA BOLA (DROPDOWN CORRIGIDO)
 -- =====================================================
 local secCurvas = MainTab:Section({ Title = "Curvas na Bola", TextXAlignment = "Left" })
 
@@ -1096,8 +1093,10 @@ secCurvas:Dropdown({
     Title = "Direção da Curva",
     Desc = "Escolha a direção da curva",
     Options = {"Direita", "Esquerda", "Aleatório"},
+    Default = "Direita", -- <-- CORREÇÃO AQUI
     Callback = function(opt)
         curvaDirection = opt
+        print("Curva selecionada:", opt) -- para depuração
     end
 })
 
@@ -1151,6 +1150,7 @@ secExtras:Dropdown({
     Title = "Time (para fazer gol)",
     Desc = "Selecione seu time para o gol",
     Options = {"Home", "Away"},
+    Default = "Home",
     Callback = function(opt)
         selectedTeam = opt
     end
@@ -1224,7 +1224,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Curvas na Bola adicionadas!",
+        Text = "Dropdown corrigido!",
         Duration = 4
     })
 end)
