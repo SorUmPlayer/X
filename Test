@@ -1,232 +1,164 @@
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
 
-local player = Players.LocalPlayer
+local Window = WindUI:CreateWindow({
+    Title = "Fake VR System",
+    Icon = "gamepad-2",
+    Author = "Script",
+    Folder = "FakeVRConfig"
+})
 
--- Carregamento seguro da WindUI
-local WindUI
-pcall(function()
-    WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
-end)
-if not WindUI then
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end
+local Tab = Window:Tab({ Title = "Controles VR", Icon = "user" })
 
-local selectedEggName = nil
-local tpSpeed = 80 -- Velocidade padrão mais segura contra kicks
-local isTeleporting = false
-local returnCFrame = CFrame.new(509, 71, -372)
+-- Configurações Globais
+local VR_Enabled = false
+local Sensitivity = 0.03
+local LeftHandVector = Vector2.new(0, 0)
+local RightHandVector = Vector2.new(0, 0)
 
--- Pega a lista de ovos da pasta
-local function getEggList()
-    local list = {}
-    local area = workspace:FindFirstChild("AreaEggSlotsClient")
-    if area then
-        for _, child in ipairs(area:GetChildren()) do
-            table.insert(list, child.Name)
+-- UI dos Analógicos
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FakeVR_Joysticks"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Enabled = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function CreateJoystick(position, name)
+    local Frame = Instance.new("Frame")
+    Frame.Name = name
+    Frame.Size = UDim2.new(0, 130, 0, 130)
+    Frame.Position = position
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Frame.BackgroundTransparency = 0.5
+    Frame.BorderSizePixel = 0
+    Frame.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = Frame
+
+    local Knob = Instance.new("Frame")
+    Knob.Name = "Knob"
+    Knob.Size = UDim2.new(0, 50, 0, 50)
+    Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+    Knob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    Knob.BackgroundTransparency = 0.2
+    Knob.BorderSizePixel = 0
+    Knob.Parent = Frame
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = Knob
+
+    local Dragging = false
+    local TouchInput = nil
+    local VectorOutput = Vector2.new(0, 0)
+
+    local function UpdateInput(input)
+        local Center = Frame.AbsolutePosition + (Frame.AbsoluteSize / 2)
+        local InputPos = Vector2.new(input.Position.X, input.Position.Y)
+        local Direction = InputPos - Center
+        local Distance = math.min(Direction.Magnitude, Frame.AbsoluteSize.X / 2)
+
+        if Direction.Magnitude > 0 then
+            Direction = Direction.Unit * Distance
         end
+
+        Knob.Position = UDim2.new(0.5, Direction.X - 25, 0.5, Direction.Y - 25)
+        VectorOutput = Direction / (Frame.AbsoluteSize.X / 2)
     end
-    if #list == 0 then table.insert(list, "Nenhum ovo encontrado") end
-    return list
-end
 
--- Teleporte seguro pelo ar (evita chão e anti-cheat)
-local function safeTweenTo(targetCFrame)
-    local character = player.Character or player.CharacterAdded:Wait()
-    local hrp = character:WaitForChild("HumanoidRootPart", 5)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not hrp then return end
-
-    -- Margem de +3 studs na altura para não entrar no chão
-    local finalCFrame = targetCFrame + Vector3.new(0, 3, 0)
-    
-    local startPos = hrp.Position
-    local endPos = finalCFrame.Position
-    
-    -- Calcula uma altura segura acima da origem e do destino (+15 studs)
-    local safeY = math.max(startPos.Y, endPos.Y) + 15
-
-    -- Waypoints: Subir -> Ir pelo alto -> Descer no alvo
-    local waypoints = {
-        CFrame.new(startPos.X, safeY, startPos.Z),
-        CFrame.new(endPos.X, safeY, endPos.Z),
-        finalCFrame
-    }
-
-    -- Ajusta gravidade e estado para evitar detecção de física do Roblox
-    local oldGravity = workspace.Gravity
-    workspace.Gravity = 0
-    if humanoid then humanoid.PlatformStand = true end
-
-    -- Noclip durante o percurso
-    local noclipConn = RunService.Stepped:Connect(function()
-        if player.Character then
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
+    Frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = true
+            TouchInput = input
+            UpdateInput(input)
         end
     end)
 
-    -- Executa o trajeto em etapas
-    for _, wpCFrame in ipairs(waypoints) do
-        local dist = (hrp.Position - wpCFrame.Position).Magnitude
-        local duration = dist / math.max(tpSpeed, 1)
+    UserInputService.InputChanged:Connect(function(input)
+        if Dragging and (input == TouchInput or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            UpdateInput(input)
+        end
+    end)
 
-        if duration > 0.02 then
-            local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = wpCFrame})
-            tween:Play()
-            tween.Completed:Wait()
+    local function EndDrag(input)
+        if input == TouchInput or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Dragging = false
+            Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+            VectorOutput = Vector2.new(0, 0)
         end
     end
 
-    -- Restaura físicas normais
-    noclipConn:Disconnect()
-    workspace.Gravity = oldGravity
-    if humanoid then humanoid.PlatformStand = false end
+    UserInputService.InputEnded:Connect(EndDrag)
+
+    return function() return VectorOutput end
 end
 
--- Acionar ProximityPrompt
-local function triggerPrompt(targetObj)
-    task.wait(0.3)
-    if not targetObj then return end
-    local prompt = targetObj:FindFirstChildOfClass("ProximityPrompt", true)
-    if prompt then
-        if fireproximityprompt then
-            fireproximityprompt(prompt)
-        else
-            prompt:InputHoldBegin()
-            task.wait(prompt.HoldDuration)
-            prompt:InputHoldEnd()
-        end
-    end
-end
+local GetLeftInput = CreateJoystick(UDim2.new(0.05, 0, 0.65, 0), "LeftJoystick")
+local GetRightInput = CreateJoystick(UDim2.new(0.75, 0, 0.65, 0), "RightJoystick")
 
--- Ciclo Principal
-local function startCycle()
-    if isTeleporting then return end
-
-    if not selectedEggName or selectedEggName == "" or selectedEggName == "Nenhum ovo encontrado" then
-        WindUI:Notify({ Title = "Erro", Content = "Selecione um ovo no Dropdown!", Duration = 3 })
-        return
-    end
-
-    local area = workspace:FindFirstChild("AreaEggSlotsClient")
-    local eggTarget = area and area:FindFirstChild(selectedEggName)
-
-    if not eggTarget then
-        WindUI:Notify({ Title = "Erro", Content = "Ovo não encontrado no Workspace!", Duration = 3 })
-        return
-    end
-
-    isTeleporting = true
-
-    local targetCFrame
-    if eggTarget:IsA("Model") then
-        targetCFrame = eggTarget:GetPivot()
-    elseif eggTarget:IsA("BasePart") then
-        targetCFrame = eggTarget.CFrame
-    end
-
-    if targetCFrame then
-        WindUI:Notify({ Title = "Teleporte", Content = "Viajando pelo ar até o ovo...", Duration = 2 })
-        safeTweenTo(targetCFrame)
-
-        WindUI:Notify({ Title = "Coleta", Content = "Ativando ProximityPrompt...", Duration = 2 })
-        triggerPrompt(eggTarget)
-        task.wait(0.5)
-
-        WindUI:Notify({ Title = "Retorno", Content = "Voltando para a base...", Duration = 2 })
-        safeTweenTo(returnCFrame)
-
-        WindUI:Notify({ Title = "Sucesso", Content = "Ciclo Concluído!", Duration = 3 })
-    end
-
-    isTeleporting = false
-end
-
--- Interface WindUI
-local Window = WindUI:CreateWindow({
-    Title = "Egg Collector Safe",
-    Icon = "egg",
-    Folder = "EggCollector_Safe",
-    Size = UDim2.fromOffset(360, 320),
-    Transparent = true,
-    Theme = "Dark"
-})
-
-local Tab = Window:Tab({ Title = "Automação", Icon = "navigation" })
-
-local EggDropdown = Tab:Dropdown({
-    Title = "Selecione o Ovo",
-    Values = getEggList(),
-    Value = "",
-    Callback = function(val)
-        selectedEggName = val
+-- Toggle do Sistema no WindUI
+Tab:Toggle({
+    Title = "Ativar Fake VR",
+    Desc = "Habilita analógicos, movimentação VR e replicação de braços.",
+    Value = false,
+    Callback = function(Value)
+        VR_Enabled = Value
+        ScreenGui.Enabled = Value
     end
 })
 
-Tab:Button({
-    Title = "🔄 Recarregar Lista de Ovos",
-    Callback = function()
-        local newList = getEggList()
-        if EggDropdown.SetValues then
-            EggDropdown:SetValues(newList)
-        elseif EggDropdown.Refresh then
-            EggDropdown:Refresh(newList)
-        end
-        WindUI:Notify({ Title = "Atualizado", Content = "Lista atualizada!", Duration = 2 })
+-- Loop de Animação e Replicação Física
+local LeftRotX, LeftRotY = 0, 0
+local RightRotX, RightRotY = 0, 0
+local BobStep = 0
+
+RunService.RenderStepped:Connect(function(deltaTime)
+    if not VR_Enabled then return end
+
+    local Character = LocalPlayer.Character
+    if not Character then return end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    local LeftInput = GetLeftInput()
+    local RightInput = GetRightInput()
+
+    -- Atualiza Ângulos dos Analógicos
+    LeftRotX = math.clamp(LeftRotX - (LeftInput.Y * Sensitivity), -1.5, 1.5)
+    LeftRotY = math.clamp(LeftRotY - (LeftInput.X * Sensitivity), -1.5, 1.5)
+
+    RightRotX = math.clamp(RightRotX - (RightInput.Y * Sensitivity), -1.5, 1.5)
+    RightRotY = math.clamp(RightRotY - (RightInput.X * Sensitivity), -1.5, 1.5)
+
+    -- R15 e R6 Compatibilidade de Motor6D (Replica no Servidor)
+    local LeftShoulder = Character:FindFirstChild("Left Shoulder", true) or Character:FindFirstChild("LeftShoulder", true)
+    local RightShoulder = Character:FindFirstChild("Right Shoulder", true) or Character:FindFirstChild("RightShoulder", true)
+
+    if LeftShoulder then
+        LeftShoulder.C0 = CFrame.new(-1, 0.5, 0) 
+            * CFrame.Angles(LeftRotX, LeftRotY, 0)
     end
-})
 
-Tab:Slider({
-    Title = "Velocidade do Tween (Recomendado: 60-120)",
-    Step = 5,
-    Value = {
-        Min = 10,
-        Max = 500,
-        Default = 80
-    },
-    Callback = function(val)
-        tpSpeed = val
+    if RightShoulder then
+        RightShoulder.C0 = CFrame.new(1, 0.5, 0) 
+            * CFrame.Angles(RightRotX, RightRotY, 0)
     end
-})
 
-Tab:Button({
-    Title = "🚀 Iniciar Ciclo Seguro",
-    Callback = startCycle
-})
-
--- Botão Voado / Flutuante
-local parentGui = (gethui and gethui()) or player:WaitForChild("PlayerGui")
-if parentGui:FindFirstChild("EggTP_FloatingGui") then
-    parentGui.EggTP_FloatingGui:Destroy()
-end
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "EggTP_FloatingGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = parentGui
-
-local floatButton = Instance.new("TextButton")
-floatButton.Size = UDim2.new(0, 120, 0, 40)
-floatButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-floatButton.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-floatButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-floatButton.Text = "⚡ Coletar Ovo"
-floatButton.Font = Enum.Font.SourceSansBold
-floatButton.TextSize = 14
-floatButton.Active = true
-floatButton.Draggable = true
-floatButton.Parent = screenGui
-
-local UICorner = Instance.new("UICorner", floatButton)
-UICorner.CornerRadius = UDim.new(0, 8)
-
-local UIStroke = Instance.new("UIStroke", floatButton)
-UIStroke.Color = Color3.fromRGB(0, 170, 255)
-UIStroke.Thickness = 1.5
-
-floatButton.MouseButton1Click:Connect(startCycle)
+    -- Efeito de Câmera e Caminhada VR (Balanço Procedural)
+    if Humanoid and Humanoid.MoveDirection.Magnitude > 0 then
+        BobStep = BobStep + (deltaTime * Humanoid.WalkSpeed * 1.5)
+        local BobOffset = Vector3.new(
+            math.cos(BobStep * 0.5) * 0.15,
+            math.abs(math.sin(BobStep)) * 0.2,
+            0
+        )
+        Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(BobOffset, 0.2)
+    else
+        Humanoid.CameraOffset = Humanoid.CameraOffset:Lerp(Vector3.new(0, 0, 0), 0.1)
+    end
+end)
