@@ -1,15 +1,36 @@
-local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- Garante que a GUI fique visível em cima do jogo (Exploit UI)
-local TargetParent = (gethui and gethui()) or game:GetService("CoreGui")
+-- Carregamento Seguro do WindUI com Fallback de Link
+local WindUI
+local successLoad = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+end)
 
+if not successLoad or not WindUI then
+    WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+end
+
+-- Detecção segura do local da interface (Evita erro de permissão no CoreGui)
+local TargetParent
+if gethui then
+    TargetParent = gethui()
+else
+    local coreSuccess = pcall(function()
+        local cg = game:GetService("CoreGui")
+        local _ = cg.Name
+        TargetParent = cg
+    end)
+    if not coreSuccess then
+        TargetParent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
+
+-- Janela do WindUI
 local Window = WindUI:CreateWindow({
-    Title = "Fake VR System v2",
+    Title = "Fake VR System",
     Icon = "gamepad-2",
     Author = "Script",
     Folder = "FakeVRConfig"
@@ -23,10 +44,10 @@ local LeftRotX, LeftRotY = 0, 0
 local RightRotX, RightRotY = 0, 0
 local BobStep = 0
 
--- Criando ScreenGui com DisplayOrder Alto
+-- Interface dos Analógicos
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FakeVR_Joysticks_Fix"
-ScreenGui.DisplayOrder = 999
+ScreenGui.Name = "FakeVR_Joysticks_System"
+ScreenGui.DisplayOrder = 9999
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Enabled = false
 ScreenGui.Parent = TargetParent
@@ -34,10 +55,10 @@ ScreenGui.Parent = TargetParent
 local function CreateJoystick(position, name)
     local Frame = Instance.new("Frame")
     Frame.Name = name
-    Frame.Size = UDim2.new(0, 140, 0, 140)
+    Frame.Size = UDim2.new(0, 130, 0, 130)
     Frame.Position = position
-    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    Frame.BackgroundTransparency = 0.2
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Frame.BackgroundTransparency = 0.3
     Frame.BorderSizePixel = 2
     Frame.BorderColor3 = Color3.fromRGB(0, 170, 255)
     Frame.Active = true
@@ -50,8 +71,8 @@ local function CreateJoystick(position, name)
 
     local Knob = Instance.new("Frame")
     Knob.Name = "Knob"
-    Knob.Size = UDim2.new(0, 50, 0, 50)
-    Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+    Knob.Size = UDim2.new(0, 45, 0, 45)
+    Knob.Position = UDim2.new(0.5, -22, 0.5, -22)
     Knob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     Knob.BorderSizePixel = 0
     Knob.ZIndex = 101
@@ -74,7 +95,7 @@ local function CreateJoystick(position, name)
             Direction = Direction.Unit * Distance
         end
 
-        Knob.Position = UDim2.new(0.5, Direction.X - 25, 0.5, Direction.Y - 25)
+        Knob.Position = UDim2.new(0.5, Direction.X - 22, 0.5, Direction.Y - 22)
         VectorOutput = Direction / (Frame.AbsoluteSize.X / 2)
     end
 
@@ -94,7 +115,7 @@ local function CreateJoystick(position, name)
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             Dragging = false
-            Knob.Position = UDim2.new(0.5, -25, 0.5, -25)
+            Knob.Position = UDim2.new(0.5, -22, 0.5, -22)
             VectorOutput = Vector2.new(0, 0)
         end
     end)
@@ -107,7 +128,7 @@ local GetRightInput = CreateJoystick(UDim2.new(0.75, 0, 0.55, 0), "RightJoystick
 
 Tab:Toggle({
     Title = "Ativar Fake VR",
-    Desc = "Mostra analógicos na tela e libera controle total dos braços.",
+    Desc = "Exibe os analógicos e sincroniza os braços em tempo real.",
     Value = false,
     Callback = function(Value)
         VR_Enabled = Value
@@ -115,8 +136,8 @@ Tab:Toggle({
     end
 })
 
--- Intercepta as animações no Stepped para os braços não travarem/resetarem
-RunService.Stepped:Connect(function(_, deltaTime)
+-- Aplicação do movimento nas juntas
+RunService.Stepped:Connect(function()
     if not VR_Enabled then return end
 
     local Character = LocalPlayer.Character
@@ -125,29 +146,27 @@ RunService.Stepped:Connect(function(_, deltaTime)
     local LeftInput = GetLeftInput()
     local RightInput = GetRightInput()
 
-    -- Acumula a rotação baseada no movimento dos analógicos
     LeftRotX = math.clamp(LeftRotX - (LeftInput.Y * Sensitivity), -2, 2)
     LeftRotY = math.clamp(LeftRotY - (LeftInput.X * Sensitivity), -2, 2)
 
     RightRotX = math.clamp(RightRotX - (RightInput.Y * Sensitivity), -2, 2)
     RightRotY = math.clamp(RightRotY - (RightInput.X * Sensitivity), -2, 2)
 
-    -- Busca as juntas nos modelos R6 e R15
     local LeftShoulder = Character:FindFirstChild("Left Shoulder", true) or Character:FindFirstChild("LeftShoulder", true)
     local RightShoulder = Character:FindFirstChild("Right Shoulder", true) or Character:FindFirstChild("RightShoulder", true)
 
     if LeftShoulder then
-        LeftShoulder.Transform = CFrame.new() -- Anula a animação padrão do Roblox
+        LeftShoulder.Transform = CFrame.new()
         LeftShoulder.C0 = CFrame.new(-1, 0.5, 0) * CFrame.Angles(LeftRotX, LeftRotY, 0)
     end
 
     if RightShoulder then
-        RightShoulder.Transform = CFrame.new() -- Anula a animação padrão do Roblox
+        RightShoulder.Transform = CFrame.new()
         RightShoulder.C0 = CFrame.new(1, 0.5, 0) * CFrame.Angles(RightRotX, RightRotY, 0)
     end
 end)
 
--- Movimentação visual de câmera estilo VR
+-- Animação de caminhada da câmera estilo VR
 RunService.RenderStepped:Connect(function(deltaTime)
     if not VR_Enabled then return end
 
