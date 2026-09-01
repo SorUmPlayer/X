@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Hitbox melhorada para bola rápida
+    Blue Lock Rivels Hub – ESP estável + Reach máximo
 ]]
 
 local Players = game:GetService("Players")
@@ -86,7 +86,7 @@ end
 --  POSSE DA BOLA (CORRIGIDA – DETECÇÃO DINÂMICA)
 -- =====================================================
 local function euTenhoBola()
-    -- 1. Verifica posse direta (Football no character) – MAIS CONFIÁVEL
+    -- 1. Posse direta (Football no character) – MAIS CONFIÁVEL
     local meuModel = Workspace:FindFirstChild(player.Name)
     if meuModel and meuModel:FindFirstChild("Football") then
         return true
@@ -99,22 +99,17 @@ local function euTenhoBola()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
 
-    -- Obtém o tamanho atual da hitbox (pode estar aumentada pelo Reach)
     local hitboxSize = hitbox.Size
     local radius = math.max(hitboxSize.X, hitboxSize.Y, hitboxSize.Z) / 2
-    -- Margem adicional para compensar velocidade
     local speed = bola and bola.AssemblyLinearVelocity.Magnitude or 0
-    local speedBonus = math.clamp(speed / 20, 0, 3) -- até 3 studs de bônus
+    local speedBonus = math.clamp(speed / 20, 0, 3)
     local detectionRadius = radius + 1.5 + speedBonus
 
-    -- Distância entre o jogador e o centro da hitbox
-    local dist = (hrp.Position - hitbox.Position).Magnitude
-
-    if dist <= detectionRadius then
+    if (hrp.Position - hitbox.Position).Magnitude <= detectionRadius then
         return true
     end
 
-    -- 3. Fallback: verifica colisão real usando GetTouchingParts
+    -- 3. Colisão real
     local touchingParts = hitbox:GetTouchingParts()
     for _, part in ipairs(touchingParts) do
         if part:IsDescendantOf(char) then
@@ -294,7 +289,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  CONTROLE DA HITBOX (UNIFICADO)
+--  CONTROLE DA HITBOX (UNIFICADO – CORRIGIDO)
 -- =====================================================
 local function aplicarTamanhoHitbox()
     if not hitbox then return end
@@ -311,12 +306,14 @@ local function aplicarTamanhoHitbox()
         transparenciaDesejada = 1
     end
 
+    -- Aplica SEMPRE, forçando a mudança
     if hitbox.Size ~= tamanhoDesejado or hitbox.Transparency ~= transparenciaDesejada then
         hitbox.Size = tamanhoDesejado
         hitbox.Transparency = transparenciaDesejada
     end
 end
 
+-- Loop de reset (0.3s) – agora apenas chama a função unificada
 task.spawn(function()
     while true do
         task.wait(0.3)
@@ -753,10 +750,12 @@ local function atualizarAimbotCamera()
 end
 
 -- =====================================================
---  ESP (REACH)
+--  ESP (REACH) – CORRIGIDO (NÃO PISCA)
 -- =====================================================
 local function atualizarESP()
-    if euTenhoBola() or not mostrarESP or not hitbox then
+    local deveMostrar = (not euTenhoBola()) and mostrarESP and hitbox and bolaValida
+
+    if not deveMostrar then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
@@ -764,6 +763,7 @@ local function atualizarESP()
         return
     end
 
+    -- Cria a esfera apenas uma vez
     if not espSphere then
         espSphere = Instance.new("SelectionSphere")
         espSphere.Name = "ReachESP"
@@ -773,8 +773,16 @@ local function atualizarESP()
         espSphere.Transparency = 0.6
     end
 
+    -- Atualiza a escala se mudou
     local scale = reachDistancia / 2.5
-    espSphere.Scale = Vector3.new(scale, scale, scale)
+    if espSphere.Scale.X ~= scale then
+        espSphere.Scale = Vector3.new(scale, scale, scale)
+    end
+
+    -- Garante que o parent está correto (caso a hitbox mude)
+    if espSphere.Parent ~= hitbox then
+        espSphere.Parent = hitbox
+    end
 end
 
 -- =====================================================
@@ -928,11 +936,13 @@ local secReach = MainTab:Section({ Title = "Reach (Magnet)", TextXAlignment = "L
 
 secReach:Slider({
     Title = "Alcance",
-    Desc = "Distância para pegar a bola",
+    Desc = "Distância para pegar a bola (1 a 40)",
     Step = 1,
     Value = { Min = 1, Max = 40, Default = 20 },
     Callback = function(v)
         reachDistancia = v
+        -- Força a atualização imediata
+        aplicarTamanhoHitbox()
         if espSphere then
             espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
         end
@@ -950,7 +960,7 @@ secReach:Toggle({
 
 secReach:Toggle({
     Title = "Mostrar Área (ESP)",
-    Desc = "Círculo verde em volta da bola",
+    Desc = "Círculo verde em volta da bola (estável)",
     Callback = function(v)
         mostrarESP = v
         if not v and espSphere then
@@ -1055,7 +1065,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Hitbox melhorada para bola rápida!",
+        Text = "ESP estável + Reach máximo corrigido!",
         Duration = 3
     })
 end)
