@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Hitbox do Personagem + Bola
+    Blue Lock Rivels Hub – Hitbox do Personagem com Part invisível (SEM AFUNDAR)
 ]]
 
 local Players = game:GetService("Players")
@@ -118,6 +118,8 @@ local mostrarESP = false
 
 local personagemHitboxAtivo = false
 local personagemHitboxTamanho = 15
+local personagemHitboxPart = nil
+local personagemHitboxWeld = nil
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -187,58 +189,98 @@ local vbHitboxSize = 15
 local vbOriginalProps = {}
 
 -- =====================================================
---  HITBOX DO PERSONAGEM
+--  HITBOX DO PERSONAGEM (PART INVISÍVEL)
 -- =====================================================
-local personagemHitboxPart = nil
-local personagemOriginalSize = nil
-
-local function getPersonagemHitboxPart()
-    local char = player.Character
-    if char then
-        -- Tenta encontrar o HumanoidRootPart (padrão)
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp and hrp:IsA("BasePart") then
-            return hrp
-        end
-    end
-    return nil
-end
-
-local function atualizarReferenciaPersonagem()
-    personagemHitboxPart = getPersonagemHitboxPart()
+local function criarHitboxPersonagem()
+    -- Remove a antiga se existir
     if personagemHitboxPart then
-        personagemOriginalSize = personagemHitboxPart.Size
-    else
-        personagemOriginalSize = nil
+        personagemHitboxPart:Destroy()
+        personagemHitboxPart = nil
+        personagemHitboxWeld = nil
+    end
+
+    local char = player.Character
+    if not char then return nil end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    -- Cria a esfera invisível
+    local part = Instance.new("Part")
+    part.Name = "HitboxPersonagem"
+    part.Shape = Enum.PartType.Ball
+    part.Size = Vector3.new(personagemHitboxTamanho, personagemHitboxTamanho, personagemHitboxTamanho)
+    part.Transparency = 1 -- invisível
+    part.CanCollide = false
+    part.CanTouch = true
+    part.Anchored = false
+    part.Parent = char
+
+    -- Weld para fixar no HumanoidRootPart
+    local weld = Instance.new("Weld")
+    weld.Part0 = hrp
+    weld.Part1 = part
+    weld.C0 = CFrame.new(0, 0, 0)
+    weld.Parent = part
+
+    personagemHitboxPart = part
+    personagemHitboxWeld = weld
+
+    -- Detectar toque com a bola
+    part.Touched:Connect(function(otherPart)
+        if not personagemHitboxAtivo then return end
+        -- Se tocou na bola (ou hitbox da bola)
+        local bolaObj = otherPart.Parent
+        if bolaObj and (bolaObj.Name == "Football" or bolaObj.Name == "Hitbox") then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp and firetouchinterest then
+                -- Simula o toque do jogador com a bola
+                firetouchinterest(hrp, otherPart, 0)
+                task.wait(0.05)
+                firetouchinterest(hrp, otherPart, 1)
+            end
+        end
+    end)
+
+    return part
+end
+
+local function atualizarHitboxPersonagem()
+    if not personagemHitboxAtivo then
+        if personagemHitboxPart then
+            personagemHitboxPart:Destroy()
+            personagemHitboxPart = nil
+            personagemHitboxWeld = nil
+        end
+        return
+    end
+
+    -- Se não existe, cria
+    if not personagemHitboxPart or not personagemHitboxPart.Parent then
+        criarHitboxPersonagem()
+        return
+    end
+
+    -- Atualiza tamanho
+    local tamanho = math.clamp(personagemHitboxTamanho, 1, 30)
+    local novoSize = Vector3.new(tamanho, tamanho, tamanho)
+    if personagemHitboxPart.Size ~= novoSize then
+        personagemHitboxPart.Size = novoSize
     end
 end
 
--- Atualiza quando o personagem muda
-player.CharacterAdded:Connect(atualizarReferenciaPersonagem)
-player.CharacterRemoving:Connect(function()
-    personagemHitboxPart = nil
-    personagemOriginalSize = nil
-end)
-atualizarReferenciaPersonagem()
-
-local function aplicarHitboxPersonagem()
-    if not personagemHitboxPart then
-        atualizarReferenciaPersonagem()
-        if not personagemHitboxPart then return end
-    end
-
+-- Reconectar quando o personagem renascer
+player.CharacterAdded:Connect(function()
+    -- Espera o personagem carregar
+    task.wait(1)
     if personagemHitboxAtivo then
-        local tamanho = math.clamp(personagemHitboxTamanho, 1, 30)
-        local novoSize = Vector3.new(tamanho, tamanho, tamanho)
-        if personagemHitboxPart.Size ~= novoSize then
-            personagemHitboxPart.Size = novoSize
-        end
-    else
-        if personagemOriginalSize and personagemHitboxPart.Size ~= personagemOriginalSize then
-            personagemHitboxPart.Size = personagemOriginalSize
-        end
+        criarHitboxPersonagem()
     end
-end
+end)
+
+-- Inicializa
+task.wait(1)
+atualizarHitboxPersonagem()
 
 -- =====================================================
 --  FUNÇÕES DO VOLLEYBALL LEGENDS
@@ -319,7 +361,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  CONTROLE DA HITBOX DA BOLA (UNIFICADO)
+--  CONTROLE DA HITBOX DA BOLA
 -- =====================================================
 local function aplicarTamanhoHitboxBola()
     if not hitbox then return end
@@ -347,7 +389,7 @@ task.spawn(function()
     while true do
         task.wait(0.3)
         aplicarTamanhoHitboxBola()
-        aplicarHitboxPersonagem()
+        atualizarHitboxPersonagem()
     end
 end)
 
@@ -951,7 +993,7 @@ secVisao:Toggle({
 })
 
 -- =====================================================
---  SEÇÃO REACH + HITBOX DO PERSONAGEM
+--  SEÇÃO HITBOX (BOLA + PERSONAGEM)
 -- =====================================================
 local secHitbox = MainTab:Section({ Title = "Hitbox (Bola + Personagem)", TextXAlignment = "Left" })
 
@@ -990,32 +1032,33 @@ secHitbox:Toggle({
     end
 })
 
--- Hitbox do Personagem (NOVO)
+-- Hitbox do Personagem (NOVO – SEGURO)
 secHitbox:Slider({
     Title = "Tamanho da Hitbox do Personagem",
-    Desc = "Aumenta o HumanoidRootPart (1-30)",
+    Desc = "Aumenta a zona de coleta (1-30) - NÃO afunda",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = 15 },
     Callback = function(v)
         personagemHitboxTamanho = v
         if personagemHitboxAtivo then
-            aplicarHitboxPersonagem()
+            atualizarHitboxPersonagem()
         end
     end
 })
 
 secHitbox:Toggle({
     Title = "Ativar Hitbox do Personagem",
-    Desc = "Aumenta a hitbox do seu personagem para coletar a bola mais facilmente",
+    Desc = "Cria uma esfera invisível ao redor do personagem para coletar a bola (não afunda)",
     Callback = function(v)
         personagemHitboxAtivo = v
-        if not v then
-            -- Restaura o tamanho original
-            if personagemHitboxPart and personagemOriginalSize then
-                personagemHitboxPart.Size = personagemOriginalSize
-            end
+        if v then
+            criarHitboxPersonagem()
         else
-            aplicarHitboxPersonagem()
+            if personagemHitboxPart then
+                personagemHitboxPart:Destroy()
+                personagemHitboxPart = nil
+                personagemHitboxWeld = nil
+            end
         end
     end
 })
@@ -1115,7 +1158,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Hitbox do personagem adicionada!",
+        Text = "Hitbox do personagem corrigida (não afunda)!",
         Duration = 4
     })
 end)
