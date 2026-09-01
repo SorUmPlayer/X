@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Hitbox do Personagem + Hitbox da Bola
+    Blue Lock Rivels Hub – Hitbox do Personagem por software (sem teleporte)
 ]]
 
 local Players = game:GetService("Players")
@@ -116,12 +116,9 @@ local reachAtivo = false
 local reachDistancia = 20
 local mostrarESP = false
 
--- =====================================================
---  NOVAS VARIÁVEIS: HITBOX DO PERSONAGEM
--- =====================================================
+-- Hitbox do Personagem (nova abordagem)
 local hitboxPersonagemAtivo = false
 local hitboxPersonagemTamanho = 5
-local hitboxPersonagemPart = nil
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -300,84 +297,29 @@ task.spawn(function()
 end)
 
 -- =====================================================
---  HITBOX DO PERSONAGEM (NOVA)
+--  HITBOX DO PERSONAGEM (POR SOFTWARE – SEM PARTE FÍSICA)
 -- =====================================================
-local function criarHitboxPersonagem()
-    if not player.Character then return end
-    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+local function aplicarHitboxPersonagem()
+    if not hitboxPersonagemAtivo then return end
+    if euTenhoBola() then return end  -- se já tem a bola, não precisa forçar
+    if not bolaValida or not hitbox then return end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Remove hitbox antiga se existir
-    if hitboxPersonagemPart then
-        hitboxPersonagemPart:Destroy()
-        hitboxPersonagemPart = nil
-    end
-
-    local part = Instance.new("Part")
-    part.Name = "HitboxColeta"
-    part.Size = Vector3.new(hitboxPersonagemTamanho, hitboxPersonagemTamanho, hitboxPersonagemTamanho)
-    part.Shape = Enum.PartType.Ball
-    part.Transparency = 1  -- invisível
-    part.CanCollide = false
-    part.CanTouch = true
-    part.Anchored = false
-    part.Material = Enum.Material.SmoothPlastic
-    part.Parent = hrp
-
-    -- Adiciona um weld para fixar no personagem
-    local weld = Instance.new("Weld")
-    weld.Part0 = hrp
-    weld.Part1 = part
-    weld.C0 = CFrame.new(0, 0, 0)
-    weld.Parent = part
-
-    hitboxPersonagemPart = part
-end
-
-local function atualizarHitboxPersonagem()
-    if not hitboxPersonagemAtivo then
-        if hitboxPersonagemPart then
-            hitboxPersonagemPart:Destroy()
-            hitboxPersonagemPart = nil
-        end
-        return
-    end
-
-    -- Se o personagem não existir, aguarda
-    if not player.Character then return end
-    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    -- Se a hitbox não existe, cria
-    if not hitboxPersonagemPart or hitboxPersonagemPart.Parent ~= hrp then
-        criarHitboxPersonagem()
-        return
-    end
-
-    -- Atualiza tamanho
-    local tamanho = Vector3.new(hitboxPersonagemTamanho, hitboxPersonagemTamanho, hitboxPersonagemTamanho)
-    if hitboxPersonagemPart.Size ~= tamanho then
-        hitboxPersonagemPart.Size = tamanho
-    end
-end
-
--- Monitora o personagem para recriar a hitbox se ele renascer
-player.CharacterAdded:Connect(function()
-    task.wait(0.5) -- aguarda o personagem carregar
-    if hitboxPersonagemAtivo then
-        criarHitboxPersonagem()
-    end
-end)
-
--- Loop para manter a hitbox atualizada (caso o weld se perca)
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if hitboxPersonagemAtivo then
-            atualizarHitboxPersonagem()
+    -- Verifica a distância entre o personagem e a hitbox da bola
+    local dist = (hrp.Position - hitbox.Position).Magnitude
+    if dist <= hitboxPersonagemTamanho then
+        -- Força o toque entre o HRP e a hitbox da bola
+        if firetouchinterest then
+            firetouchinterest(hrp, hitbox, 0)  -- início do toque
+            task.wait(0.01)                   -- pequeno delay para garantir
+            firetouchinterest(hrp, hitbox, 1)  -- fim do toque
         end
     end
-end)
+end
 
 -- =====================================================
 --  CONTROLE BOLA – BOTÃO FLUTUANTE
@@ -837,7 +779,7 @@ RunService.Heartbeat:Connect(function()
     atualizarESP()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
-    atualizarHitboxPersonagem() -- mantém a hitbox do personagem
+    aplicarHitboxPersonagem() -- hitbox do personagem por software
 end)
 
 -- =====================================================
@@ -981,31 +923,20 @@ secVisao:Toggle({
 local secHitbox = MainTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
 
 secHitbox:Toggle({
-    Title = "Hitbox do Personagem",
-    Desc = "Cria uma esfera invisível ao redor do personagem para coletar a bola",
+    Title = "Hitbox do Personagem (Software)",
+    Desc = "Força a coleta da bola quando você estiver próximo (sem partes físicas)",
     Callback = function(v)
         hitboxPersonagemAtivo = v
-        if v then
-            criarHitboxPersonagem()
-        else
-            if hitboxPersonagemPart then
-                hitboxPersonagemPart:Destroy()
-                hitboxPersonagemPart = nil
-            end
-        end
     end
 })
 
 secHitbox:Slider({
     Title = "Tamanho da Hitbox do Personagem",
-    Desc = "Tamanho da esfera (1 a 30) – quanto maior, mais fácil coletar",
+    Desc = "Raio de detecção (1 a 30) – quanto maior, mais fácil coletar",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = 5 },
     Callback = function(v)
         hitboxPersonagemTamanho = v
-        if hitboxPersonagemAtivo then
-            atualizarHitboxPersonagem()
-        end
     end
 })
 
@@ -1143,7 +1074,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Hitbox do Personagem adicionada!",
+        Text = "Hitbox do Personagem corrigida (sem teleporte)!",
         Duration = 4
     })
 end)
