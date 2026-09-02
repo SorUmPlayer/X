@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Linha Verde corrigida (cabeça + 100 studs)
+    Blue Lock Rivels Hub – Com Drible
 ]]
 
 local Players = game:GetService("Players")
@@ -127,13 +127,18 @@ local tinhaBola = false
 
 -- Curvas
 local curvasEnabled = false
-local curvasModo = 1  -- 1=Direita, 2=Esquerda, 3=Aleatorio
+local curvasModo = 1
 local curvasIntensidade = 5
 local curvasBotaoGUI = nil
 local curvasBotao = nil
 local curvasTimer = 0
 local curvasIntervalo = 1.0
 local curvasDirecaoAtual = 1
+
+-- Drible
+local dribleEnabled = false
+local dribleDistancia = 3
+local dribleID = "3ee5d8a9eb27420c8b1d8313eccd0ca6"
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -158,10 +163,7 @@ local aimbotBlockedUntil = 0
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
 
--- Objetos para Visão da Bola (linha verde)
 local linhaVisao = nil
-
--- Objetos para Advinha Chute (linha amarela + círculo)
 local linhaChute = nil
 local circuloChute = nil
 
@@ -170,13 +172,11 @@ local circuloChute = nil
 -- =====================================================
 local function shouldAimbotWork()
     local tenho = euTenhoBola()
-    
     if tenho then
         aimbotBlocked = true
         aimbotBlockedUntil = tick() + aimbotDelayValue
         return false
     end
-    
     if aimbotBlocked then
         if tick() >= aimbotBlockedUntil then
             aimbotBlocked = false
@@ -185,7 +185,6 @@ local function shouldAimbotWork()
             return false
         end
     end
-    
     return true
 end
 
@@ -202,9 +201,6 @@ local vbHitboxEnabled = false
 local vbHitboxSize = 15
 local vbOriginalProps = {}
 
--- =====================================================
---  FUNÇÕES DO VOLLEYBALL LEGENDS
--- =====================================================
 local function restoreVbOriginals()
     for part, props in pairs(vbOriginalProps) do
         if part and part.Parent then
@@ -237,7 +233,6 @@ end
 
 RunService.Heartbeat:Connect(function()
     if not vbHitboxEnabled then return end
-
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -285,7 +280,6 @@ end)
 -- =====================================================
 local function aplicarTamanhoHitbox()
     if not hitbox then return end
-
     local tenho = euTenhoBola()
     local tamanhoDesejado
     local transparenciaDesejada
@@ -342,7 +336,6 @@ local function aplicarForcaBola()
     if not bolaValida or not bola then return end
 
     local tenho = euTenhoBola()
-    
     if tinhaBola and not tenho then
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
@@ -351,11 +344,9 @@ local function aplicarForcaBola()
         else
             dir = dir.Unit
         end
-        
         local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
         bola.AssemblyLinearVelocity = vel
     end
-    
     tinhaBola = tenho
 end
 
@@ -377,7 +368,6 @@ local function aplicarCurvas()
     dir = dir.Unit
 
     local perp = Vector3.new(-dir.Z, 0, dir.X)
-
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
@@ -397,6 +387,43 @@ local function aplicarCurvas()
 
     local forcaLateral = perp * lado * fator
     bola.AssemblyLinearVelocity = vel + forcaLateral
+end
+
+-- =====================================================
+--  DRIBLE
+-- =====================================================
+local function executarDrible()
+    if not dribleEnabled then
+        player:Chat("Drible desativado! Ative no menu.")
+        return
+    end
+    if not euTenhoBola() then
+        player:Chat("Você precisa estar com a bola para driblar!")
+        return
+    end
+
+    local event = ReplicatedStorage:FindFirstChild("Packages")
+    if event then
+        event = event:FindFirstChild("Knit")
+        if event then
+            event = event:FindFirstChild("Services")
+            if event then
+                event = event:FindFirstChild("BallService")
+                if event then
+                    event = event:FindFirstChild("RE")
+                    if event then
+                        local dribbleEvent = event:FindFirstChild("Dribble")
+                        if dribbleEvent then
+                            dribbleEvent:FireServer(dribleID, dribleDistancia)
+                            player:Chat("Drible executado com distância " .. dribleDistancia)
+                        else
+                            warn("Evento Dribble não encontrado!")
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- =====================================================
@@ -478,9 +505,7 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
             toggleButton.Text = "Control BALL [ON]"
         end
-        
         if controlConnection then controlConnection:Disconnect() end
-        
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if ball then
@@ -496,12 +521,10 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             toggleButton.Text = "Control BALL [OFF]"
         end
-        
         if controlConnection then
             controlConnection:Disconnect()
             controlConnection = nil
         end
-        
         resetCamera()
     end
 end
@@ -552,7 +575,6 @@ end
 -- =====================================================
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
-    
     if cameraButtonActive then
         if cameraToggleButton then
             cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
@@ -610,7 +632,7 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
+--  FUNÇÕES DA VISÃO DE JOGO
 -- =====================================================
 local function getInimigoComBola()
     local myTeam = getMyTeam()
@@ -644,7 +666,7 @@ local function criarLinhaVisao()
         linhaVisao.Transparency = 0.15
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(0.8, 0.8, 100) -- comprimento padrão
+        linhaVisao.Size = Vector3.new(0.8, 0.8, 100)
         linhaVisao.Parent = Workspace
     end
     return linhaVisao
@@ -668,7 +690,6 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Pega a cabeça ou torso
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local origem = head or hrp
@@ -677,13 +698,11 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Posição de início (cabeça ou torso + offset)
     local posInicio = origem.Position
     if origem == hrp then
         posInicio = posInicio + Vector3.new(0, 1.5, 0)
     end
 
-    -- Direção horizontal (olhar do jogador)
     local direcao = Vector3.new(1, 0, 0)
     if head then
         direcao = head.CFrame.LookVector
@@ -697,7 +716,6 @@ local function atualizarVisaoBola()
         direcao = direcao.Unit
     end
 
-    -- Posição final: 100 studs adiante
     local posFim = posInicio + direcao * 100
 
     criarLinhaVisao()
@@ -709,9 +727,6 @@ local function atualizarVisaoBola()
     linhaVisao.Transparency = 0.15
 end
 
--- =====================================================
---  ADvinha Chute (linha amarela + círculo)
--- =====================================================
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -985,7 +1000,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 720),
+    Size = UDim2.fromOffset(500, 780),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -1210,6 +1225,40 @@ secCurvas:Slider({
     end
 })
 
+-- =====================================================
+--  NOVA SEÇÃO: DRIBLE
+-- =====================================================
+local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
+
+secDrible:Toggle({
+    Title = "Drible",
+    Desc = "Ativa/desativa a funcionalidade de drible",
+    Callback = function(v)
+        dribleEnabled = v
+    end
+})
+
+secDrible:Input({
+    Title = "Distância do Drible",
+    Desc = "Digite um número para a distância do drible",
+    Value = "3",
+    Placeholder = "Ex: 3",
+    Callback = function(txt)
+        local val = tonumber(txt)
+        if val then
+            dribleDistancia = val
+        end
+    end
+})
+
+secDrible:Button({
+    Title = "Driblar",
+    Desc = "Executa o drible com a distância atual (se ativo)",
+    Callback = function()
+        executarDrible()
+    end
+})
+
 -- Extras: Stamina, Time, Gol
 secExtras:Button({
     Title = "Infinite Stamina",
@@ -1303,7 +1352,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Linha Verde corrigida: sai da cabeça e tem 100 studs!",
+        Text = "Categoria Drible adicionada!",
         Duration = 4
     })
 end)
