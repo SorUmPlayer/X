@@ -1,21 +1,15 @@
 --[[
-    Blue Lock Rivels Hub – Com aba de testes para dropdowns
+    TESTE DE DROPDOWNS – WindUI
 ]]
 
--- [TODO O CÓDIGO ANTERIOR ATÉ A INTERFACE PERMANECE IGUAL, APENAS A UI FOI MODIFICADA]
--- Vou colocar o script completo novamente com a nova aba, mas para economizar, vou apenas mostrar a parte da UI que foi alterada e o restante é igual ao script anterior.
-
--- =====================================================
---  INTERFACE WINDUI (HUB ESTÁVEL)
--- =====================================================
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivels",
+    Title = "🧪 Teste de Dropdowns",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
-    Folder = "BlueLockHub",
-    Size = UDim2.fromOffset(500, 720),
+    Folder = "DropdownTest",
+    Size = UDim2.fromOffset(450, 500),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -24,360 +18,99 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
--- =====================================================
---  TAB PRINCIPAL
--- =====================================================
-local MainTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
+local Tab = Window:Tab({ Title = "Teste", Icon = "list" })
 
 -- =====================================================
---  SEÇÃO: CONTROLE DE BOLA
+--  SEÇÃO: DROPDOWNS
 -- =====================================================
-local secControle = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+local Section = Tab:Section({ Title = "Dropdowns de Teste", TextXAlignment = "Left" })
 
-secControle:Input({
-    Title = "Velocidade da Bola",
-    Desc = "Velocidade do controle de bola (padrão: 65)",
-    Value = "65",
-    Placeholder = "Digite a velocidade...",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val then
-            velocidadeBola = val
-        end
-    end
-})
-
-secControle:Toggle({
-    Title = "Botão Flutuante",
-    Desc = "Abre o botão arrastável na tela para controlar a bola",
-    Callback = function(v)
-        if v then
-            criarBotaoFlutuante()
-        else
-            removerBotaoFlutuante()
-        end
-    end
-})
-
--- =====================================================
---  SEÇÃO: AIMBOT
--- =====================================================
-local secAimbot = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-
-secAimbot:Toggle({
-    Title = "Aimbot Personagem (Grudado)",
-    Desc = "Corpo vira para a bola",
-    Callback = function(v)
-        ativarAimbotPersonagem(v)
-    end
-})
-
-secAimbot:Toggle({
-    Title = "Aimbot Câmera (Estilo antigo)",
-    Desc = "Câmera atrás do personagem olhando para a bola",
-    Callback = function(v)
-        aimbotCamera = v
-        if cameraToggleButton then
-            if v then
-                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-                cameraToggleButton.Text = "Aimbot Cam [ON]"
-                cameraButtonActive = true
-            else
-                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-                cameraToggleButton.Text = "Aimbot Cam [OFF]"
-                cameraButtonActive = false
-            end
-        end
-    end
-})
-
-secAimbot:Toggle({
-    Title = "Botão Voador (Câmera)",
-    Desc = "Cria um botão flutuante para ativar/desativar a câmera",
-    Callback = function(v)
-        if v then
-            criarBotaoCameraFlutuante()
-        else
-            removerBotaoCameraFlutuante()
-        end
-    end
-})
-
-secAimbot:Slider({
-    Title = "Tempo do Aimbot (Delay)",
-    Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
-    Step = 1,
-    Value = { Min = 0, Max = 10, Default = 0 },
-    Callback = function(v)
-        aimbotDelayValue = aimbotDelayValues[v] or 0
-    end
-})
-
--- =====================================================
---  SEÇÃO: VISÃO DE JOGO
--- =====================================================
-local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
-
-secVisao:Toggle({
-    Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
-    Callback = function(v)
-        visaoBolaEnabled = v
-        if not v and linhaVisao then
-            linhaVisao:Destroy()
-            linhaVisao = nil
-        end
-    end
-})
-
-secVisao:Toggle({
-    Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
-    Callback = function(v)
-        advinhaChuteEnabled = v
-        if not v then
-            if linhaChute then linhaChute:Destroy() linhaChute = nil end
-            if circuloChute then circuloChute:Destroy() circuloChute = nil end
-        end
-    end
-})
-
--- =====================================================
---  SEÇÃO: HITBOX DE COLETA
--- =====================================================
-local secHitbox = MainTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
-
-secHitbox:Toggle({
-    Title = "Hitbox do Personagem (Software)",
-    Desc = "Força a coleta da bola quando você estiver próximo (sem partes físicas)",
-    Callback = function(v)
-        hitboxPersonagemAtivo = v
-    end
-})
-
-secHitbox:Slider({
-    Title = "Tamanho da Hitbox do Personagem",
-    Desc = "Raio de detecção (1 a 30) – quanto maior, mais fácil coletar",
-    Step = 1,
-    Value = { Min = 1, Max = 30, Default = 5 },
-    Callback = function(v)
-        hitboxPersonagemTamanho = v
-    end
-})
-
-secHitbox:Toggle({
-    Title = "Hitbox da Bola (Reach)",
-    Desc = "Aumenta a hitbox da bola (invisível)",
-    Callback = function(v)
-        reachAtivo = v
-        if not v then
-            if hitbox then
-                hitbox.Size = hitboxOriginalSize
-                hitbox.Transparency = hitboxOriginalTransparency
-            end
-        end
-    end
-})
-
-secHitbox:Slider({
-    Title = "Alcance da Hitbox da Bola",
-    Desc = "Tamanho da hitbox da bola (1 a 30) – máximo 30",
-    Step = 1,
-    Value = { Min = 1, Max = 30, Default = 20 },
-    Callback = function(v)
-        reachDistancia = v
-        if espSphere then
-            espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
-        end
-    end
-})
-
-secHitbox:Toggle({
-    Title = "Mostrar Área (ESP) da Bola",
-    Desc = "Círculo verde em volta da hitbox da bola",
-    Callback = function(v)
-        mostrarESP = v
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-    end
-})
-
--- =====================================================
---  SEÇÃO: CURVAS NA BOLA
--- =====================================================
-local secCurvas = MainTab:Section({ Title = "Curvas na Bola", TextXAlignment = "Left" })
-
-secCurvas:Toggle({
-    Title = "Bola com Curvas",
-    Desc = "Ativa curvas na bola ao chutar (requer Força da Bola ativada)",
-    Callback = function(v)
-        curvaEnabled = v
-    end
-})
-
-secCurvas:Dropdown({
-    Title = "Direção da Curva",
-    Desc = "Escolha a direção da curva",
-    Options = {"Direita", "Esquerda", "Aleatório"},
+-- 1. Dropdown com opções simples (strings)
+local dropdown1
+dropdown1 = Section:Dropdown({
+    Title = "Dropdown 1 – Cores",
+    Desc = "Selecione uma cor",
+    Options = {"Vermelho", "Verde", "Azul", "Amarelo", "Roxo"},
     Callback = function(opt)
-        curvaDirection = opt
-        print("Curva selecionada: " .. opt)
+        print("Dropdown 1 selecionou: " .. opt)
     end
 })
 
-secCurvas:Slider({
-    Title = "Intensidade da Curva",
-    Desc = "1 a 10 – quanto maior, mais forte a curva",
-    Step = 1,
-    Value = { Min = 1, Max = 10, Default = 5 },
-    Callback = function(v)
-        curvaIntensity = v
+-- 2. Dropdown com opções numéricas
+local dropdown2
+dropdown2 = Section:Dropdown({
+    Title = "Dropdown 2 – Números",
+    Desc = "Selecione um número",
+    Options = {"10", "20", "30", "40", "50"},
+    Callback = function(opt)
+        print("Dropdown 2 selecionou: " .. opt)
     end
 })
 
--- =====================================================
---  SEÇÃO: EXTRAS
--- =====================================================
-local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
-
-secExtras:Toggle({
-    Title = "Força da Bola",
-    Desc = "Ao chutar, a bola sai com potência máxima + loft (sobe)",
-    Callback = function(v)
-        forcaBolaEnabled = v
+-- 3. Dropdown com opções mistas (com números e textos)
+local dropdown3
+dropdown3 = Section:Dropdown({
+    Title = "Dropdown 3 – Direções (teste)",
+    Desc = "Escolha uma direção",
+    Options = {"Norte", "Sul", "Leste", "Oeste", "Centro"},
+    Callback = function(opt)
+        print("Dropdown 3 selecionou: " .. opt)
     end
 })
 
-secExtras:Slider({
-    Title = "Força Máxima",
-    Desc = "Velocidade da bola ao chutar (10 a 200)",
-    Step = 1,
-    Value = { Min = 10, Max = 200, Default = 100 },
-    Callback = function(v)
-        forcaBolaVelocidade = v
-    end
-})
-
-secExtras:Button({
-    Title = "Infinite Stamina",
-    Desc = "Stamina infinita",
-    Callback = function()
-        task.spawn(function()
-            while true do
-                if player:FindFirstChild("PlayerStats") and player.PlayerStats:FindFirstChild("Stamina") then
-                    player.PlayerStats.Stamina.Value = 100
-                end
-                task.wait()
-            end
-        end)
-    end
-})
-
-secExtras:Dropdown({
-    Title = "Time (para fazer gol)",
-    Desc = "Selecione seu time para o gol",
+-- 4. Dropdown com opções de time (Home/Away)
+local dropdown4
+dropdown4 = Section:Dropdown({
+    Title = "Dropdown 4 – Times",
+    Desc = "Escolha um time",
     Options = {"Home", "Away"},
     Callback = function(opt)
-        selectedTeam = opt
-        print("Time selecionado: " .. opt)
+        print("Dropdown 4 selecionou: " .. opt)
     end
 })
 
-secExtras:Button({
-    Title = "Fazer Gol",
-    Desc = "Marca um gol",
-    Callback = function()
-        if not selectedTeam then return end
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        local posOriginal = hrp.Position
-        local posGol = selectedTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
-
-        hrp.CFrame = CFrame.new(posGol)
-        task.wait(0.2)
-        local args = { [1] = 110, [4] = posGol }
-        local ballService = ReplicatedStorage:FindFirstChild("Packages")
-        if ballService then
-            ballService = ballService:FindFirstChild("Knit")
-            if ballService then
-                ballService = ballService:FindFirstChild("Services")
-                if ballService then
-                    ballService = ballService:FindFirstChild("BallService")
-                    if ballService then
-                        local shoot = ballService:FindFirstChild("RE")
-                        if shoot then
-                            shoot:FireServer(unpack(args))
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.2)
-        hrp.CFrame = CFrame.new(posOriginal)
-    end
-})
-
--- =====================================================
---  ABA: VOLLEYBALL LEGENDS
--- =====================================================
-local VbTab = Window:Tab({ Title = "Volleyball Legends", Icon = "trophy" })
-
-local secVb = VbTab:Section({ Title = "Volleyball Legends", TextXAlignment = "Left" })
-
-secVb:Toggle({
-    Title = "Hitbox",
-    Desc = "Ativa/Desativa Hitbox na bola (CLIENT_BALL_...)",
-    Callback = function(v)
-        vbHitboxEnabled = v
-        if not v then
-            restoreVbOriginals()
-        end
-    end
-})
-
-secVb:Slider({
-    Title = "Tamanho Hitbox",
-    Desc = "Ajusta o tamanho de 1 a 50",
-    Step = 1,
-    Value = { Min = 1, Max = 50, Default = 15 },
-    Callback = function(v)
-        vbHitboxSize = v
-    end
-})
-
--- =====================================================
---  NOVA ABA: TESTES (para diagnosticar dropdowns)
--- =====================================================
-local TestTab = Window:Tab({ Title = "Testes", Icon = "tools" })
-
-local secTest = TestTab:Section({ Title = "Teste de Dropdown", TextXAlignment = "Left" })
-
-secTest:Dropdown({
-    Title = "Dropdown de Teste",
-    Desc = "Se esta lista aparecer, os dropdowns estão funcionando.",
-    Options = {"Opção 1", "Opção 2", "Opção 3", "Opção 4", "Opção 5"},
+-- 5. Dropdown com opções de curva (o que você usava)
+local dropdown5
+dropdown5 = Section:Dropdown({
+    Title = "Dropdown 5 – Curva",
+    Desc = "Direção da curva",
+    Options = {"Direita", "Esquerda", "Aleatório"},
     Callback = function(opt)
-        print("Dropdown de teste selecionou: " .. opt)
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification",{
-                Title = "Dropdown Teste",
-                Text = "Você selecionou: " .. opt,
-                Duration = 3
-            })
-        end)
+        print("Dropdown 5 selecionou: " .. opt)
     end
 })
 
--- Notificação final
+-- =====================================================
+--  SEÇÃO: INFORMAÇÕES
+-- =====================================================
+local InfoSection = Tab:Section({ Title = "Informações", TextXAlignment = "Left" })
+
+local infoLabel = InfoSection:Label({
+    Title = "Instruções",
+    Desc = "Teste cada dropdown abaixo.\nSe algum não mostrar opções, anote qual.\n\nSe TODOS não funcionarem, o problema é no executor ou na versão do WindUI."
+})
+
+-- =====================================================
+--  BOTÃO PARA MOSTRAR VALORES SELECIONADOS
+-- =====================================================
+local function mostrarValores()
+    print("=== VALORES DOS DROPDOWNS ===")
+    -- Nota: não temos como ler o valor atual diretamente, mas você pode ver no console ao selecionar.
+    print("Teste feito! Veja os prints acima.")
+end
+
+InfoSection:Button({
+    Title = "Ver valores no console",
+    Desc = "Clique e veja os valores no console",
+    Callback = function()
+        mostrarValores()
+    end
+})
+
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivels",
-        Text = "Hub com aba de testes carregado!",
-        Duration = 4
+        Title = "Teste de Dropdowns",
+        Text = "Teste cada dropdown e veja se as opções aparecem!",
+        Duration = 5
     })
 end)
