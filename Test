@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Com Curvas
+    Blue Lock Rivels Hub – Curvas funcionando
 ]]
 
 local Players = game:GetService("Players")
@@ -133,7 +133,7 @@ local curvasBotaoGUI = nil
 local curvasBotao = nil
 local curvasTimer = 0
 local curvasIntervalo = 1.0
-local curvasDirecaoAtual = 1 -- 1=Direita, -1=Esquerda
+local curvasDirecaoAtual = 1
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -360,12 +360,12 @@ local function aplicarForcaBola()
 end
 
 -- =====================================================
---  CURVAS
+--  CURVAS (CORRIGIDO – FORÇA DIRETA)
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bolaValida or not bola then return end
-    if euTenhoBola() then return end -- não aplica curvas se estiver com a bola
+    if euTenhoBola() then return end
 
     local vel = bola.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then return end
@@ -378,8 +378,8 @@ local function aplicarCurvas()
     -- Vetor perpendicular (direita)
     local perp = Vector3.new(-dir.Z, 0, dir.X)
 
-    -- Intensidade (mapear 1-10 para aceleração)
-    local fator = curvasIntensidade / 10 * 12  -- 1=1.2, 10=12 (aceleração)
+    -- Intensidade: 1=1.5, 10=15 (força lateral)
+    local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
     if curvasModo == 1 then
@@ -387,19 +387,18 @@ local function aplicarCurvas()
     elseif curvasModo == 2 then
         lado = -1 -- Esquerda
     elseif curvasModo == 3 then
-        -- Aleatório: alterna a cada intervalo
         local now = tick()
         if now - curvasTimer > curvasIntervalo then
             curvasTimer = now
             curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
-            curvasIntervalo = 0.5 + math.random() * 0.5 -- 0.5~1.0s
+            curvasIntervalo = 0.5 + math.random() * 0.5
         end
         lado = curvasDirecaoAtual
     end
 
-    -- Aplica aceleração lateral
-    local aceleracao = perp * lado * fator
-    bola.AssemblyLinearVelocity = vel + aceleracao * 0.02 -- dt aproximado
+    -- Aplica força lateral diretamente (sem amortecimento)
+    local forcaLateral = perp * lado * fator
+    bola.AssemblyLinearVelocity = vel + forcaLateral
 end
 
 -- =====================================================
@@ -435,7 +434,7 @@ local function criarBotaoCurvas()
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 200, 0, 45)
-    btn.Position = UDim2.new(0.5, -100, 0.2, 0) -- abaixo do botão de controle
+    btn.Position = UDim2.new(0.5, -100, 0.2, 0)
     btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     btn.Text = "Curva: Direita ☛"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1176,7 +1175,7 @@ secExtras:Slider({
 })
 
 -- =====================================================
---  NOVA CATEGORIA: CURVAS
+--  CATEGORIA CURVAS
 -- =====================================================
 local secCurvas = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 
@@ -1298,7 +1297,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Curvas adicionadas!",
+        Text = "Curvas corrigidas – agora funcionam!",
         Duration = 4
     })
 end)
