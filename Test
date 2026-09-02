@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Bola com Curvas + Menu Flutuante
+    Blue Lock Rivels Hub – Com Curvas corrigidas
 ]]
 
 local Players = game:GetService("Players")
@@ -132,6 +132,12 @@ local curvaModo = 1 -- 1=Direita, 2=Esquerda, 3=Aleatório
 local curvaIntensidade = 5
 local curvaMenuGui = nil
 local curvaTask = nil
+local curvaBotaoDir = nil
+local curvaBotaoEsq = nil
+local curvaBotaoAle = nil
+local curvaSliderFill = nil
+local curvaSliderLabel = nil
+local curvaArrastando = false
 
 local velocidadeBola = 65
 local isControlActive = false
@@ -333,7 +339,7 @@ local function aplicarHitboxPersonagem()
 end
 
 -- =====================================================
---  CURVAS DA BOLA (MENU FLUTUANTE)
+--  CURVAS DA BOLA (MENU FLUTUANTE CORRIGIDO)
 -- =====================================================
 local function criarMenuCurvas()
     if curvaMenuGui then return end
@@ -343,12 +349,11 @@ local function criarMenuCurvas()
     screenGui.ResetOnSpawn = false
     safeParent(screenGui)
 
-    -- Fundo semi-transparente
     local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(0, 250, 0, 200)
-    bg.Position = UDim2.new(0.5, -125, 0.5, -100)
-    bg.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    bg.BackgroundTransparency = 0.2
+    bg.Size = UDim2.new(0, 260, 0, 220)
+    bg.Position = UDim2.new(0.5, -130, 0.5, -110)
+    bg.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    bg.BackgroundTransparency = 0.15
     bg.BorderSizePixel = 0
     bg.Parent = screenGui
 
@@ -368,12 +373,12 @@ local function criarMenuCurvas()
 
     -- Botão Direita
     local btnDir = Instance.new("TextButton")
-    btnDir.Size = UDim2.new(0.8, 0, 0, 35)
-    btnDir.Position = UDim2.new(0.1, 0, 0.25, 0)
-    btnDir.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+    btnDir.Size = UDim2.new(0.8, 0, 0, 32)
+    btnDir.Position = UDim2.new(0.1, 0, 0.22, 0)
+    btnDir.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     btnDir.Text = "☛ Direita"
     btnDir.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btnDir.TextSize = 16
+    btnDir.TextSize = 15
     btnDir.Font = Enum.Font.GothamBold
     btnDir.Parent = bg
     local cornerBtn = Instance.new("UICorner")
@@ -386,15 +391,16 @@ local function criarMenuCurvas()
         btnAle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
         player:Chat("Modo: Direita")
     end)
+    curvaBotaoDir = btnDir
 
     -- Botão Esquerda
     local btnEsq = Instance.new("TextButton")
-    btnEsq.Size = UDim2.new(0.8, 0, 0, 35)
-    btnEsq.Position = UDim2.new(0.1, 0, 0.45, 0)
+    btnEsq.Size = UDim2.new(0.8, 0, 0, 32)
+    btnEsq.Position = UDim2.new(0.1, 0, 0.42, 0)
     btnEsq.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     btnEsq.Text = "☚ Esquerda"
     btnEsq.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btnEsq.TextSize = 16
+    btnEsq.TextSize = 15
     btnEsq.Font = Enum.Font.GothamBold
     btnEsq.Parent = bg
     local cornerBtn2 = Instance.new("UICorner")
@@ -407,15 +413,16 @@ local function criarMenuCurvas()
         btnAle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
         player:Chat("Modo: Esquerda")
     end)
+    curvaBotaoEsq = btnEsq
 
     -- Botão Aleatório
     local btnAle = Instance.new("TextButton")
-    btnAle.Size = UDim2.new(0.8, 0, 0, 35)
-    btnAle.Position = UDim2.new(0.1, 0, 0.65, 0)
+    btnAle.Size = UDim2.new(0.8, 0, 0, 32)
+    btnAle.Position = UDim2.new(0.1, 0, 0.62, 0)
     btnAle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     btnAle.Text = "🥴 Aleatório"
     btnAle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btnAle.TextSize = 16
+    btnAle.TextSize = 15
     btnAle.Font = Enum.Font.GothamBold
     btnAle.Parent = bg
     local cornerBtn3 = Instance.new("UICorner")
@@ -428,13 +435,14 @@ local function criarMenuCurvas()
         btnEsq.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
         player:Chat("Modo: Aleatório")
     end)
+    curvaBotaoAle = btnAle
 
     -- Slider de Intensidade
     local sliderFrame = Instance.new("Frame")
-    sliderFrame.Size = UDim2.new(0.8, 0, 0, 30)
-    sliderFrame.Position = UDim2.new(0.1, 0, 0.85, 0)
+    sliderFrame.Size = UDim2.new(0.8, 0, 0, 28)
+    sliderFrame.Position = UDim2.new(0.1, 0, 0.82, 0)
     sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    sliderFrame.BackgroundTransparency = 0.5
+    sliderFrame.BackgroundTransparency = 0.4
     sliderFrame.Parent = bg
     local cornerSlider = Instance.new("UICorner")
     cornerSlider.CornerRadius = UDim.new(0, 8)
@@ -445,32 +453,35 @@ local function criarMenuCurvas()
     sliderLabel.Position = UDim2.new(0.05, 0, 0, 0)
     sliderLabel.Text = "Intensidade: 5"
     sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    sliderLabel.TextSize = 14
+    sliderLabel.TextSize = 13
     sliderLabel.Font = Enum.Font.GothamMedium
     sliderLabel.BackgroundTransparency = 1
     sliderLabel.Parent = sliderFrame
+    curvaSliderLabel = sliderLabel
 
-    local slider = Instance.new("TextButton")
-    slider.Size = UDim2.new(0.55, 0, 0.7, 0)
-    slider.Position = UDim2.new(0.4, 0, 0.15, 0)
-    slider.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-    slider.Text = ""
-    slider.Parent = sliderFrame
+    local sliderBtn = Instance.new("TextButton")
+    sliderBtn.Size = UDim2.new(0.55, 0, 0.7, 0)
+    sliderBtn.Position = UDim2.new(0.38, 0, 0.15, 0)
+    sliderBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+    sliderBtn.Text = ""
+    sliderBtn.Parent = sliderFrame
     local cornerSliderBtn = Instance.new("UICorner")
     cornerSliderBtn.CornerRadius = UDim.new(0, 8)
-    cornerSliderBtn.Parent = slider
+    cornerSliderBtn.Parent = sliderBtn
 
     local sliderFill = Instance.new("Frame")
     sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
     sliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-    sliderFill.BackgroundTransparency = 0.5
-    sliderFill.Parent = slider
+    sliderFill.BackgroundTransparency = 0.3
+    sliderFill.Parent = sliderBtn
+    curvaSliderFill = sliderFill
 
+    -- Lógica de arrasto do slider
     local dragging = false
-    slider.MouseButton1Down:Connect(function()
+    sliderBtn.MouseButton1Down:Connect(function()
         dragging = true
     end)
-    slider.MouseButton1Up:Connect(function()
+    sliderBtn.MouseButton1Up:Connect(function()
         dragging = false
     end)
     UserInputService.InputChanged:Connect(function(input, gameProcessed)
@@ -478,8 +489,9 @@ local function criarMenuCurvas()
         if not dragging then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
         local pos = input.Position
-        local absX = slider.AbsolutePosition.X
-        local width = slider.AbsoluteSize.X
+        local absX = sliderBtn.AbsolutePosition.X
+        local width = sliderBtn.AbsoluteSize.X
+        if width <= 0 then return end
         local percent = math.clamp((pos.X - absX) / width, 0, 1)
         local val = math.round(percent * 9) + 1
         curvaIntensidade = val
@@ -495,7 +507,8 @@ local function criarMenuCurvas()
     else
         btnAle.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
     end
-    sliderFill.Size = UDim2.new((curvaIntensidade - 1) / 9, 0, 1, 0)
+    local initPercent = (curvaIntensidade - 1) / 9
+    sliderFill.Size = UDim2.new(initPercent, 0, 1, 0)
     sliderLabel.Text = "Intensidade: " .. curvaIntensidade
 
     curvaMenuGui = screenGui
@@ -505,8 +518,14 @@ local function removerMenuCurvas()
     if curvaMenuGui then
         curvaMenuGui:Destroy()
         curvaMenuGui = nil
+        curvaBotaoDir = nil
+        curvaBotaoEsq = nil
+        curvaBotaoAle = nil
+        curvaSliderFill = nil
+        curvaSliderLabel = nil
     end
     if curvaTask then
+        task.cancel(curvaTask)
         curvaTask = nil
     end
 end
@@ -518,10 +537,8 @@ local function aplicarCurvaBola()
     if not curvaAtivo then return end
     if not bolaValida or not bola then return end
 
-    -- Detecta se acabou de perder a bola (chute)
     local tenho = euTenhoBola()
     if tinhaBola and not tenho then
-        -- Chutou! Aplica a curva
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
         if dir.Magnitude < 0.1 then
@@ -530,30 +547,27 @@ local function aplicarCurvaBola()
             dir = dir.Unit
         end
 
-        -- Calcula perpendicular (direção lateral) no plano horizontal
-        local right = Vector3.new(-dir.Z, 0, dir.X) -- perpendicular à direção
+        local right = Vector3.new(-dir.Z, 0, dir.X)
         local lateralForce = 0
 
-        if curvaModo == 1 then -- Direita
+        if curvaModo == 1 then
             lateralForce = curvaIntensidade * 3
-        elseif curvaModo == 2 then -- Esquerda
+        elseif curvaModo == 2 then
             lateralForce = -curvaIntensidade * 3
-        elseif curvaModo == 3 then -- Aleatório (zigue-zague)
+        elseif curvaModo == 3 then
             lateralForce = (math.random() - 0.5) * 2 * curvaIntensidade * 4
         end
 
-        -- Aplica a velocidade lateral
         local vel = bola.AssemblyLinearVelocity
         local newVel = vel + right * lateralForce
-        -- Mantém a velocidade mínima (não reduzir)
         if newVel.Magnitude < 10 then
             newVel = newVel.Unit * 10
         end
         bola.AssemblyLinearVelocity = newVel
 
-        -- Se for aleatório, inicia o zigue-zague contínuo
         if curvaModo == 3 then
             if curvaTask then
+                task.cancel(curvaTask)
                 curvaTask = nil
             end
             curvaTask = task.spawn(function()
@@ -562,7 +576,6 @@ local function aplicarCurvaBola()
                     tempo = tempo + 0.05
                     local zig = math.sin(tempo * 8 + math.random() * 2) * curvaIntensidade * 2
                     local right2 = Vector3.new(-dir.Z, 0, dir.X)
-                    -- Aplica pequenas perturbações laterais
                     local currentVel = bola.AssemblyLinearVelocity
                     if currentVel.Magnitude > 1 then
                         local newVel2 = currentVel + right2 * zig * 0.5
@@ -575,6 +588,28 @@ local function aplicarCurvaBola()
         end
     end
 
+    tinhaBola = tenho
+end
+
+-- =====================================================
+--  FORÇA DA BOLA
+-- =====================================================
+local function aplicarForcaBola()
+    if not forcaBolaEnabled then return end
+    if not bolaValida or not bola then return end
+
+    local tenho = euTenhoBola()
+    if tinhaBola and not tenho then
+        local dir = camera.CFrame.LookVector
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.1 then
+            dir = Vector3.new(1, 0, 0)
+        else
+            dir = dir.Unit
+        end
+        local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
+        bola.AssemblyLinearVelocity = vel
+    end
     tinhaBola = tenho
 end
 
@@ -922,28 +957,6 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
---  FORÇA DA BOLA (mantida)
--- =====================================================
-local function aplicarForcaBola()
-    if not forcaBolaEnabled then return end
-    if not bolaValida or not bola then return end
-
-    local tenho = euTenhoBola()
-    if tinhaBola and not tenho then
-        local dir = camera.CFrame.LookVector
-        dir = Vector3.new(dir.X, 0, dir.Z)
-        if dir.Magnitude < 0.1 then
-            dir = Vector3.new(1, 0, 0)
-        else
-            dir = dir.Unit
-        end
-        local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
-        bola.AssemblyLinearVelocity = vel
-    end
-    tinhaBola = tenho
-end
-
--- =====================================================
 --  COMANDO DE CHAT: Força da bola
 -- =====================================================
 local function onChatMessage(msg)
@@ -1092,7 +1105,7 @@ RunService.Heartbeat:Connect(function()
     atualizarAdvinhaChute()
     aplicarHitboxPersonagem()
     aplicarForcaBola()
-    aplicarCurvaBola() -- Curvas aplicadas aqui
+    aplicarCurvaBola()
 end)
 
 -- =====================================================
@@ -1311,9 +1324,6 @@ secExtras:Slider({
     end
 })
 
--- =====================================================
---  NOVO TOGGLE: BOLA COM CURVAS
--- =====================================================
 secExtras:Toggle({
     Title = "Bola com Curvas",
     Desc = "Ativa curvas na bola. Menu flutuante aparece na tela.",
@@ -1419,7 +1429,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Bola com Curvas adicionada!",
+        Text = "Menu de Curvas corrigido!",
         Duration = 4
     })
 end)
