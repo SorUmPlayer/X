@@ -1067,55 +1067,13 @@ secHitbox:Toggle({
 -- =====================================================
 --  SEÇÃO CURVAS NA BOLA (DROPDOWN ESTÁVEL)
 -- =====================================================
--- Seção Curvas na Bola
-local secCurvas = MainTab:Section({ Title = "Curvas na Bola", TextXAlignment = "Left" })
-
-secCurvas:Toggle({
-    Title = "Bola com Curvas",
-    Desc = "Ativa curvas na bola ao chutar (requer Força da Bola ativada)",
-    Callback = function(v)
-        curvaEnabled = v
-    end
-})
-
 secCurvas:Dropdown({
     Title = "Direção da Curva",
     Desc = "Escolha a direção da curva",
-    Options = {"Direita", "Esquerda", "Aleatório"},
-    Default = "Direita",  -- valor padrão
+    Values = {"Direita", "Esquerda", "Aleatório"},
+    Default = "Direita",
     Callback = function(opt)
         curvaDirection = opt
-    end
-})
-
-secCurvas:Slider({
-    Title = "Intensidade da Curva",
-    Desc = "1 a 10 – quanto maior, mais forte a curva",
-    Step = 1,
-    Value = { Min = 1, Max = 10, Default = 5 },
-    Callback = function(v)
-        curvaIntensity = v
-    end
-})
-
--- Seção Extras
-local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
-
-secExtras:Toggle({
-    Title = "Força da Bola",
-    Desc = "Ao chutar, a bola sai com potência máxima + loft (sobe)",
-    Callback = function(v)
-        forcaBolaEnabled = v
-    end
-})
-
-secExtras:Slider({
-    Title = "Força Máxima",
-    Desc = "Velocidade da bola ao chutar (10 a 200)",
-    Step = 1,
-    Value = { Min = 10, Max = 200, Default = 100 },
-    Callback = function(v)
-        forcaBolaVelocidade = v
     end
 })
 
@@ -1137,7 +1095,7 @@ secExtras:Button({
 secExtras:Dropdown({
     Title = "Time (para fazer gol)",
     Desc = "Selecione seu time para o gol",
-    Options = {"Home", "Away"},
+    Values = {"Home", "Away"},
     Default = "Home",
     Callback = function(opt)
         selectedTeam = opt
