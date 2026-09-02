@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Curvas com velocidade mínima e altura
+    Blue Lock Rivels Hub – Linha Verde corrigida (cabeça + 100 studs)
 ]]
 
 local Players = game:GetService("Players")
@@ -360,7 +360,7 @@ local function aplicarForcaBola()
 end
 
 -- =====================================================
---  CURVAS (COM CONDIÇÕES DE VELOCIDADE E ALTURA)
+--  CURVAS
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
@@ -369,25 +369,22 @@ local function aplicarCurvas()
 
     local vel = bola.AssemblyLinearVelocity
     local speed = vel.Magnitude
-    if speed < 40 then return end           -- só ativa acima de 40
-    if bola.Position.Y < 0.5 then return end -- só no ar (evita curvas no chão)
+    if speed < 40 then return end
+    if bola.Position.Y < 0.5 then return end
 
-    -- Direção horizontal atual
     local dir = Vector3.new(vel.X, 0, vel.Z)
     if dir.Magnitude < 0.01 then return end
     dir = dir.Unit
 
-    -- Vetor perpendicular (direita)
     local perp = Vector3.new(-dir.Z, 0, dir.X)
 
-    -- Intensidade: 1=1.5, 10=15 (força lateral)
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
     if curvasModo == 1 then
-        lado = 1  -- Direita
+        lado = 1
     elseif curvasModo == 2 then
-        lado = -1 -- Esquerda
+        lado = -1
     elseif curvasModo == 3 then
         local now = tick()
         if now - curvasTimer > curvasIntervalo then
@@ -398,7 +395,6 @@ local function aplicarCurvas()
         lado = curvasDirecaoAtual
     end
 
-    -- Aplica força lateral diretamente
     local forcaLateral = perp * lado * fator
     bola.AssemblyLinearVelocity = vel + forcaLateral
 end
@@ -614,7 +610,7 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO
+--  FUNÇÕES DA VISÃO DE JOGO (CORRIGIDAS)
 -- =====================================================
 local function getInimigoComBola()
     local myTeam = getMyTeam()
@@ -645,10 +641,10 @@ local function criarLinhaVisao()
         linhaVisao.Name = "LinhaVisao"
         linhaVisao.Anchored = true
         linhaVisao.CanCollide = false
-        linhaVisao.Transparency = 0.2
+        linhaVisao.Transparency = 0.15
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(0.5, 0.5, 25)
+        linhaVisao.Size = Vector3.new(0.8, 0.8, 100) -- comprimento padrão
         linhaVisao.Parent = Workspace
     end
     return linhaVisao
@@ -660,11 +656,6 @@ local function atualizarVisaoBola()
         return
     end
 
-    if not bolaValida or not bola then
-        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
-        return
-    end
-
     local inimigo = getInimigoComBola()
     if not inimigo then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
@@ -672,14 +663,27 @@ local function atualizarVisaoBola()
     end
 
     local char = inimigo.Character
+    if not char then
+        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
+        return
+    end
+
+    -- Pega a cabeça ou torso
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    local origem = head or hrp or char.PrimaryPart
+    local origem = head or hrp
     if not origem then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
     end
 
+    -- Posição de início (cabeça ou torso + offset)
+    local posInicio = origem.Position
+    if origem == hrp then
+        posInicio = posInicio + Vector3.new(0, 1.5, 0)
+    end
+
+    -- Direção horizontal (olhar do jogador)
     local direcao = Vector3.new(1, 0, 0)
     if head then
         direcao = head.CFrame.LookVector
@@ -693,17 +697,21 @@ local function atualizarVisaoBola()
         direcao = direcao.Unit
     end
 
-    local posInicio = bola.Position
-    local posFim = posInicio + direcao * 25
+    -- Posição final: 100 studs adiante
+    local posFim = posInicio + direcao * 100
 
     criarLinhaVisao()
     local meio = (posInicio + posFim) / 2
     local distancia = (posInicio - posFim).Magnitude
     if distancia < 0.1 then distancia = 0.1 end
-    linhaVisao.Size = Vector3.new(0.5, 0.5, distancia)
+    linhaVisao.Size = Vector3.new(0.8, 0.8, distancia)
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
+    linhaVisao.Transparency = 0.15
 end
 
+-- =====================================================
+--  ADvinha Chute (linha amarela + círculo)
+-- =====================================================
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -1073,7 +1081,7 @@ local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "L
 
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde horizontal mostrando para onde o inimigo com a bola está olhando",
+    Desc = "Linha verde gigante (100 studs) saindo da cabeça do inimigo com a bola",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -1295,7 +1303,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Curvas corrigidas: só no ar e com velocidade ≥40",
+        Text = "Linha Verde corrigida: sai da cabeça e tem 100 studs!",
         Duration = 4
     })
 end)
