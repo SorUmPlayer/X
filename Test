@@ -1067,6 +1067,7 @@ secHitbox:Toggle({
 -- =====================================================
 --  SEÇÃO CURVAS NA BOLA (DROPDOWN ESTÁVEL)
 -- =====================================================
+-- Seção Curvas na Bola
 local secCurvas = MainTab:Section({ Title = "Curvas na Bola", TextXAlignment = "Left" })
 
 secCurvas:Toggle({
@@ -1079,9 +1080,9 @@ secCurvas:Toggle({
 
 secCurvas:Dropdown({
     Title = "Direção da Curva",
-    Desc = "Escolha a direção da curva: Direita, Esquerda ou Aleatório",
+    Desc = "Escolha a direção da curva",
     Options = {"Direita", "Esquerda", "Aleatório"},
-    Default = "Direita",
+    Default = "Direita",  -- valor padrão
     Callback = function(opt)
         curvaDirection = opt
     end
