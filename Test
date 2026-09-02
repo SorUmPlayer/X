@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Curvas só no ar
+    Blue Lock Rivels Hub – Curvas com raycast (funciona em qualquer altura)
 ]]
 
 local Players = game:GetService("Players")
@@ -360,15 +360,26 @@ local function aplicarForcaBola()
 end
 
 -- =====================================================
---  CURVAS (SÓ NO AR)
+--  CURVAS (COM RAYCAST PARA DETECTAR CHÃO)
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bolaValida or not bola then return end
     if euTenhoBola() then return end
 
-    -- SÓ APLICA CURVAS SE A BOLA ESTIVER NO AR (ACIMA DE Y=1)
-    if bola.Position.Y < 1.0 then return end
+    -- Verifica se a bola está no ar usando raycast
+    local origem = bola.Position + Vector3.new(0, 0.5, 0)
+    local direcao = Vector3.new(0, -1, 0)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {bola, player.Character}
+    local resultado = workspace:Raycast(origem, direcao * 10, raycastParams)
+    local alturaDoChao = resultado and resultado.Distance or 0
+    
+    -- Só aplica curva se a bola estiver a pelo menos 1.5 studs acima do chão
+    if alturaDoChao < 1.5 then
+        return
+    end
 
     local vel = bola.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then return end
@@ -1300,7 +1311,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Curvas só no ar – corrigido!",
+        Text = "Curvas com raycast – funciona em qualquer altura!",
         Duration = 4
     })
 end)
