@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Curvas funcionando
+    Blue Lock Rivels Hub – Curvas só no ar
 ]]
 
 local Players = game:GetService("Players")
@@ -360,12 +360,15 @@ local function aplicarForcaBola()
 end
 
 -- =====================================================
---  CURVAS (CORRIGIDO – FORÇA DIRETA)
+--  CURVAS (SÓ NO AR)
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bolaValida or not bola then return end
     if euTenhoBola() then return end
+
+    -- SÓ APLICA CURVAS SE A BOLA ESTIVER NO AR (ACIMA DE Y=1)
+    if bola.Position.Y < 1.0 then return end
 
     local vel = bola.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then return end
@@ -396,7 +399,7 @@ local function aplicarCurvas()
         lado = curvasDirecaoAtual
     end
 
-    -- Aplica força lateral diretamente (sem amortecimento)
+    -- Aplica força lateral diretamente
     local forcaLateral = perp * lado * fator
     bola.AssemblyLinearVelocity = vel + forcaLateral
 end
@@ -1297,7 +1300,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Curvas corrigidas – agora funcionam!",
+        Text = "Curvas só no ar – corrigido!",
         Duration = 4
     })
 end)
