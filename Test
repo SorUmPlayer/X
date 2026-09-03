@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Com Drible
+    Blue Lock Rivels Hub – Corrigido (Drible, Linhas, Hitbox)
 ]]
 
 local Players = game:GetService("Players")
@@ -31,7 +31,7 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  REFERÊNCIAS DA BOLA (CACHE)
+--  REFERÊNCIAS DA BOLA (CACHE COM RECARGA)
 -- =====================================================
 local bola = nil
 local hitbox = nil
@@ -65,10 +65,23 @@ Workspace.ChildAdded:Connect(atualizarReferenciaBola)
 Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 
+-- Recarregar referência periodicamente para evitar perda
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not bolaValida or not hitbox then
+            atualizarReferenciaBola()
+        end
+    end
+end)
+
 -- =====================================================
 --  GETBALL (PARA O BOTÃO DE CONTROLE)
 -- =====================================================
 local function getBall()
+    if bola and bolaValida then
+        return bola
+    end
     local football = Workspace:FindFirstChild("Football")
     if football then
         local ballAnims = football:FindFirstChild("BallAnims")
@@ -141,7 +154,7 @@ local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.3
 local dribleAnimId = "18668814876"
-local dribleRadius = 25 -- Raio 25 (diâmetro 50)
+local dribleRadius = 25
 local driblePlayingAnims = {}
 local dribleEvent = nil
 
@@ -150,16 +163,28 @@ local dribleEvent = nil
 -- =====================================================
 local function setupDrible()
     -- Busca o RemoteEvent Dribble
-    pcall(function()
-        dribleEvent = ReplicatedStorage:FindFirstChild("Packages")
-            and ReplicatedStorage.Packages:FindFirstChild("Knit")
-            and ReplicatedStorage.Packages.Knit:FindFirstChild("Services")
-            and ReplicatedStorage.Packages.Knit.Services:FindFirstChild("BallService")
-            and ReplicatedStorage.Packages.Knit.Services.BallService:FindFirstChild("RE")
-            and ReplicatedStorage.Packages.Knit.Services.BallService.RE:FindFirstChild("Dribble")
-    end)
+    if not dribleEvent then
+        pcall(function()
+            local packages = ReplicatedStorage:FindFirstChild("Packages")
+            if packages then
+                local knit = packages:FindFirstChild("Knit")
+                if knit then
+                    local services = knit:FindFirstChild("Services")
+                    if services then
+                        local ballService = services:FindFirstChild("BallService")
+                        if ballService then
+                            local re = ballService:FindFirstChild("RE")
+                            if re then
+                                dribleEvent = re:FindFirstChild("Dribble")
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
 
-    -- Cria a esfera visual
+    -- Cria a esfera visual se não existir
     if not dribleSphere then
         dribleSphere = Instance.new("Part")
         dribleSphere.Name = "DetectionSphereVisual"
@@ -169,7 +194,7 @@ local function setupDrible()
         dribleSphere.Color = Color3.fromRGB(255, 0, 128)
         dribleSphere.Transparency = 0.6
         dribleSphere.CanCollide = false
-        dribleSphere.Anchored = true
+        dribleSphere.Anchored = false
         dribleSphere.CastShadow = false
         dribleSphere.Parent = workspace
     end
@@ -239,7 +264,7 @@ end
 
 local function aplicarDrible()
     if not dribleEnabled then
-        if dribleSphere and dribleSphere.Parent then
+        if dribleSphere then
             dribleSphere.Transparency = 1
         end
         return
@@ -250,9 +275,11 @@ local function aplicarDrible()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    -- Atualiza posição da esfera
     if dribleSphere then
         dribleSphere.Position = hrp.Position
         dribleSphere.Transparency = 0.6
+        dribleSphere.Parent = workspace
     end
 
     local now = tick()
@@ -295,8 +322,15 @@ end)
 -- =====================================================
 --  CONTROLE DA HITBOX DA BOLA (REACH)
 -- =====================================================
+local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
+local hitboxOriginalTransparency = 0
+
 local function aplicarTamanhoHitbox()
-    if not hitbox then return end
+    -- Recarrega referência se necessário
+    if not hitbox or not bolaValida then
+        atualizarReferenciaBola()
+        if not hitbox then return end
+    end
 
     local tenho = euTenhoBola()
     local tamanhoDesejado
@@ -316,20 +350,13 @@ local function aplicarTamanhoHitbox()
     end
 end
 
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-        aplicarTamanhoHitbox()
-    end
-end)
-
 -- =====================================================
 --  HITBOX DO PERSONAGEM (POR SOFTWARE)
 -- =====================================================
 local function aplicarHitboxPersonagem()
     if not hitboxPersonagemAtivo then return end
     if euTenhoBola() then return end
-    if not bolaValida or not hitbox then return end
+    if not hitbox or not bolaValida then return end
 
     local char = player.Character
     if not char then return end
@@ -351,7 +378,7 @@ end
 -- =====================================================
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
-    if not bolaValida or not bola then return end
+    if not bola or not bolaValida then return end
 
     local tenho = euTenhoBola()
     
@@ -376,7 +403,7 @@ end
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
-    if not bolaValida or not bola then return end
+    if not bola or not bolaValida then return end
     if euTenhoBola() then return end
 
     local vel = bola.AssemblyLinearVelocity
@@ -476,6 +503,12 @@ end
 -- =====================================================
 --  CONTROLE BOLA – BOTÃO FLUTUANTE
 -- =====================================================
+local velocidadeBola = 65
+local isControlActive = false
+local controlConnection = nil
+local controlScreenGui = nil
+local toggleButton = nil
+
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
@@ -562,6 +595,10 @@ end
 -- =====================================================
 --  BOTÃO VOADOR DA CÂMERA
 -- =====================================================
+local cameraButtonActive = false
+local cameraScreenGui = nil
+local cameraToggleButton = nil
+
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     
@@ -622,8 +659,14 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO
+--  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
 -- =====================================================
+local visaoBolaEnabled = false
+local advinhaChuteEnabled = false
+local linhaVisao = nil
+local linhaChute = nil
+local circuloChute = nil
+
 local function getInimigoComBola()
     local myTeam = getMyTeam()
     if not myTeam then return nil end
@@ -648,7 +691,8 @@ local function getInimigoComBola()
 end
 
 local function criarLinhaVisao()
-    if not linhaVisao then
+    if not linhaVisao or not linhaVisao.Parent then
+        if linhaVisao then linhaVisao:Destroy() end
         linhaVisao = Instance.new("Part")
         linhaVisao.Name = "LinhaVisao"
         linhaVisao.Anchored = true
@@ -657,7 +701,7 @@ local function criarLinhaVisao()
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
         linhaVisao.Size = Vector3.new(0.8, 0.8, 100)
-        linhaVisao.Parent = Workspace
+        linhaVisao.Parent = workspace
     end
     return linhaVisao
 end
@@ -717,11 +761,9 @@ local function atualizarVisaoBola()
     linhaVisao.Transparency = 0.15
 end
 
--- =====================================================
---  ADvinha Chute
--- =====================================================
 local function criarLinhaChute()
-    if not linhaChute then
+    if not linhaChute or not linhaChute.Parent then
+        if linhaChute then linhaChute:Destroy() end
         linhaChute = Instance.new("Part")
         linhaChute.Name = "LinhaChute"
         linhaChute.Anchored = true
@@ -730,13 +772,14 @@ local function criarLinhaChute()
         linhaChute.Color = Color3.fromRGB(255, 255, 0)
         linhaChute.Material = Enum.Material.Neon
         linhaChute.Size = Vector3.new(0.5, 0.5, 25)
-        linhaChute.Parent = Workspace
+        linhaChute.Parent = workspace
     end
     return linhaChute
 end
 
 local function criarCirculoChute()
-    if not circuloChute then
+    if not circuloChute or not circuloChute.Parent then
+        if circuloChute then circuloChute:Destroy() end
         circuloChute = Instance.new("Part")
         circuloChute.Name = "CirculoChute"
         circuloChute.Anchored = true
@@ -746,7 +789,7 @@ local function criarCirculoChute()
         circuloChute.Material = Enum.Material.Neon
         circuloChute.Shape = Enum.PartType.Cylinder
         circuloChute.Size = Vector3.new(4, 0.1, 4)
-        circuloChute.Parent = Workspace
+        circuloChute.Parent = workspace
     end
     return circuloChute
 end
@@ -758,7 +801,7 @@ local function atualizarAdvinhaChute()
         return
     end
 
-    if not bolaValida or not bola then
+    if not bola or not bolaValida then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
@@ -908,7 +951,7 @@ local function atualizarAimbotPersonagem()
         return
     end
 
-    if not bolaValida or not hitbox then
+    if not hitbox or not bolaValida then
         if gyro then
             gyro:Destroy()
             gyro = nil
@@ -946,7 +989,7 @@ local function atualizarAimbotCamera()
         return
     end
 
-    if not bolaValida or not hitbox then return end
+    if not hitbox or not bolaValida then return end
 
     local char = player.Character
     if not char then return end
@@ -991,6 +1034,10 @@ end
 --  LOOP PRINCIPAL
 -- =====================================================
 RunService.Heartbeat:Connect(function()
+    -- Aplica hitbox da bola (Reach)
+    aplicarTamanhoHitbox()
+    
+    -- Demais funcionalidades
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     atualizarESP()
@@ -1163,12 +1210,6 @@ secHitbox:Toggle({
     Desc = "Aumenta a hitbox da bola (invisível)",
     Callback = function(v)
         reachAtivo = v
-        if not v then
-            if hitbox then
-                hitbox.Size = hitboxOriginalSize
-                hitbox.Transparency = hitboxOriginalTransparency
-            end
-        end
     end
 })
 
@@ -1359,7 +1400,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Drible adicionado! (distância 50)",
+        Text = "Todos os bugs corrigidos!",
         Duration = 4
     })
 end)
