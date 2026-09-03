@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Controle de Bola corrigido
+    Blue Lock Rivels Hub – Controle de Bola corrigido + Botão Curvas
 ]]
 
 local Players = game:GetService("Players")
@@ -586,7 +586,6 @@ local function toggleControl()
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if ball then
-                -- VERIFICAÇÃO DE POSSE: se estiver com a bola, NÃO controla
                 if euTenhoBola() then
                     resetCamera()
                 else
@@ -1058,6 +1057,69 @@ local function atualizarESP()
 end
 
 -- =====================================================
+--  BOTÃO VOADOR DAS CURVAS (CORRIGIDO)
+-- =====================================================
+local function atualizarBotaoCurvas()
+    if not curvasBotao then return end
+    if curvasModo == 1 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        curvasBotao.Text = "Curva: Direita ☛"
+    elseif curvasModo == 2 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        curvasBotao.Text = "Curva: Esquerda ☚"
+    elseif curvasModo == 3 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        curvasBotao.Text = "Curva: Aleatório 🥴"
+    end
+end
+
+local function toggleCurvasModo()
+    curvasModo = curvasModo + 1
+    if curvasModo > 3 then curvasModo = 1 end
+    atualizarBotaoCurvas()
+end
+
+local function criarBotaoCurvas()
+    if curvasBotaoGUI then return end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CurvasGui"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 200, 0, 45)
+    btn.Position = UDim2.new(0.5, -100, 0.3, 0) -- ajustado para não sobrepor
+    btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    btn.BackgroundTransparency = 0
+    btn.Text = "Curva: Direita ☛"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(toggleCurvasModo)
+
+    curvasBotao = btn
+    curvasBotaoGUI = screenGui
+    atualizarBotaoCurvas()
+end
+
+local function removerBotaoCurvas()
+    if curvasBotaoGUI then
+        curvasBotaoGUI:Destroy()
+        curvasBotaoGUI = nil
+        curvasBotao = nil
+    end
+end
+
+-- =====================================================
 --  LOOP PRINCIPAL
 -- =====================================================
 RunService.Heartbeat:Connect(function()
@@ -1283,7 +1345,7 @@ secExtras:Slider({
     end
 })
 
--- Seção Curvas
+-- Seção Curvas (com Botão Voador)
 local secCurvas = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 
 secCurvas:Toggle({
@@ -1422,7 +1484,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Controle de Bola corrigido!",
+        Text = "Botão voador das curvas corrigido!",
         Duration = 4
     })
 end)
