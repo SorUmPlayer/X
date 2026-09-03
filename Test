@@ -137,141 +137,158 @@ local curvasDirecaoAtual = 1
 
 -- Drible
 local dribleEnabled = false
-local dribleDistancia = 3
-local dribleID = "3ee5d8a9eb27420c8b1d8313eccd0ca6"
-
-local velocidadeBola = 65
-local isControlActive = false
-local controlConnection = nil
-local controlScreenGui = nil
-local toggleButton = nil
-
--- Botão Voador da Câmera
-local cameraButtonActive = false
-local cameraScreenGui = nil
-local cameraToggleButton = nil
-
--- Delay do Aimbot
-local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-local aimbotDelayValue = 0
-local aimbotBlocked = false
-local aimbotBlockedUntil = 0
+local dribleSphere = nil
+local dribleLastFired = 0
+local dribleCooldown = 0.3
+local dribleAnimId = "18668814876"
+local dribleRadius = 25 -- Raio 25 (diâmetro 50)
+local driblePlayingAnims = {}
+local dribleEvent = nil
 
 -- =====================================================
---  VISÃO DE JOGO
+--  INICIALIZAÇÃO DO DRIBLE
 -- =====================================================
-local visaoBolaEnabled = false
-local advinhaChuteEnabled = false
+local function setupDrible()
+    -- Busca o RemoteEvent Dribble
+    pcall(function()
+        dribleEvent = ReplicatedStorage:FindFirstChild("Packages")
+            and ReplicatedStorage.Packages:FindFirstChild("Knit")
+            and ReplicatedStorage.Packages.Knit:FindFirstChild("Services")
+            and ReplicatedStorage.Packages.Knit.Services:FindFirstChild("BallService")
+            and ReplicatedStorage.Packages.Knit.Services.BallService:FindFirstChild("RE")
+            and ReplicatedStorage.Packages.Knit.Services.BallService.RE:FindFirstChild("Dribble")
+    end)
 
-local linhaVisao = nil
-local linhaChute = nil
-local circuloChute = nil
-
--- =====================================================
---  LÓGICA DE BLOQUEIO DO AIMBOT (DELAY)
--- =====================================================
-local function shouldAimbotWork()
-    local tenho = euTenhoBola()
-    if tenho then
-        aimbotBlocked = true
-        aimbotBlockedUntil = tick() + aimbotDelayValue
-        return false
+    -- Cria a esfera visual
+    if not dribleSphere then
+        dribleSphere = Instance.new("Part")
+        dribleSphere.Name = "DetectionSphereVisual"
+        dribleSphere.Shape = Enum.PartType.Ball
+        dribleSphere.Size = Vector3.new(dribleRadius * 2, dribleRadius * 2, dribleRadius * 2)
+        dribleSphere.Material = Enum.Material.ForceField
+        dribleSphere.Color = Color3.fromRGB(255, 0, 128)
+        dribleSphere.Transparency = 0.6
+        dribleSphere.CanCollide = false
+        dribleSphere.Anchored = true
+        dribleSphere.CastShadow = false
+        dribleSphere.Parent = workspace
     end
-    if aimbotBlocked then
-        if tick() >= aimbotBlockedUntil then
-            aimbotBlocked = false
+end
+
+-- Rastreamento de animações para o Drible
+local function trackDribleAnimation(character)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+
+    local function checkTrack(track)
+        if not track or not track.Animation then return end
+        local animId = tostring(track.Animation.AnimationId)
+        if string.find(animId, dribleAnimId) then
+            driblePlayingAnims[character] = true
+            local connStopped, connEnded
+            connStopped = track.Stopped:Connect(function()
+                driblePlayingAnims[character] = nil
+                if connStopped then connStopped:Disconnect() end
+                if connEnded then connEnded:Disconnect() end
+            end)
+            connEnded = track.Ended:Connect(function()
+                driblePlayingAnims[character] = nil
+                if connStopped then connStopped:Disconnect() end
+                if connEnded then connEnded:Disconnect() end
+            end)
+        end
+    end
+
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        checkTrack(track)
+    end
+
+    animator.AnimationPlayed:Connect(checkTrack)
+end
+
+local function setupDriblePlayerTracking(plr)
+    if plr == player then return end
+    if plr.Character then
+        task.spawn(trackDribleAnimation, plr.Character)
+    end
+    plr.CharacterAdded:Connect(function(char)
+        driblePlayingAnims[char] = nil
+        task.spawn(trackDribleAnimation, char)
+    end)
+end
+
+local function isDribleAnimActive(character)
+    if driblePlayingAnims[character] then return true end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        if track.Animation and string.find(tostring(track.Animation.AnimationId), dribleAnimId) then
             return true
-        else
-            return false
         end
     end
-    return true
+    return false
 end
 
--- =====================================================
---  VARIÁVEIS DO VOLLEYBALL LEGENDS
--- =====================================================
-local gyro = nil
-local selectedTeam = nil
-local espSphere = nil
-local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
-local hitboxOriginalTransparency = 0
+local function isLookingAtLocal(targetHrp, localHrp)
+    local directionToLocal = (localHrp.Position - targetHrp.Position).Unit
+    local lookVector = targetHrp.CFrame.LookVector
+    return lookVector:Dot(directionToLocal) >= 0.5
+end
 
-local vbHitboxEnabled = false
-local vbHitboxSize = 15
-local vbOriginalProps = {}
-
-local function restoreVbOriginals()
-    for part, props in pairs(vbOriginalProps) do
-        if part and part.Parent then
-            part.Size = props.Size
-            part.Transparency = props.Transparency
-            part.CanCollide = props.CanCollide
-            part.CanTouch = props.CanTouch
+local function aplicarDrible()
+    if not dribleEnabled then
+        if dribleSphere and dribleSphere.Parent then
+            dribleSphere.Transparency = 1
         end
+        return
     end
-    table.clear(vbOriginalProps)
-end
 
-local function getVbBallParts()
-    local ballParts = {}
-    for _, item in ipairs(Workspace:GetChildren()) do
-        if string.sub(item.Name, 1, 12) == "CLIENT_BALL_" then
-            if item:IsA("BasePart") then
-                table.insert(ballParts, item)
-            else
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("BasePart") then
-                        table.insert(ballParts, child)
-                    end
-                end
-            end
-        end
-    end
-    return ballParts
-end
-
-RunService.Heartbeat:Connect(function()
-    if not vbHitboxEnabled then return end
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local bodyParts = {
-        char:FindFirstChild("Right Foot") or char:FindFirstChild("RightLeg") or char:FindFirstChild("Right Lower Leg"),
-        char:FindFirstChild("Left Foot") or char:FindFirstChild("LeftLeg") or char:FindFirstChild("Left Lower Leg"),
-        hrp
-    }
+    if dribleSphere then
+        dribleSphere.Position = hrp.Position
+        dribleSphere.Transparency = 0.6
+    end
 
-    local balls = getVbBallParts()
-    for _, part in ipairs(balls) do
-        if not vbOriginalProps[part] then
-            vbOriginalProps[part] = {
-                Size = part.Size,
-                Transparency = part.Transparency,
-                CanCollide = part.CanCollide,
-                CanTouch = part.CanTouch
-            }
-        end
+    local now = tick()
+    if now - dribleLastFired < dribleCooldown then return end
 
-        part.Size = Vector3.new(vbHitboxSize, vbHitboxSize, vbHitboxSize)
-        part.Transparency = 0.5
-        part.CanCollide = false
-        part.CanTouch = true
-        if pcall(function() return part.CanQuery end) then
-            part.CanQuery = true
-        end
-
-        local distance = (hrp.Position - part.Position).Magnitude
-        if distance <= (vbHitboxSize / 2) + 3 then
-            for _, bPart in ipairs(bodyParts) do
-                if bPart and firetouchinterest then
-                    firetouchinterest(bPart, part, 0)
-                    firetouchinterest(bPart, part, 1)
+    local radius = dribleRadius
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            local targetChar = plr.Character
+            local targetHrp = targetChar:FindFirstChild("HumanoidRootPart")
+            if targetHrp then
+                local dist = (targetHrp.Position - hrp.Position).Magnitude
+                if dist <= radius then
+                    if isLookingAtLocal(targetHrp, hrp) then
+                        if isDribleAnimActive(targetChar) then
+                            dribleLastFired = now
+                            if dribleEvent then
+                                dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3)
+                            end
+                            break
+                        end
+                    end
                 end
             end
         end
+    end
+end
+
+-- Inicializa o rastreamento de jogadores para o Drible
+for _, plr in ipairs(Players:GetPlayers()) do
+    setupDriblePlayerTracking(plr)
+end
+Players.PlayerAdded:Connect(setupDriblePlayerTracking)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr.Character then
+        driblePlayingAnims[plr.Character] = nil
     end
 end)
 
@@ -280,6 +297,7 @@ end)
 -- =====================================================
 local function aplicarTamanhoHitbox()
     if not hitbox then return end
+
     local tenho = euTenhoBola()
     local tamanhoDesejado
     local transparenciaDesejada
@@ -336,6 +354,7 @@ local function aplicarForcaBola()
     if not bolaValida or not bola then return end
 
     local tenho = euTenhoBola()
+    
     if tinhaBola and not tenho then
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
@@ -344,9 +363,11 @@ local function aplicarForcaBola()
         else
             dir = dir.Unit
         end
+        
         local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
         bola.AssemblyLinearVelocity = vel
     end
+    
     tinhaBola = tenho
 end
 
@@ -368,6 +389,7 @@ local function aplicarCurvas()
     dir = dir.Unit
 
     local perp = Vector3.new(-dir.Z, 0, dir.X)
+
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
@@ -387,43 +409,6 @@ local function aplicarCurvas()
 
     local forcaLateral = perp * lado * fator
     bola.AssemblyLinearVelocity = vel + forcaLateral
-end
-
--- =====================================================
---  DRIBLE
--- =====================================================
-local function executarDrible()
-    if not dribleEnabled then
-        player:Chat("Drible desativado! Ative no menu.")
-        return
-    end
-    if not euTenhoBola() then
-        player:Chat("Você precisa estar com a bola para driblar!")
-        return
-    end
-
-    local event = ReplicatedStorage:FindFirstChild("Packages")
-    if event then
-        event = event:FindFirstChild("Knit")
-        if event then
-            event = event:FindFirstChild("Services")
-            if event then
-                event = event:FindFirstChild("BallService")
-                if event then
-                    event = event:FindFirstChild("RE")
-                    if event then
-                        local dribbleEvent = event:FindFirstChild("Dribble")
-                        if dribbleEvent then
-                            dribbleEvent:FireServer(dribleID, dribleDistancia)
-                            player:Chat("Drible executado com distância " .. dribleDistancia)
-                        else
-                            warn("Evento Dribble não encontrado!")
-                        end
-                    end
-                end
-            end
-        end
-    end
 end
 
 -- =====================================================
@@ -505,7 +490,9 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
             toggleButton.Text = "Control BALL [ON]"
         end
+        
         if controlConnection then controlConnection:Disconnect() end
+        
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if ball then
@@ -521,10 +508,12 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             toggleButton.Text = "Control BALL [OFF]"
         end
+        
         if controlConnection then
             controlConnection:Disconnect()
             controlConnection = nil
         end
+        
         resetCamera()
     end
 end
@@ -575,6 +564,7 @@ end
 -- =====================================================
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
+    
     if cameraButtonActive then
         if cameraToggleButton then
             cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
@@ -727,6 +717,9 @@ local function atualizarVisaoBola()
     linhaVisao.Transparency = 0.15
 end
 
+-- =====================================================
+--  ADvinha Chute
+-- =====================================================
 local function criarLinhaChute()
     if not linhaChute then
         linhaChute = Instance.new("Part")
@@ -864,8 +857,32 @@ end
 setupChatCommand()
 
 -- =====================================================
---  AIMBOT PERSONAGEM (COM DELAY)
+--  AIMBOT PERSONAGEM
 -- =====================================================
+local gyro = nil
+local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+local aimbotDelayValue = 0
+local aimbotBlocked = false
+local aimbotBlockedUntil = 0
+
+local function shouldAimbotWork()
+    local tenho = euTenhoBola()
+    if tenho then
+        aimbotBlocked = true
+        aimbotBlockedUntil = tick() + aimbotDelayValue
+        return false
+    end
+    if aimbotBlocked then
+        if tick() >= aimbotBlockedUntil then
+            aimbotBlocked = false
+            return true
+        else
+            return false
+        end
+    end
+    return true
+end
+
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     if not estado and gyro then
@@ -919,7 +936,7 @@ local function atualizarAimbotPersonagem()
 end
 
 -- =====================================================
---  AIMBOT CÂMERA (COM DELAY)
+--  AIMBOT CÂMERA
 -- =====================================================
 local function atualizarAimbotCamera()
     if isControlActive then return end
@@ -947,6 +964,7 @@ end
 -- =====================================================
 --  ESP (REACH)
 -- =====================================================
+local espSphere = nil
 local function atualizarESP()
     if euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then
@@ -981,6 +999,7 @@ RunService.Heartbeat:Connect(function()
     aplicarHitboxPersonagem()
     aplicarForcaBola()
     aplicarCurvas()
+    aplicarDrible()
 end)
 
 -- =====================================================
@@ -1000,7 +1019,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 780),
+    Size = UDim2.fromOffset(500, 760),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -1226,40 +1245,28 @@ secCurvas:Slider({
 })
 
 -- =====================================================
---  NOVA SEÇÃO: DRIBLE
+--  NOVA CATEGORIA DRIBLE
 -- =====================================================
 local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
 secDrible:Toggle({
     Title = "Drible",
-    Desc = "Ativa/desativa a funcionalidade de drible",
+    Desc = "Ativa o sistema de drible (esfera rosa ao redor do personagem)",
     Callback = function(v)
         dribleEnabled = v
-    end
-})
-
-secDrible:Input({
-    Title = "Distância do Drible",
-    Desc = "Digite um número para a distância do drible",
-    Value = "3",
-    Placeholder = "Ex: 3",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val then
-            dribleDistancia = val
+        if v then
+            setupDrible()
+        else
+            if dribleSphere then
+                dribleSphere.Transparency = 1
+            end
         end
     end
 })
 
-secDrible:Button({
-    Title = "Driblar",
-    Desc = "Executa o drible com a distância atual (se ativo)",
-    Callback = function()
-        executarDrible()
-    end
-})
-
--- Extras: Stamina, Time, Gol
+-- =====================================================
+--  BOTÕES EXTRAS (Stamina, Time, Gol)
+-- =====================================================
 secExtras:Button({
     Title = "Infinite Stamina",
     Desc = "Stamina infinita",
@@ -1352,7 +1359,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Categoria Drible adicionada!",
+        Text = "Drible adicionado! (distância 50)",
         Duration = 4
     })
 end)
