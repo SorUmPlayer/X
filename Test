@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivels Hub – Corrigido (Drible, Linhas, Hitbox)
+    Blue Lock Rivels Hub – Todas as funções corrigidas
 ]]
 
 local Players = game:GetService("Players")
@@ -65,7 +65,6 @@ Workspace.ChildAdded:Connect(atualizarReferenciaBola)
 Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 
--- Recarregar referência periodicamente para evitar perda
 task.spawn(function()
     while true do
         task.wait(1)
@@ -76,7 +75,7 @@ task.spawn(function()
 end)
 
 -- =====================================================
---  GETBALL (PARA O BOTÃO DE CONTROLE)
+--  GETBALL
 -- =====================================================
 local function getBall()
     if bola and bolaValida then
@@ -107,7 +106,7 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME AUTOMÁTICO
+--  DETECÇÃO DE TIME
 -- =====================================================
 local function getMyTeam()
     local values = player:FindFirstChild("Values")
@@ -128,12 +127,8 @@ local aimbotCamera = false
 local reachAtivo = false
 local reachDistancia = 20
 local mostrarESP = false
-
--- Hitbox do Personagem
 local hitboxPersonagemAtivo = false
 local hitboxPersonagemTamanho = 5
-
--- Força da Bola
 local forcaBolaEnabled = false
 local forcaBolaVelocidade = 100
 local tinhaBola = false
@@ -162,7 +157,6 @@ local dribleEvent = nil
 --  INICIALIZAÇÃO DO DRIBLE
 -- =====================================================
 local function setupDrible()
-    -- Busca o RemoteEvent Dribble
     if not dribleEvent then
         pcall(function()
             local packages = ReplicatedStorage:FindFirstChild("Packages")
@@ -184,7 +178,6 @@ local function setupDrible()
         end)
     end
 
-    -- Cria a esfera visual se não existir
     if not dribleSphere then
         dribleSphere = Instance.new("Part")
         dribleSphere.Name = "DetectionSphereVisual"
@@ -200,7 +193,6 @@ local function setupDrible()
     end
 end
 
--- Rastreamento de animações para o Drible
 local function trackDribleAnimation(character)
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then return end
@@ -275,7 +267,6 @@ local function aplicarDrible()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Atualiza posição da esfera
     if dribleSphere then
         dribleSphere.Position = hrp.Position
         dribleSphere.Transparency = 0.6
@@ -285,14 +276,13 @@ local function aplicarDrible()
     local now = tick()
     if now - dribleLastFired < dribleCooldown then return end
 
-    local radius = dribleRadius
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local targetChar = plr.Character
             local targetHrp = targetChar:FindFirstChild("HumanoidRootPart")
             if targetHrp then
                 local dist = (targetHrp.Position - hrp.Position).Magnitude
-                if dist <= radius then
+                if dist <= dribleRadius then
                     if isLookingAtLocal(targetHrp, hrp) then
                         if isDribleAnimActive(targetChar) then
                             dribleLastFired = now
@@ -308,7 +298,6 @@ local function aplicarDrible()
     end
 end
 
--- Inicializa o rastreamento de jogadores para o Drible
 for _, plr in ipairs(Players:GetPlayers()) do
     setupDriblePlayerTracking(plr)
 end
@@ -320,13 +309,12 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 -- =====================================================
---  CONTROLE DA HITBOX DA BOLA (REACH)
+--  HITBOX DA BOLA (REACH)
 -- =====================================================
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
 local function aplicarTamanhoHitbox()
-    -- Recarrega referência se necessário
     if not hitbox or not bolaValida then
         atualizarReferenciaBola()
         if not hitbox then return end
@@ -351,7 +339,7 @@ local function aplicarTamanhoHitbox()
 end
 
 -- =====================================================
---  HITBOX DO PERSONAGEM (POR SOFTWARE)
+--  HITBOX DO PERSONAGEM
 -- =====================================================
 local function aplicarHitboxPersonagem()
     if not hitboxPersonagemAtivo then return end
@@ -501,13 +489,14 @@ local function removerBotaoCurvas()
 end
 
 -- =====================================================
---  CONTROLE BOLA – BOTÃO FLUTUANTE
+--  CONTROLE BOLA – CORRIGIDO
 -- =====================================================
 local velocidadeBola = 65
 local isControlActive = false
 local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
+local controlBlocked = false
 
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -515,7 +504,42 @@ local function resetCamera()
     end
 end
 
+local function pararControle()
+    if isControlActive then
+        if toggleButton then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            toggleButton.Text = "Control BALL [OFF]"
+        end
+        isControlActive = false
+        if controlConnection then
+            controlConnection:Disconnect()
+            controlConnection = nil
+        end
+        resetCamera()
+    end
+end
+
+local function loopControle()
+    if not isControlActive then return end
+    local ball = getBall()
+    if ball then
+        if not euTenhoBola() then
+            camera.CameraSubject = ball
+            local lookVector = camera.CFrame.LookVector
+            ball.AssemblyLinearVelocity = lookVector * velocidadeBola
+        else
+            pararControle()
+        end
+    else
+        pararControle()
+    end
+end
+
 local function toggleControl()
+    if controlBlocked then
+        return
+    end
+
     isControlActive = not isControlActive
     
     if isControlActive then
@@ -526,30 +550,27 @@ local function toggleControl()
         
         if controlConnection then controlConnection:Disconnect() end
         
-        controlConnection = RunService.Heartbeat:Connect(function()
-            local ball = getBall()
-            if ball then
-                camera.CameraSubject = ball
-                local lookVector = camera.CFrame.LookVector
-                ball.AssemblyLinearVelocity = lookVector * velocidadeBola
-            else
-                resetCamera()
-            end
-        end)
+        controlConnection = RunService.Heartbeat:Connect(loopControle)
     else
-        if toggleButton then
-            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            toggleButton.Text = "Control BALL [OFF]"
-        end
-        
-        if controlConnection then
-            controlConnection:Disconnect()
-            controlConnection = nil
-        end
-        
-        resetCamera()
+        pararControle()
     end
 end
+
+-- Monitora posse para bloquear após chute
+task.spawn(function()
+    local tinhaBola = false
+    while true do
+        task.wait(0.2)
+        local tenho = euTenhoBola()
+        if tinhaBola and not tenho then
+            controlBlocked = true
+            pararControle()
+            task.wait(1.5)
+            controlBlocked = false
+        end
+        tinhaBola = tenho
+    end
+end)
 
 local function criarBotaoFlutuante()
     if controlScreenGui then return end
@@ -659,7 +680,7 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  FUNÇÕES DA VISÃO DE JOGO (REESCRITAS)
+--  VISÃO DE JOGO
 -- =====================================================
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
@@ -868,7 +889,7 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
---  COMANDO DE CHAT: Força da bola
+--  COMANDO DE CHAT: FORÇA DA BOLA
 -- =====================================================
 local function onChatMessage(msg)
     local lower = msg:lower()
@@ -1034,10 +1055,7 @@ end
 --  LOOP PRINCIPAL
 -- =====================================================
 RunService.Heartbeat:Connect(function()
-    -- Aplica hitbox da bola (Reach)
     aplicarTamanhoHitbox()
-    
-    -- Demais funcionalidades
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     atualizarESP()
@@ -1285,9 +1303,7 @@ secCurvas:Slider({
     end
 })
 
--- =====================================================
---  NOVA CATEGORIA DRIBLE
--- =====================================================
+-- Seção Drible
 local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
 secDrible:Toggle({
@@ -1305,9 +1321,7 @@ secDrible:Toggle({
     end
 })
 
--- =====================================================
---  BOTÕES EXTRAS (Stamina, Time, Gol)
--- =====================================================
+-- Extras: Stamina, Time, Gol
 secExtras:Button({
     Title = "Infinite Stamina",
     Desc = "Stamina infinita",
@@ -1400,7 +1414,7 @@ secVb:Slider({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivels",
-        Text = "Todos os bugs corrigidos!",
+        Text = "Controle Bola corrigido!",
         Duration = 4
     })
 end)
