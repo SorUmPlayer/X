@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivals Hub – Aimbot, Visão, Drible, GK (corrigido)
+    Blue Lock Rivals Hub – Aimbot, Visão, Drible, GK (com teleporte)
 ]]
 
 local Players = game:GetService("Players")
@@ -513,7 +513,7 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 -- =====================================================
---  GK (GOLEIRO) – CORRIGIDO
+--  GK (GOLEIRO) – COM TELEPORTE FORÇADO
 -- =====================================================
 local gkEnabled = false
 local gkTeam = nil
@@ -524,7 +524,7 @@ local gkGrabRadius = 5
 local gkLastDive = 0
 local gkDiveCooldown = 1.0
 
--- Determinando time pela posição
+-- Determina o time pela posição
 local function determinarTime()
     local char = player.Character
     if not char then return nil end
@@ -532,10 +532,10 @@ local function determinarTime()
     if not hrp then return nil end
 
     local pos = hrp.Position
-    local distHome = (pos - Vector3.new(-234, 11, -49)).Magnitude
-    local distAway = (pos - Vector3.new(311, 11, -48)).Magnitude
+    local homePos = Vector3.new(-234, 11, -49)
+    local awayPos = Vector3.new(311, 11, -48)
 
-    if distHome < distAway then
+    if (pos - homePos).Magnitude < (pos - awayPos).Magnitude then
         return "Home"
     else
         return "Away"
@@ -553,7 +553,7 @@ local function getGKPosition()
     end
 end
 
--- Cria o círculo de detecção
+-- Cria círculo de detecção
 local function criarCirculoGK()
     if gkCircle then return end
     if not gkPosition then return end
@@ -568,7 +568,7 @@ local function criarCirculoGK()
     gkCircle.Anchored = true
     gkCircle.CanCollide = false
     gkCircle.Parent = workspace
-    print("Círculo GK criado na posição: " .. tostring(gkPosition))
+    print("Círculo GK criado!")
 end
 
 -- Remove o círculo
@@ -579,20 +579,13 @@ local function removerCirculoGK()
     end
 end
 
--- Função para mover o personagem do jogador para uma posição
-local function moverPersonagem(pos)
+-- Teleporta o personagem para uma posição
+local function teleportarPersonagem(pos)
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    local humanoid = char:FindFirstChild("Humanoid")
-    if humanoid then
-        -- Usa MoveTo para movimento suave
-        humanoid:MoveTo(pos)
-    else
-        -- Fallback: teleporte
-        hrp.CFrame = CFrame.new(pos)
-    end
+    hrp.CFrame = CFrame.new(pos)
 end
 
 -- Funções do goleiro
@@ -646,7 +639,7 @@ local function usarDive()
     end
 end
 
--- Verifica adversário com bola dentro da area AttemptGrabBox
+-- Adversário com bola na área AttemptGrabBox
 local function getAdversarioComBolaNaArea()
     local area = workspace:FindFirstChild("AttemptGrabBox")
     if not area or not area:IsA("BasePart") then return nil end
@@ -686,7 +679,7 @@ local function posicionarFrenteAdversario(adversario)
     if gkCircle then
         gkCircle.Position = novaPos
     end
-    moverPersonagem(novaPos)
+    teleportarPersonagem(novaPos)
     print("Posicionado na frente do adversário.")
 end
 
@@ -698,7 +691,8 @@ local function restaurarPosicaoGK()
         if gkCircle then
             gkCircle.Position = pos
         end
-        moverPersonagem(pos)
+        teleportarPersonagem(pos)
+        print("Voltou à posição fixa.")
     end
 end
 
@@ -706,7 +700,7 @@ end
 local function iniciarGK()
     gkTeam = determinarTime()
     if not gkTeam then
-        warn("Não foi possível determinar o time.")
+        warn("Não foi possível determinar o time. Fique perto do gol.")
         return
     end
 
@@ -716,10 +710,9 @@ local function iniciarGK()
         return
     end
 
-    print("Você é do Time: " .. gkTeam)
+    print("GK Ativado! Time: " .. gkTeam)
     criarCirculoGK()
-    -- Move o personagem para a posição inicial
-    moverPersonagem(gkPosition)
+    teleportarPersonagem(gkPosition)
     gkEnabled = true
 end
 
@@ -727,9 +720,10 @@ end
 local function desativarGK()
     gkEnabled = false
     removerCirculoGK()
+    print("GK Desativado.")
 end
 
--- Função principal atualizarGK (chamada a cada frame)
+-- Função principal atualizarGK
 local function atualizarGK()
     if not gkEnabled then return end
     if not gkPosition then return end
@@ -739,17 +733,15 @@ local function atualizarGK()
 
     local distBola = (ball.Position - gkPosition).Magnitude
 
-    -- Verifica se a bola está dentro do círculo
+    -- Dentro do círculo?
     if distBola <= gkRadius then
         local vel = ball.AssemblyLinearVelocity
         local speed = vel.Magnitude
 
         if speed < 2 then
-            -- Bola parada -> pegar e chutar longe
             pegarBola(ball)
             chutarLonge(ball)
         else
-            -- Prever se vem em direção ao gol
             local dirBola = vel.Unit
             local dirGol = (gkPosition - ball.Position).Unit
             local dot = dirBola:Dot(dirGol)
@@ -765,7 +757,7 @@ local function atualizarGK()
         end
     end
 
-    -- Adversário com bola na área
+    -- Adversário na área?
     local adv = getAdversarioComBolaNaArea()
     if adv then
         posicionarFrenteAdversario(adv)
@@ -775,7 +767,7 @@ local function atualizarGK()
 end
 
 -- =====================================================
---  BOTÃO VOADOR DA CÂMERA (OPCIONAL)
+--  BOTÃO VOADOR DA CÂMERA
 -- =====================================================
 local cameraButtonActive = false
 local cameraScreenGui = nil
@@ -848,7 +840,7 @@ RunService.Heartbeat:Connect(function()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
     aplicarDrible()
-    atualizarGK()   -- chama o GK aqui
+    atualizarGK()
 end)
 
 -- =====================================================
