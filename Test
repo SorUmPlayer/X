@@ -98,16 +98,15 @@ local aimbotBlockedUntil = 0
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
 local linhaVisao = nil
-local linhaChuteParts = {}   -- para a trajetória amarela
+local linhaChuteParts = {}
 local circuloChute = nil
 
 -- Drible
 local dribleEnabled = false
-local dribleModo = 1  -- 1 = Drible, 2 = Rasteira
 local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.3
-local dribleAnimId = "18668814876"  -- adaptar se necessário
+local dribleAnimId = "18668814876"
 local driblePlayingAnims = {}
 local dribleRadius = 25
 
@@ -418,7 +417,7 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
---  DRIBLE (BYTENETRELIABLE)
+--  DRIBLE (APENAS DRIBLE, SEM RASTEIRA)
 -- =====================================================
 local function dispararDrible()
     if not ByteNet then return end
@@ -428,16 +427,6 @@ local function dispararDrible()
         buffer.writeu8(buffer, i - 1, v)
     end
     ByteNet:FireServer(buffer, { {"dribble", false} })
-end
-
-local function dispararRasteira()
-    if not ByteNet then return end
-    local args = {24, 1}
-    local buffer = buffer.create(#args)
-    for i, v in ipairs(args) do
-        buffer.writeu8(buffer, i - 1, v)
-    end
-    ByteNet:FireServer(buffer, { {"tackle"} })
 end
 
 local function setupDrible()
@@ -551,11 +540,7 @@ local function aplicarDrible()
                     if isLookingAtLocal(targetHrp, hrp) then
                         if isDribleAnimActive(charModel) then
                             dribleLastFired = now
-                            if dribleModo == 1 then
-                                dispararDrible()
-                            else
-                                dispararRasteira()
-                            end
+                            dispararDrible()
                             break
                         end
                     end
@@ -665,7 +650,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "AzureHub",
-    Size = UDim2.fromOffset(500, 550),
+    Size = UDim2.fromOffset(500, 520),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -761,13 +746,13 @@ secVisao:Toggle({
 })
 
 -- =====================================================
---  SEÇÃO DRIBLE
+--  SEÇÃO DRIBLE (APENAS DRIBLE, SEM MODO)
 -- =====================================================
 local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
 secDrible:Toggle({
     Title = "Drible Ativo",
-    Desc = "Ativa o círculo rosa de detecção",
+    Desc = "Ativa o círculo rosa de detecção e executa drible",
     Callback = function(v)
         dribleEnabled = v
         if v then
@@ -780,19 +765,10 @@ secDrible:Toggle({
     end
 })
 
-secDrible:Dropdown({
-    Title = "Modo",
-    Desc = "Escolha entre Drible ou Rasteira",
-    Options = {"Drible", "Rasteira"},
-    Callback = function(opt)
-        dribleModo = (opt == "Drible") and 1 or 2
-    end
-})
-
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Hub enxuto e funcional!",
+        Text = "Drible apenas (modo removido)",
         Duration = 4
     })
 end)
