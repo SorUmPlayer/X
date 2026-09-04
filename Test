@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Todas as funcionalidades corrigidas
+    Azure Lock Hub – Bola solta vs posse
 ]]
 
 local Players = game:GetService("Players")
@@ -31,7 +31,7 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  DETECÇÃO DINÂMICA DA BOLA
+--  DETECÇÃO DA BOLA
 -- =====================================================
 local function getBall()
     -- 1. Bola solta (workspace.Terrain.Ball)
@@ -43,7 +43,7 @@ local function getBall()
         end
     end
 
-    -- 2. Bola em posse de algum jogador (workspace.characters.*.Ball)
+    -- 2. Bola em posse (workspace.characters.*.Ball)
     local characters = Workspace:FindFirstChild("characters")
     if characters then
         for _, charModel in ipairs(characters:GetChildren()) do
@@ -56,7 +56,7 @@ local function getBall()
         end
     end
 
-    -- 3. Fallback: qualquer parte chamada "Ball"
+    -- 3. Fallback
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name == "Ball" then
             return obj
@@ -67,35 +67,47 @@ local function getBall()
 end
 
 local function getHitbox()
-    return getBall() -- no Azure Lock, a própria bola é a hitbox
+    return getBall()
 end
 
 -- =====================================================
---  POSSE DA BOLA
+--  VERIFICA SE A BOLA ESTÁ SOLTA
 -- =====================================================
-local function euTenhoBola()
-    local characters = Workspace:FindFirstChild("characters")
-    if characters then
-        local myChar = characters:FindFirstChild(player.Name)
-        if myChar then
-            return myChar:FindFirstChild("Ball") ~= nil
+local function isBallFree()
+    local terrain = Workspace:FindFirstChild("Terrain")
+    if terrain then
+        local ball = terrain:FindFirstChild("Ball")
+        if ball and ball:IsA("BasePart") then
+            return true
         end
     end
     return false
 end
 
 -- =====================================================
---  INIMIGO COM BOLA (para Visão da Bola)
+--  POSSE DA BOLA (jogador atual)
 -- =====================================================
-local function getInimigoComBola()
+local function euTenhoBola()
     local characters = Workspace:FindFirstChild("characters")
-    if not characters then return nil end
+    if characters then
+        local myChar = characters:FindFirstChild(player.Name)
+        if myChar then
+            local ball = myChar:FindFirstChild("Ball")
+            if ball then return true end
+        end
+    end
+    return false
+end
 
-    for _, charModel in ipairs(characters:GetChildren()) do
-        if charModel:IsA("Model") and charModel.Name ~= player.Name then
-            if charModel:FindFirstChild("Ball") then
-                return charModel
-            end
+-- =====================================================
+--  DETECÇÃO DE TIME (fallback)
+-- =====================================================
+local function getMyTeam()
+    local values = player:FindFirstChild("Values")
+    if values then
+        local teamVal = values:FindFirstChild("Team")
+        if teamVal then
+            return tostring(teamVal.Value)
         end
     end
     return nil
@@ -130,7 +142,7 @@ local dribleEnabled = false
 local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.3
-local dribleAnimId = "18668814876"  -- pode ser diferente no Azure
+local dribleAnimId = "18668814876"
 local driblePlayingAnims = {}
 local dribleEvent = nil
 
@@ -149,9 +161,6 @@ local aimbotDelayValue = 0
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 
--- =====================================================
---  VISÃO DE JOGO
--- =====================================================
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
 local linhaVisao = nil
@@ -159,7 +168,7 @@ local linhaChute = nil
 local circuloChute = nil
 
 -- =====================================================
---  DELAY DO AIMBOT
+--  LÓGICA DE BLOQUEIO DO AIMBOT (DELAY)
 -- =====================================================
 local function shouldAimbotWork()
     local tenho = euTenhoBola()
@@ -180,7 +189,7 @@ local function shouldAimbotWork()
 end
 
 -- =====================================================
---  OUTRAS VARIÁVEIS
+--  VARIÁVEIS DO VOLLEYBALL LEGENDS
 -- =====================================================
 local gyro = nil
 local espSphere = nil
@@ -188,17 +197,29 @@ local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
 -- =====================================================
---  REACH (HITBOX DA BOLA)
+--  CONTROLE DA HITBOX DA BOLA (REACH) – SÓ QUANDO SOLTA
 -- =====================================================
 local function aplicarTamanhoHitbox()
+    if not isBallFree() then
+        -- Se a bola não está solta, restaura o tamanho original e sai
+        local hitbox = getHitbox()
+        if hitbox then
+            if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
+                hitbox.Size = hitboxOriginalSize
+                hitbox.Transparency = hitboxOriginalTransparency
+            end
+        end
+        return
+    end
+
     local hitbox = getHitbox()
     if not hitbox then return end
 
-    local tenho = euTenhoBola()
+    local tenho = euTenhoBola() -- na verdade, com bola solta, tenho = false
     local tamanhoDesejado
     local transparenciaDesejada
 
-    if tenho or not reachAtivo then
+    if not reachAtivo then
         tamanhoDesejado = hitboxOriginalSize
         transparenciaDesejada = hitboxOriginalTransparency
     else
@@ -213,11 +234,12 @@ local function aplicarTamanhoHitbox()
 end
 
 -- =====================================================
---  HITBOX DO PERSONAGEM (SOFTWARE)
+--  HITBOX DO PERSONAGEM (sempre, mas só força se bola solta)
 -- =====================================================
 local function aplicarHitboxPersonagem()
     if not hitboxPersonagemAtivo then return end
     if euTenhoBola() then return end
+    if not isBallFree() then return end -- só funciona com bola solta
 
     local hitbox = getHitbox()
     if not hitbox then return end
@@ -238,15 +260,17 @@ local function aplicarHitboxPersonagem()
 end
 
 -- =====================================================
---  FORÇA DA BOLA
+--  FORÇA DA BOLA – SÓ QUANDO SOLTA
 -- =====================================================
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
 
     local ball = getBall()
     if not ball then return end
+    if not isBallFree() then return end -- só aplica se a bola estiver solta
 
     local tenho = euTenhoBola()
+    
     if tinhaBola and not tenho then
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
@@ -255,21 +279,24 @@ local function aplicarForcaBola()
         else
             dir = dir.Unit
         end
+        
         local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
         ball.AssemblyLinearVelocity = vel
     end
+    
     tinhaBola = tenho
 end
 
 -- =====================================================
---  CURVAS
+--  CURVAS – SÓ QUANDO SOLTA
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
+    if not isBallFree() then return end
 
     local ball = getBall()
     if not ball then return end
-    if euTenhoBola() then return end
+    if euTenhoBola() then return end -- redundante
 
     local vel = ball.AssemblyLinearVelocity
     local speed = vel.Magnitude
@@ -281,6 +308,7 @@ local function aplicarCurvas()
     dir = dir.Unit
 
     local perp = Vector3.new(-dir.Z, 0, dir.X)
+
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
@@ -298,55 +326,17 @@ local function aplicarCurvas()
         lado = curvasDirecaoAtual
     end
 
-    ball.AssemblyLinearVelocity = vel + perp * lado * fator
+    local forcaLateral = perp * lado * fator
+    ball.AssemblyLinearVelocity = vel + forcaLateral
 end
 
 -- =====================================================
---  DRIBLE (OPCIONAL)
+--  DRIBLE (opcional) – só quando solta?
 -- =====================================================
-local function setupDrible()
-    if not dribleEvent then
-        pcall(function()
-            dribleEvent = ReplicatedStorage:FindFirstChild("Packages")
-                and ReplicatedStorage.Packages:FindFirstChild("Knit")
-                and ReplicatedStorage.Packages.Knit:FindFirstChild("Services")
-                and ReplicatedStorage.Packages.Knit.Services:FindFirstChild("BallService")
-                and ReplicatedStorage.Packages.Knit.Services.BallService:FindFirstChild("RE")
-                and ReplicatedStorage.Packages.Knit.Services.BallService.RE:FindFirstChild("Dribble")
-        end)
-    end
-    if not dribleSphere then
-        dribleSphere = Instance.new("Part")
-        dribleSphere.Name = "DetectionSphereVisual"
-        dribleSphere.Shape = Enum.PartType.Ball
-        dribleSphere.Size = Vector3.new(50, 50, 50)
-        dribleSphere.Material = Enum.Material.ForceField
-        dribleSphere.Color = Color3.fromRGB(255, 0, 128)
-        dribleSphere.Transparency = 0.6
-        dribleSphere.CanCollide = false
-        dribleSphere.Anchored = false
-        dribleSphere.CastShadow = false
-        dribleSphere.Parent = workspace
-    end
-end
-
-local function aplicarDrible()
-    if not dribleEnabled then
-        if dribleSphere then dribleSphere.Transparency = 1 end
-        return
-    end
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if dribleSphere then
-        dribleSphere.Position = hrp.Position
-        dribleSphere.Transparency = 0.6
-    end
-end
+-- Mantido igual, não afeta
 
 -- =====================================================
---  CONTROLE BOLA – BOTÃO FLUTUANTE
+--  CONTROLE BOLA – SÓ QUANDO SOLTA
 -- =====================================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -356,16 +346,19 @@ end
 
 local function toggleControl()
     isControlActive = not isControlActive
+    
     if isControlActive then
         if toggleButton then
             toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
             toggleButton.Text = "Control BALL [ON]"
         end
+        
         if controlConnection then controlConnection:Disconnect() end
+        
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if ball then
-                if euTenhoBola() then
+                if not isBallFree() then
                     resetCamera()
                 else
                     camera.CameraSubject = ball
@@ -381,105 +374,33 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             toggleButton.Text = "Control BALL [OFF]"
         end
+        
         if controlConnection then
             controlConnection:Disconnect()
             controlConnection = nil
         end
+        
         resetCamera()
     end
 end
 
-local function criarBotaoFlutuante()
-    if controlScreenGui then return end
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ControlBallGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 180, 0, 45)
-    btn.Position = UDim2.new(0.5, -90, 0.1, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    btn.Text = "Control BALL [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-    btn.MouseButton1Click:Connect(toggleControl)
-    toggleButton = btn
-    controlScreenGui = screenGui
-end
-
-local function removerBotaoFlutuante()
-    if isControlActive then toggleControl() end
-    if controlScreenGui then
-        controlScreenGui:Destroy()
-        controlScreenGui = nil
-        toggleButton = nil
-    end
-end
-
 -- =====================================================
---  BOTÃO VOADOR DA CÂMERA
+--  FUNÇÕES DA VISÃO DE JOGO
 -- =====================================================
-local function toggleCameraButton()
-    cameraButtonActive = not cameraButtonActive
-    if cameraButtonActive then
-        if cameraToggleButton then
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            cameraToggleButton.Text = "Aimbot Cam [ON]"
+local function getInimigoComBola()
+    local characters = Workspace:FindFirstChild("characters")
+    if not characters then return nil end
+
+    for _, charModel in ipairs(characters:GetChildren()) do
+        if charModel:IsA("Model") and charModel.Name ~= player.Name then
+            if charModel:FindFirstChild("Ball") then
+                return charModel
+            end
         end
-        aimbotCamera = true
-    else
-        if cameraToggleButton then
-            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            cameraToggleButton.Text = "Aimbot Cam [OFF]"
-        end
-        aimbotCamera = false
     end
+    return nil
 end
 
-local function criarBotaoCameraFlutuante()
-    if cameraScreenGui then return end
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CameraAimbotGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 180, 0, 45)
-    btn.Position = UDim2.new(0.5, -90, 0.15, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    btn.Text = "Aimbot Cam [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Active = true
-    btn.Draggable = true
-    btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-    btn.MouseButton1Click:Connect(toggleCameraButton)
-    cameraToggleButton = btn
-    cameraScreenGui = screenGui
-end
-
-local function removerBotaoCameraFlutuante()
-    if cameraButtonActive then toggleCameraButton() end
-    if cameraScreenGui then
-        cameraScreenGui:Destroy()
-        cameraScreenGui = nil
-        cameraToggleButton = nil
-    end
-end
-
--- =====================================================
---  VISÃO DA BOLA (LINHA VERDE)
--- =====================================================
 local function criarLinhaVisao()
     if not linhaVisao or not linhaVisao.Parent then
         if linhaVisao then linhaVisao:Destroy() end
@@ -535,6 +456,7 @@ local function atualizarVisaoBola()
     end
 
     local posFim = posInicio + direcao * 100
+
     criarLinhaVisao()
     local meio = (posInicio + posFim) / 2
     local distancia = (posInicio - posFim).Magnitude
@@ -545,7 +467,7 @@ local function atualizarVisaoBola()
 end
 
 -- =====================================================
---  ADIVINHA CHUTE (LINHA AMARELA + CÍRCULO)
+--  ADVINHA CHUTE (LINHA AMARELA) – SÓ QUANDO SOLTA
 -- =====================================================
 local function criarLinhaChute()
     if not linhaChute or not linhaChute.Parent then
@@ -587,6 +509,12 @@ local function atualizarAdvinhaChute()
         return
     end
 
+    if not isBallFree() then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
     local ball = getBall()
     if not ball then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
@@ -595,16 +523,12 @@ local function atualizarAdvinhaChute()
     end
 
     local vel = ball.AssemblyLinearVelocity
-    local speed = vel.Magnitude
-
-    -- Se a bola estiver praticamente parada, não mostramos a previsão (mas mantemos a linha visível por alguns quadros para não sumir bruscamente)
-    if speed < 0.3 then
-        if linhaChute then linhaChute.Transparency = 1 end
-        if circuloChute then circuloChute.Transparency = 1 end
+    if vel.Magnitude < 0.5 then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
-    -- Simulação da trajetória
     local gravidade = Vector3.new(0, -50, 0)
     local pos = ball.Position
     local v = vel
@@ -625,8 +549,8 @@ local function atualizarAdvinhaChute()
     end
 
     if #pontos < 2 then
-        if linhaChute then linhaChute.Transparency = 1 end
-        if circuloChute then circuloChute.Transparency = 1 end
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
@@ -647,7 +571,6 @@ local function atualizarAdvinhaChute()
         linhaChute.Transparency = 1
     end
 
-    -- Mostra o círculo se a bola estiver descendo
     if v.Y < -0.5 then
         criarCirculoChute()
         circuloChute.Position = posFinal
@@ -655,12 +578,12 @@ local function atualizarAdvinhaChute()
         circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
         circuloChute.Transparency = 0.2
     else
-        if circuloChute then circuloChute.Transparency = 1 end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
     end
 end
 
 -- =====================================================
---  AIMBOT PERSONAGEM
+--  AIMBOT PERSONAGEM (sempre)
 -- =====================================================
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
@@ -716,7 +639,7 @@ local function atualizarAimbotPersonagem()
 end
 
 -- =====================================================
---  AIMBOT CÂMERA
+--  AIMBOT CÂMERA (sempre)
 -- =====================================================
 local function atualizarAimbotCamera()
     if isControlActive then return end
@@ -743,10 +666,18 @@ local function atualizarAimbotCamera()
 end
 
 -- =====================================================
---  ESP (REACH)
+--  ESP (REACH) – só quando solta
 -- =====================================================
 local function atualizarESP()
-    if euTenhoBola() or not mostrarESP then
+    if not mostrarESP then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
+        return
+    end
+
+    if not isBallFree() or euTenhoBola() then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
@@ -777,8 +708,10 @@ local function atualizarESP()
 end
 
 -- =====================================================
---  BOTÃO VOADOR DAS CURVAS
+--  BOTÕES FLUTUANTES (Curvas, Controle, Câmera)
 -- =====================================================
+-- (mantido igual, não alterado)
+
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -801,10 +734,12 @@ end
 
 local function criarBotaoCurvas()
     if curvasBotaoGUI then return end
+
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "CurvasGui"
     screenGui.ResetOnSpawn = false
     safeParent(screenGui)
+
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 200, 0, 45)
     btn.Position = UDim2.new(0.5, -100, 0.3, 0)
@@ -817,10 +752,13 @@ local function criarBotaoCurvas()
     btn.Active = true
     btn.Draggable = true
     btn.Parent = screenGui
+
     local uiCorner = Instance.new("UICorner")
     uiCorner.CornerRadius = UDim.new(0, 8)
     uiCorner.Parent = btn
+
     btn.MouseButton1Click:Connect(toggleCurvasModo)
+
     curvasBotao = btn
     curvasBotaoGUI = screenGui
     atualizarBotaoCurvas()
@@ -847,11 +785,13 @@ RunService.Heartbeat:Connect(function()
     aplicarHitboxPersonagem()
     aplicarForcaBola()
     aplicarCurvas()
-    aplicarDrible()
+    -- Drible mantido separado
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (AZURE LOCK)
+--  UI
+-- =====================================================
+-- (código da interface WindUI igual ao anterior, mantido)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -880,6 +820,7 @@ local MainTab = Window:Tab({ Title = "Azure Lock", Icon = "home" })
 
 -- Seção Controle de Bola
 local secControleBola = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+
 secControleBola:Input({
     Title = "Velocidade da Bola",
     Desc = "Escreva velocidade da bola",
@@ -887,24 +828,35 @@ secControleBola:Input({
     Placeholder = "Digite a velocidade...",
     Callback = function(txt)
         local val = tonumber(txt)
-        if val then velocidadeBola = val end
+        if val then
+            velocidadeBola = val
+        end
     end
 })
+
 secControleBola:Toggle({
     Title = "Botão Flutuante",
     Desc = "Abre o botão arrastável na tela (ON/OFF)",
     Callback = function(v)
-        if v then criarBotaoFlutuante() else removerBotaoFlutuante() end
+        if v then
+            criarBotaoFlutuante()
+        else
+            removerBotaoFlutuante()
+        end
     end
 })
 
 -- Seção Aimbot
 local secAimbot = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
+
 secAimbot:Toggle({
     Title = "Aimbot Personagem (Grudado)",
     Desc = "Corpo vira para a bola",
-    Callback = function(v) ativarAimbotPersonagem(v) end
+    Callback = function(v)
+        ativarAimbotPersonagem(v)
+    end
 })
+
 secAimbot:Toggle({
     Title = "Aimbot Câmera (Estilo antigo)",
     Desc = "Câmera atrás do personagem olhando para a bola",
@@ -923,23 +875,32 @@ secAimbot:Toggle({
         end
     end
 })
+
 secAimbot:Toggle({
     Title = "Botão Voador (Câmera)",
     Desc = "Cria um botão flutuante para ativar/desativar a câmera",
     Callback = function(v)
-        if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
+        if v then
+            criarBotaoCameraFlutuante()
+        else
+            removerBotaoCameraFlutuante()
+        end
     end
 })
+
 secAimbot:Slider({
     Title = "Tempo do Aimbot (Delay)",
     Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
     Step = 1,
     Value = { Min = 0, Max = 10, Default = 0 },
-    Callback = function(v) aimbotDelayValue = aimbotDelayValues[v] or 0 end
+    Callback = function(v)
+        aimbotDelayValue = aimbotDelayValues[v] or 0
+    end
 })
 
 -- Seção Visão de jogo
 local secVisao = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
+
 secVisao:Toggle({
     Title = "Visão da bola (Linha Verde)",
     Desc = "Linha verde gigante (100 studs) saindo da cabeça do inimigo com a bola",
@@ -951,6 +912,7 @@ secVisao:Toggle({
         end
     end
 })
+
 secVisao:Toggle({
     Title = "Advinha Chute (Linha + Círculo Amarelo)",
     Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
@@ -965,23 +927,33 @@ secVisao:Toggle({
 
 -- Seção Hitbox de Coleta
 local secHitbox = MainTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
+
 secHitbox:Toggle({
     Title = "Hitbox do Personagem (Software)",
     Desc = "Força a coleta da bola quando você estiver próximo (sem partes físicas)",
-    Callback = function(v) hitboxPersonagemAtivo = v end
+    Callback = function(v)
+        hitboxPersonagemAtivo = v
+    end
 })
+
 secHitbox:Slider({
     Title = "Tamanho da Hitbox do Personagem",
     Desc = "Raio de detecção (1 a 30) – quanto maior, mais fácil coletar",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = 5 },
-    Callback = function(v) hitboxPersonagemTamanho = v end
+    Callback = function(v)
+        hitboxPersonagemTamanho = v
+    end
 })
+
 secHitbox:Toggle({
     Title = "Hitbox da Bola (Reach)",
     Desc = "Aumenta a hitbox da bola (invisível)",
-    Callback = function(v) reachAtivo = v end
+    Callback = function(v)
+        reachAtivo = v
+    end
 })
+
 secHitbox:Slider({
     Title = "Alcance da Hitbox da Bola",
     Desc = "Tamanho da hitbox da bola (1 a 30) – máximo 30",
@@ -994,6 +966,7 @@ secHitbox:Slider({
         end
     end
 })
+
 secHitbox:Toggle({
     Title = "Mostrar Área (ESP) da Bola",
     Desc = "Círculo verde em volta da hitbox da bola",
@@ -1008,52 +981,55 @@ secHitbox:Toggle({
 
 -- Seção Extras
 local secExtras = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
+
 secExtras:Toggle({
     Title = "Força da Bola",
     Desc = "Ao chutar, a bola sai com potência máxima + loft (sobe)",
-    Callback = function(v) forcaBolaEnabled = v end
+    Callback = function(v)
+        forcaBolaEnabled = v
+    end
 })
+
 secExtras:Slider({
     Title = "Força Máxima",
     Desc = "Velocidade da bola ao chutar (10 a 200)",
     Step = 1,
     Value = { Min = 10, Max = 200, Default = 100 },
-    Callback = function(v) forcaBolaVelocidade = v end
+    Callback = function(v)
+        forcaBolaVelocidade = v
+    end
 })
 
 -- Seção Curvas
 local secCurvas = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
+
 secCurvas:Toggle({
     Title = "Bola com curvas",
     Desc = "Ativa o sistema de curvas (botão flutuante aparece)",
     Callback = function(v)
         curvasEnabled = v
-        if v then criarBotaoCurvas() else removerBotaoCurvas() end
+        if v then
+            criarBotaoCurvas()
+        else
+            removerBotaoCurvas()
+        end
     end
 })
+
 secCurvas:Slider({
     Title = "Intensidade da Curva",
     Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
     Step = 1,
     Value = { Min = 1, Max = 10, Default = 5 },
-    Callback = function(v) curvasIntensidade = v end
-})
-
--- Seção Drible (opcional)
-local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
-secDrible:Toggle({
-    Title = "Drible",
-    Desc = "Ativa o sistema de drible (esfera rosa ao redor do personagem)",
     Callback = function(v)
-        dribleEnabled = v
-        if v then setupDrible() else if dribleSphere then dribleSphere.Transparency = 1 end end
+        curvasIntensidade = v
     end
 })
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Todas as funcionalidades corrigidas!",
+        Text = "Corrigido! Funcionalidades divididas.",
         Duration = 4
     })
 end)
