@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Cópia do Blue Lock Rivals (adaptado)
+    Azure Lock Hub – Detecção dinâmica da bola (recriação)
 ]]
 
 local Players = game:GetService("Players")
@@ -31,95 +31,50 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  DETECÇÃO DA BOLA (AZURE LOCK)
+--  DETECÇÃO DA BOLA (DINÂMICA)
 -- =====================================================
-local bola = nil
-local hitbox = nil
-local bolaValida = false
-
-local function atualizarReferenciaBola()
-    -- Procura bola solta (workspace.Terrain.Ball)
+local function getBall()
+    -- 1. Procura bola solta (workspace.Terrain.Ball)
     local terrain = Workspace:FindFirstChild("Terrain")
     if terrain then
         local ball = terrain:FindFirstChild("Ball")
-        if ball then
-            bola = ball
-            -- Se a bola for uma BasePart, usamos ela mesma como hitbox
-            if ball:IsA("BasePart") then
-                hitbox = ball
-                bolaValida = true
-                return
-            end
+        if ball and ball:IsA("BasePart") then
+            return ball
         end
     end
 
-    -- Procura bola em posse de algum jogador (workspace.characters.Nome.Ball)
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") and child.Name == "characters" then
-            for _, charModel in ipairs(child:GetChildren()) do
-                if charModel:IsA("Model") then
-                    local ball = charModel:FindFirstChild("Ball")
-                    if ball and ball:IsA("BasePart") then
-                        bola = ball
-                        hitbox = ball
-                        bolaValida = true
-                        return
-                    end
+    -- 2. Procura bola em posse de algum jogador (workspace.characters.*.Ball)
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        for _, charModel in ipairs(characters:GetChildren()) do
+            if charModel:IsA("Model") then
+                local ball = charModel:FindFirstChild("Ball")
+                if ball and ball:IsA("BasePart") then
+                    return ball
                 end
             end
         end
     end
 
-    -- Fallback: procura por qualquer parte com "Ball" no nome
+    -- 3. Fallback: procura por qualquer parte com "Ball" no nome
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name == "Ball" then
-            bola = obj
-            hitbox = obj
-            bolaValida = true
-            return
+            return obj
         end
     end
 
-    bola = nil
-    hitbox = nil
-    bolaValida = false
+    return nil
 end
 
-Workspace.ChildAdded:Connect(atualizarReferenciaBola)
-Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
-atualizarReferenciaBola()
-
--- Recarregar periodicamente
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if not bolaValida or not hitbox then
-            atualizarReferenciaBola()
-        end
-    end
-end)
-
--- =====================================================
---  GETBALL (PARA O BOTÃO DE CONTROLE)
--- =====================================================
-local function getBall()
-    if bola and bolaValida then
-        return bola
-    end
-    -- Fallback
-    local terrain = Workspace:FindFirstChild("Terrain")
-    if terrain then
-        local ball = terrain:FindFirstChild("Ball")
-        if ball then return ball end
-    end
-    return nil
+local function getHitbox()
+    -- No Azure Lock, a própria bola é a hitbox
+    return getBall()
 end
 
 -- =====================================================
 --  POSSE DA BOLA
 -- =====================================================
 local function euTenhoBola()
-    -- Verifica se existe workspace.characters.[player.Name].Ball
     local characters = Workspace:FindFirstChild("characters")
     if characters then
         local myChar = characters:FindFirstChild(player.Name)
@@ -132,10 +87,9 @@ local function euTenhoBola()
 end
 
 -- =====================================================
---  DETECÇÃO DE TIME AUTOMÁTICO (se houver)
+--  DETECÇÃO DE TIME (fallback)
 -- =====================================================
 local function getMyTeam()
-    -- No Azure Lock pode não ter time, fallback
     local values = player:FindFirstChild("Values")
     if values then
         local teamVal = values:FindFirstChild("Team")
@@ -174,12 +128,12 @@ local curvasTimer = 0
 local curvasIntervalo = 1.0
 local curvasDirecaoAtual = 1
 
--- Drible (opcional, mantido por compatibilidade)
+-- Drible (opcional)
 local dribleEnabled = false
 local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.3
-local dribleAnimId = "18668814876" -- pode não existir no Azure Lock, mas mantido
+local dribleAnimId = "18668814876"
 local driblePlayingAnims = {}
 local dribleEvent = nil
 
@@ -242,6 +196,7 @@ local hitboxOriginalTransparency = 0
 --  CONTROLE DA HITBOX DA BOLA (REACH)
 -- =====================================================
 local function aplicarTamanhoHitbox()
+    local hitbox = getHitbox()
     if not hitbox then return end
 
     local tenho = euTenhoBola()
@@ -268,7 +223,9 @@ end
 local function aplicarHitboxPersonagem()
     if not hitboxPersonagemAtivo then return end
     if euTenhoBola() then return end
-    if not hitbox or not bolaValida then return end
+
+    local hitbox = getHitbox()
+    if not hitbox then return end
 
     local char = player.Character
     if not char then return end
@@ -290,7 +247,9 @@ end
 -- =====================================================
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
-    if not bola or not bolaValida then return end
+
+    local ball = getBall()
+    if not ball then return end
 
     local tenho = euTenhoBola()
     
@@ -304,7 +263,7 @@ local function aplicarForcaBola()
         end
         
         local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
-        bola.AssemblyLinearVelocity = vel
+        ball.AssemblyLinearVelocity = vel
     end
     
     tinhaBola = tenho
@@ -315,13 +274,15 @@ end
 -- =====================================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
-    if not bola or not bolaValida then return end
+
+    local ball = getBall()
+    if not ball then return end
     if euTenhoBola() then return end
 
-    local vel = bola.AssemblyLinearVelocity
+    local vel = ball.AssemblyLinearVelocity
     local speed = vel.Magnitude
     if speed < 40 then return end
-    if bola.Position.Y < 0.5 then return end
+    if ball.Position.Y < 0.5 then return end
 
     local dir = Vector3.new(vel.X, 0, vel.Z)
     if dir.Magnitude < 0.01 then return end
@@ -347,7 +308,7 @@ local function aplicarCurvas()
     end
 
     local forcaLateral = perp * lado * fator
-    bola.AssemblyLinearVelocity = vel + forcaLateral
+    ball.AssemblyLinearVelocity = vel + forcaLateral
 end
 
 -- =====================================================
@@ -674,13 +635,14 @@ local function atualizarAdvinhaChute()
         return
     end
 
-    if not bola or not bolaValida then
+    local ball = getBall()
+    if not ball then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
-    local vel = bola.AssemblyLinearVelocity
+    local vel = ball.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
@@ -688,7 +650,7 @@ local function atualizarAdvinhaChute()
     end
 
     local gravidade = Vector3.new(0, -50, 0)
-    local pos = bola.Position
+    local pos = ball.Position
     local v = vel
     local dt = 0.02
     local maxPassos = 500
@@ -768,7 +730,8 @@ local function atualizarAimbotPersonagem()
         return
     end
 
-    if not hitbox or not bolaValida then
+    local hitbox = getHitbox()
+    if not hitbox then
         if gyro then
             gyro:Destroy()
             gyro = nil
@@ -806,7 +769,8 @@ local function atualizarAimbotCamera()
         return
     end
 
-    if not hitbox or not bolaValida then return end
+    local hitbox = getHitbox()
+    if not hitbox then return end
 
     local char = player.Character
     if not char then return end
@@ -825,7 +789,16 @@ end
 --  ESP (REACH)
 -- =====================================================
 local function atualizarESP()
-    if euTenhoBola() or not mostrarESP or not hitbox then
+    if euTenhoBola() or not mostrarESP then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
+        return
+    end
+
+    local hitbox = getHitbox()
+    if not hitbox then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
@@ -926,7 +899,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (NOVA ABA "Azure Lock")
+--  INTERFACE WINDUI (AZURE LOCK)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -938,7 +911,7 @@ if not loaded or not WindUI then
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "🌊 Azure Lock",
+    Title = "🌊 Azure LockV2",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "AzureHub",
@@ -1182,7 +1155,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Carregado com sucesso!",
+        Text = "Corrigido! Detecção dinâmica da bola.",
         Duration = 4
     })
 end)
