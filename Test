@@ -35,12 +35,14 @@ end
 --  DETECÇÃO DA BOLA (DINÂMICA)
 -- =====================================================
 local function getBall()
+    -- 1. Bola solta (workspace.Terrain.Ball)
     local terrain = Workspace:FindFirstChild("Terrain")
     if terrain then
         local ball = terrain:FindFirstChild("Ball")
         if ball and ball:IsA("BasePart") then return ball end
     end
 
+    -- 2. Bola em posse (workspace.characters.*.Ball)
     local characters = Workspace:FindFirstChild("characters")
     if characters then
         for _, charModel in ipairs(characters:GetChildren()) do
@@ -51,6 +53,7 @@ local function getBall()
         end
     end
 
+    -- 3. Fallback
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name == "Ball" then
             return obj
@@ -305,7 +308,8 @@ local function atualizarAdvinhaChute()
     end
 
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 0.5 then
+    -- Limiar reduzido para 0.1 – agora detecta até movimentos muito lentos
+    if vel.Magnitude < 0.1 then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
@@ -670,7 +674,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Linha amarela corrigida (única parte)!",
+        Text = "Linha amarela corrigida (limiar de velocidade reduzido)!",
         Duration = 4
     })
 end)
