@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Linha Amarela detecta bola em qualquer lugar
+    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – Linha Amarela corrigida
 ]]
 
 local Players = game:GetService("Players")
@@ -32,54 +32,40 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  DETECÇÃO DA BOLA (REFORÇADA)
+--  DETECÇÃO DA BOLA (DINÂMICA)
 -- =====================================================
-local bolaAtual = nil
+local function getBall()
+    -- 1. Bola solta (workspace.Terrain.Ball)
+    local terrain = Workspace:FindFirstChild("Terrain")
+    if terrain then
+        local ball = terrain:FindFirstChild("Ball")
+        if ball and ball:IsA("BasePart") then return ball end
+    end
 
-local function encontrarBola()
-    local candidates = {}
-    -- Procura todas as partes com nome "Ball" em todo o Workspace
+    -- 2. Bola em posse (workspace.characters.*.Ball)
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        for _, charModel in ipairs(characters:GetChildren()) do
+            if charModel:IsA("Model") then
+                local ball = charModel:FindFirstChild("Ball")
+                if ball and ball:IsA("BasePart") then return ball end
+            end
+        end
+    end
+
+    -- 3. Fallback
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name == "Ball" then
-            table.insert(candidates, obj)
+            return obj
         end
     end
-
-    if #candidates == 0 then return nil end
-
-    -- Prioriza a que tem maior velocidade (está em movimento)
-    local best = candidates[1]
-    local bestSpeed = best.AssemblyLinearVelocity and best.AssemblyLinearVelocity.Magnitude or 0
-    for i = 2, #candidates do
-        local speed = candidates[i].AssemblyLinearVelocity and candidates[i].AssemblyLinearVelocity.Magnitude or 0
-        if speed > bestSpeed then
-            best = candidates[i]
-            bestSpeed = speed
-        end
-    end
-    return best
-end
-
--- Atualiza a referência da bola a cada 0.2 segundos
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        bolaAtual = encontrarBola()
-    end
-end)
-
--- Função para obter a bola (sempre a mais atual)
-local function getBall()
-    return bolaAtual or encontrarBola()
+    return nil
 end
 
 local function getHitbox()
     return getBall()
 end
 
--- =====================================================
---  POSSE DA BOLA (apenas para o jogador local)
--- =====================================================
 local function euTenhoBola()
     local characters = Workspace:FindFirstChild("characters")
     if characters then
@@ -356,7 +342,7 @@ local function atualizarAdvinhaChute()
 
     local inicio = pontos[1]
     local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z)
+    fim = Vector3.new(fim.X, chaoY, fim.Z) -- força no chão
 
     local meio = (inicio + fim) / 2
     local distancia = (inicio - fim).Magnitude
@@ -687,7 +673,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Linha amarela agora detecta a bola em qualquer lugar!",
+        Text = "Linha amarela corrigida (bola em qualquer lugar)!",
         Duration = 4
     })
 end)
