@@ -36,7 +36,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 780),
+    Size = UDim2.fromOffset(500, 760),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -141,7 +141,6 @@ local tinhaBola = false
 local curvasEnabled = false
 local curvasModo = 1
 local curvasIntensidade = 5
-local curvasControle = false
 local curvasBotaoGUI = nil
 local curvasBotao = nil
 local curvasTimer = 0
@@ -340,7 +339,6 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
--- ===== CURVAS ATUALIZADAS COM MODO DE CONTROLE =====
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bola or not bolaValida then return end
@@ -348,30 +346,6 @@ local function aplicarCurvas()
 
     local vel = bola.AssemblyLinearVelocity
     local speed = vel.Magnitude
-
-    -- MODO DE CONTROLE: se ativado e velocidade < 40, puxa para onde o player olha
-    if curvasControle and speed < 40 then
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                -- Direção horizontal do olhar do player
-                local dir = camera.CFrame.LookVector
-                dir = Vector3.new(dir.X, 0, dir.Z)
-                if dir.Magnitude < 0.001 then
-                    dir = Vector3.new(1, 0, 0)
-                else
-                    dir = dir.Unit
-                end
-                -- Força suave para puxar a bola na direção do olhar
-                local forca = dir * 8
-                bola.AssemblyLinearVelocity = vel + forca
-            end
-        end
-        return
-    end
-
-    -- CURVAS NORMAIS (speed >= 40)
     if speed < 40 then return end
     if bola.Position.Y < 0.5 then return end
 
@@ -1315,13 +1289,6 @@ CurvasSec:Toggle({
         end
     end
 })
-CurvasSec:Toggle({
-    Title = "Modo de Controle",
-    Desc = "Ao desacelerar, a bola vai para onde você olha",
-    Callback = function(v)
-        curvasControle = v
-    end
-})
 CurvasSec:Slider({
     Title = "Intensidade da Curva",
     Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
@@ -1892,7 +1859,7 @@ DribleAzureSec:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "SorHub Esport",
-        Text = "Modo de Controle nas Curvas ativado!",
+        Text = "Carregado com sucesso!",
         Duration = 4
     })
 end)
