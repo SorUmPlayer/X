@@ -1,6 +1,5 @@
 --[[
-    🍊 SorHub Universal Esport
-    Abas: Blue Lock Rivels | Volleyball Legends | Azure Lock
+    🍊 SorHub Esport – Atualizado: Modo de Controle nas Curvas
 ]]
 
 local Players = game:GetService("Players")
@@ -12,9 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- =====================================================
---  FUNÇÃO SEGURA DE PARENT
--- =====================================================
 local function safeParent(gui)
     local ok = pcall(function()
         if gethui then
@@ -31,14 +27,10 @@ local function safeParent(gui)
     end
 end
 
--- =====================================================
---  CARREGAR WINDUI
--- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
-
 if not loaded or not WindUI then
     WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 end
@@ -57,15 +49,9 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
--- =====================================================
---  ABA BLUE LOCK RIVELS (completa)
--- =====================================================
-
+-- ===== BLUE LOCK =====
 local BlueLockTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
 
--- =====================================================
---  REFERÊNCIAS DA BOLA (BLUE LOCK)
--- =====================================================
 local bola = nil
 local hitbox = nil
 local bolaValida = false
@@ -143,9 +129,6 @@ local function getMyTeam()
     return nil
 end
 
--- =====================================================
---  VARIÁVEIS BLUE LOCK
--- =====================================================
 local aimbotPersonagem = false
 local aimbotCamera = false
 local reachAtivo = false
@@ -168,7 +151,9 @@ local curvasTimer = 0
 local curvasIntervalo = 1.0
 local curvasDirecaoAtual = 1
 
--- Drible Blue Lock – raio aumentado para 70
+-- NOVO: Modo de Controle nas Curvas
+local controleCurvasAtivo = false
+
 local dribleEnabled = false
 local dribleSphere = nil
 local dribleLastFired = 0
@@ -209,9 +194,6 @@ local vbHitboxEnabled = false
 local vbHitboxSize = 15
 local vbOriginalProps = {}
 
--- =====================================================
---  FUNÇÕES VOLLEYBALL LEGENDS
--- =====================================================
 local function restoreVbOriginals()
     for part, props in pairs(vbOriginalProps) do
         if part and part.Parent then
@@ -287,9 +269,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- =====================================================
---  FUNÇÕES BLUE LOCK
--- =====================================================
 local function shouldAimbotWork()
     local tenho = euTenhoBola()
     if tenho then
@@ -367,6 +346,7 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
+-- ===== CURVAS ATUALIZADAS =====
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bola or not bolaValida then return end
@@ -377,30 +357,65 @@ local function aplicarCurvas()
     if speed < 40 then return end
     if bola.Position.Y < 0.5 then return end
 
-    local dir = Vector3.new(vel.X, 0, vel.Z)
-    if dir.Magnitude < 0.01 then return end
-    dir = dir.Unit
+    local dirAtual = Vector3.new(vel.X, 0, vel.Z)
+    if dirAtual.Magnitude < 0.01 then return end
+    dirAtual = dirAtual.Unit
 
-    local perp = Vector3.new(-dir.Z, 0, dir.X)
+    local perp = Vector3.new(-dirAtual.Z, 0, dirAtual.X)
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
-    if curvasModo == 1 then
-        lado = 1
-    elseif curvasModo == 2 then
-        lado = -1
-    elseif curvasModo == 3 then
-        local now = tick()
-        if now - curvasTimer > curvasIntervalo then
-            curvasTimer = now
-            curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
-            curvasIntervalo = 0.5 + math.random() * 0.5
+    -- Verifica se o modo de controle está ativo e a velocidade >= 50
+    if controleCurvasAtivo and speed >= 50 then
+        -- Direção da câmera (horizontal)
+        local camDir = camera.CFrame.LookVector
+        camDir = Vector3.new(camDir.X, 0, camDir.Z)
+        if camDir.Magnitude < 0.001 then
+            camDir = Vector3.new(1, 0, 0)
+        else
+            camDir = camDir.Unit
         end
-        lado = curvasDirecaoAtual
-    end
 
-    local forcaLateral = perp * lado * fator
-    bola.AssemblyLinearVelocity = vel + forcaLateral
+        -- Determina se a bola deve curvar para a esquerda ou direita em direção à câmera
+        -- Calcula o ângulo entre a direção atual e a direção da câmera
+        local cross = dirAtual.X * camDir.Z - dirAtual.Z * camDir.X
+        local dot = dirAtual.X * camDir.X + dirAtual.Z * camDir.Z
+        local angle = math.atan2(cross, dot)
+
+        -- Se o ângulo for positivo, curva para a esquerda; se negativo, para a direita
+        if angle > 0.05 then
+            lado = -1  -- vira para a esquerda (em relação à direção atual)
+        elseif angle < -0.05 then
+            lado = 1   -- vira para a direita
+        else
+            lado = 0   -- já está alinhado, não curva
+        end
+
+        -- Aplica a força lateral com intensidade proporcional ao ângulo (mas limitada)
+        if lado ~= 0 then
+            local forcaControle = math.min(math.abs(angle) * 3, fator) -- intensidade adaptativa
+            local forcaLateral = perp * lado * forcaControle
+            bola.AssemblyLinearVelocity = vel + forcaLateral
+        end
+    else
+        -- Modo normal (direita/esquerda/aleatório)
+        if curvasModo == 1 then
+            lado = 1
+        elseif curvasModo == 2 then
+            lado = -1
+        elseif curvasModo == 3 then
+            local now = tick()
+            if now - curvasTimer > curvasIntervalo then
+                curvasTimer = now
+                curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
+                curvasIntervalo = 0.5 + math.random() * 0.5
+            end
+            lado = curvasDirecaoAtual
+        end
+
+        local forcaLateral = perp * lado * fator
+        bola.AssemblyLinearVelocity = vel + forcaLateral
+    end
 end
 
 local function setupDrible()
@@ -556,9 +571,6 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
--- =====================================================
---  BOTÕES FLUTUANTES BLUE LOCK
--- =====================================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
@@ -691,9 +703,6 @@ local function removerBotaoCameraFlutuante()
     end
 end
 
--- =====================================================
---  VISÃO DE JOGO BLUE LOCK (LINHA VERDE CORRIGIDA)
--- =====================================================
 local function getInimigoComBola()
     local myTeam = getMyTeam()
     if not myTeam then return nil end
@@ -727,7 +736,7 @@ local function criarLinhaVisao()
         linhaVisao.Transparency = 0.1
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(1.0, 1.0, 100)  -- mais grossa
+        linhaVisao.Size = Vector3.new(1.0, 1.0, 100)
         linhaVisao.Parent = workspace
     end
     return linhaVisao
@@ -751,7 +760,6 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Prioriza a cabeça
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local origem = head or hrp
@@ -760,13 +768,11 @@ local function atualizarVisaoBola()
         return
     end
 
-    -- Posição de início: centro da cabeça (ou torso + offset)
     local posInicio = origem.Position
     if origem == hrp then
         posInicio = posInicio + Vector3.new(0, 1.5, 0)
     end
 
-    -- Direção horizontal (ignora inclinação vertical)
     local direcao = Vector3.new(1, 0, 0)
     if head then
         direcao = head.CFrame.LookVector
@@ -780,7 +786,6 @@ local function atualizarVisaoBola()
         direcao = direcao.Unit
     end
 
-    -- Comprimento fixo (100 studs)
     local posFim = posInicio + direcao * 100
 
     criarLinhaVisao()
@@ -898,9 +903,6 @@ local function atualizarAdvinhaChute()
     end
 end
 
--- =====================================================
---  COMANDO DE CHAT (Força da bola)
--- =====================================================
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -930,9 +932,6 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
--- =====================================================
---  AIMBOT BLUE LOCK
--- =====================================================
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     if not estado and gyro then
@@ -1008,9 +1007,6 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
 
--- =====================================================
---  ESP (REACH)
--- =====================================================
 local function atualizarESP()
     if euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then
@@ -1033,9 +1029,6 @@ local function atualizarESP()
     espSphere.Scale = Vector3.new(scale, scale, scale)
 end
 
--- =====================================================
---  BOTÃO VOADOR CURVAS
--- =====================================================
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -1092,9 +1085,6 @@ local function removerBotaoCurvas()
     end
 end
 
--- =====================================================
---  LOOP PRINCIPAL BLUE LOCK
--- =====================================================
 RunService.Heartbeat:Connect(function()
     aplicarTamanhoHitbox()
     atualizarAimbotPersonagem()
@@ -1108,14 +1098,11 @@ RunService.Heartbeat:Connect(function()
     aplicarDrible()
 end)
 
--- =====================================================
---  UI BLUE LOCK
--- =====================================================
+-- UI Blue Lock
 local BlueLockSec = BlueLockTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
-
 BlueLockSec:Input({
     Title = "Velocidade da Bola",
-    Desc = "Escreva velocidade da bola",
+    Desc = "Força com que a bola é empurrada no controle",
     Value = "65",
     Placeholder = "Digite a velocidade...",
     Callback = function(txt)
@@ -1125,10 +1112,9 @@ BlueLockSec:Input({
         end
     end
 })
-
 BlueLockSec:Toggle({
     Title = "Botão Flutuante",
-    Desc = "Abre o botão arrastável na tela (ON/OFF)",
+    Desc = "Cria um botão arrastável para controlar a bola",
     Callback = function(v)
         if v then
             criarBotaoFlutuante()
@@ -1139,17 +1125,15 @@ BlueLockSec:Toggle({
 })
 
 local AimbotSec = BlueLockTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-
 AimbotSec:Toggle({
-    Title = "Aimbot Personagem (Grudado)",
+    Title = "Aimbot Personagem",
     Desc = "Corpo vira para a bola",
     Callback = function(v)
         ativarAimbotPersonagem(v)
     end
 })
-
 AimbotSec:Toggle({
-    Title = "Aimbot Câmera (Estilo antigo)",
+    Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
     Callback = function(v)
         aimbotCamera = v
@@ -1166,10 +1150,9 @@ AimbotSec:Toggle({
         end
     end
 })
-
 AimbotSec:Toggle({
     Title = "Botão Voador (Câmera)",
-    Desc = "Cria um botão flutuante para ativar/desativar a câmera",
+    Desc = "Botão flutuante para ligar/desligar a câmera",
     Callback = function(v)
         if v then
             criarBotaoCameraFlutuante()
@@ -1178,10 +1161,9 @@ AimbotSec:Toggle({
         end
     end
 })
-
 AimbotSec:Slider({
-    Title = "Tempo do Aimbot (Delay)",
-    Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
+    Title = "Tempo do Aimbot",
+    Desc = "Atraso após perder a bola (0-5s)",
     Step = 1,
     Value = { Min = 0, Max = 10, Default = 0 },
     Callback = function(v)
@@ -1190,10 +1172,9 @@ AimbotSec:Slider({
 })
 
 local VisaoSec = BlueLockTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
-
 VisaoSec:Toggle({
-    Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde grossa saindo da cabeça do inimigo com a bola (100 studs)",
+    Title = "Visão da bola",
+    Desc = "Linha verde saindo da cabeça do inimigo com a bola",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -1202,10 +1183,9 @@ VisaoSec:Toggle({
         end
     end
 })
-
 VisaoSec:Toggle({
-    Title = "Advinha Chute (Linha + Círculo Amarelo)",
-    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
+    Title = "Advinha Chute",
+    Desc = "Mostra a trajetória da bola e o ponto de queda",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
@@ -1216,36 +1196,32 @@ VisaoSec:Toggle({
 })
 
 local HitboxSec = BlueLockTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
-
 HitboxSec:Toggle({
-    Title = "Hitbox do Personagem (Software)",
-    Desc = "Força a coleta da bola quando você estiver próximo (sem partes físicas)",
+    Title = "Hitbox do Personagem",
+    Desc = "Força a coleta da bola quando estiver próximo",
     Callback = function(v)
         hitboxPersonagemAtivo = v
     end
 })
-
 HitboxSec:Slider({
-    Title = "Tamanho da Hitbox do Personagem",
-    Desc = "Raio de detecção (1 a 30)",
+    Title = "Tamanho da Hitbox",
+    Desc = "Raio de detecção (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = 5 },
     Callback = function(v)
         hitboxPersonagemTamanho = v
     end
 })
-
 HitboxSec:Toggle({
-    Title = "Hitbox da Bola (Reach)",
+    Title = "Hitbox da Bola",
     Desc = "Aumenta a hitbox da bola (invisível)",
     Callback = function(v)
         reachAtivo = v
     end
 })
-
 HitboxSec:Slider({
-    Title = "Alcance da Hitbox da Bola",
-    Desc = "Tamanho da hitbox da bola (1 a 30)",
+    Title = "Alcance da Bola",
+    Desc = "Tamanho da hitbox da bola (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = 20 },
     Callback = function(v)
@@ -1255,10 +1231,9 @@ HitboxSec:Slider({
         end
     end
 })
-
 HitboxSec:Toggle({
-    Title = "Mostrar Área (ESP) da Bola",
-    Desc = "Círculo verde em volta da hitbox da bola",
+    Title = "Mostrar Área ESP",
+    Desc = "Círculo verde ao redor da hitbox da bola",
     Callback = function(v)
         mostrarESP = v
         if not v and espSphere then
@@ -1269,70 +1244,25 @@ HitboxSec:Toggle({
 })
 
 local ExtrasSec = BlueLockTab:Section({ Title = "Extras", TextXAlignment = "Left" })
-
 ExtrasSec:Toggle({
     Title = "Força da Bola",
-    Desc = "Ao chutar, a bola sai com potência máxima + loft (sobe)",
+    Desc = "Chute sempre com potência máxima",
     Callback = function(v)
         forcaBolaEnabled = v
     end
 })
-
 ExtrasSec:Slider({
     Title = "Força Máxima",
-    Desc = "Velocidade da bola ao chutar (10 a 200)",
+    Desc = "Velocidade do chute (10-200)",
     Step = 1,
     Value = { Min = 10, Max = 200, Default = 100 },
     Callback = function(v)
         forcaBolaVelocidade = v
     end
 })
-
-local CurvasSec = BlueLockTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
-
-CurvasSec:Toggle({
-    Title = "Bola com curvas",
-    Desc = "Ativa o sistema de curvas (botão flutuante aparece)",
-    Callback = function(v)
-        curvasEnabled = v
-        if v then
-            criarBotaoCurvas()
-        else
-            removerBotaoCurvas()
-        end
-    end
-})
-
-CurvasSec:Slider({
-    Title = "Intensidade da Curva",
-    Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
-    Step = 1,
-    Value = { Min = 1, Max = 10, Default = 5 },
-    Callback = function(v)
-        curvasIntensidade = v
-    end
-})
-
-local DribleSec = BlueLockTab:Section({ Title = "Drible", TextXAlignment = "Left" })
-
-DribleSec:Toggle({
-    Title = "Drible (Raio 70)",
-    Desc = "Ativa o sistema de drible (esfera rosa ao redor do personagem)",
-    Callback = function(v)
-        dribleEnabled = v
-        if v then
-            setupDrible()
-        else
-            if dribleSphere then
-                dribleSphere.Transparency = 1
-            end
-        end
-    end
-})
-
 ExtrasSec:Button({
-    Title = "Infinite Stamina",
-    Desc = "Stamina infinita",
+    Title = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
     Callback = function()
         task.spawn(function()
             while true do
@@ -1344,19 +1274,17 @@ ExtrasSec:Button({
         end)
     end
 })
-
 ExtrasSec:Dropdown({
-    Title = "Time (para fazer gol)",
-    Desc = "Selecione seu time para o gol",
+    Title = "Time",
+    Desc = "Selecione para fazer gol",
     Options = {"Home", "Away"},
     Callback = function(opt)
         selectedTeam = opt
     end
 })
-
 ExtrasSec:Button({
     Title = "Fazer Gol",
-    Desc = "Marca um gol",
+    Desc = "Marca um gol automaticamente",
     Callback = function()
         if not selectedTeam then return end
         local char = player.Character
@@ -1391,16 +1319,61 @@ ExtrasSec:Button({
     end
 })
 
--- =====================================================
---  ABA VOLLEYBALL LEGENDS
--- =====================================================
+local CurvasSec = BlueLockTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
+CurvasSec:Toggle({
+    Title = "Bola com curvas",
+    Desc = "Ativa curvas na bola (botão flutuante aparece)",
+    Callback = function(v)
+        curvasEnabled = v
+        if v then
+            criarBotaoCurvas()
+        else
+            removerBotaoCurvas()
+        end
+    end
+})
+
+-- NOVO TOGGLE: Modo de Controle
+CurvasSec:Toggle({
+    Title = "Modo de Controle",
+    Desc = "Ao atingir velocidade 50, a bola curva em direção à sua câmera",
+    Callback = function(v)
+        controleCurvasAtivo = v
+    end
+})
+
+CurvasSec:Slider({
+    Title = "Intensidade da Curva",
+    Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
+    Step = 1,
+    Value = { Min = 1, Max = 10, Default = 5 },
+    Callback = function(v)
+        curvasIntensidade = v
+    end
+})
+
+local DribleSec = BlueLockTab:Section({ Title = "Drible", TextXAlignment = "Left" })
+DribleSec:Toggle({
+    Title = "Drible",
+    Desc = "Círculo rosa de detecção (raio 70)",
+    Callback = function(v)
+        dribleEnabled = v
+        if v then
+            setupDrible()
+        else
+            if dribleSphere then
+                dribleSphere.Transparency = 1
+            end
+        end
+    end
+})
+
+-- Volleyball Legends
 local VbTab = Window:Tab({ Title = "Volleyball Legends", Icon = "trophy" })
-
 local VbSec = VbTab:Section({ Title = "Volleyball Legends", TextXAlignment = "Left" })
-
 VbSec:Toggle({
     Title = "Hitbox",
-    Desc = "Ativa/Desativa Hitbox na bola (CLIENT_BALL_...)",
+    Desc = "Aumenta a hitbox da bola (CLIENT_BALL_)",
     Callback = function(v)
         vbHitboxEnabled = v
         if not v then
@@ -1408,10 +1381,9 @@ VbSec:Toggle({
         end
     end
 })
-
 VbSec:Slider({
-    Title = "Tamanho Hitbox",
-    Desc = "Ajusta o tamanho de 1 a 50",
+    Title = "Tamanho",
+    Desc = "Tamanho da hitbox (1-50)",
     Step = 1,
     Value = { Min = 1, Max = 50, Default = 15 },
     Callback = function(v)
@@ -1419,604 +1391,528 @@ VbSec:Slider({
     end
 })
 
--- =====================================================
---  ABA AZURE LOCK (com raio de drible = 70)
--- =====================================================
+-- Azure Lock
+local AzureTab = Window:Tab({ Title = "Azure Lock", Icon = "lock" })
+local ByteNet = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 
-do
-    local AzureTab = Window:Tab({ Title = "Azure Lock", Icon = "lock" })
-
-    local ByteNet = ReplicatedStorage:FindFirstChild("ByteNetReliable")
-
-    -- DETECÇÃO DA BOLA
-    local function getBallAzure()
-        local terrain = Workspace:FindFirstChild("Terrain")
-        if terrain then
-            local ball = terrain:FindFirstChild("Ball")
-            if ball and ball:IsA("BasePart") then return ball end
-        end
-
-        local characters = Workspace:FindFirstChild("characters")
-        if characters then
-            for _, charModel in ipairs(characters:GetChildren()) do
-                if charModel:IsA("Model") then
-                    local ball = charModel:FindFirstChild("Ball")
-                    if ball and ball:IsA("BasePart") then return ball end
-                end
-            end
-        end
-
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name == "Ball" then
-                return obj
-            end
-        end
-        return nil
+local function getBallAzure()
+    local terrain = Workspace:FindFirstChild("Terrain")
+    if terrain then
+        local ball = terrain:FindFirstChild("Ball")
+        if ball and ball:IsA("BasePart") then return ball end
     end
-
-    local function getHitboxAzure()
-        return getBallAzure()
-    end
-
-    local function euTenhoBolaAzure()
-        local characters = Workspace:FindFirstChild("characters")
-        if characters then
-            local myChar = characters:FindFirstChild(player.Name)
-            if myChar then
-                return myChar:FindFirstChild("Ball") ~= nil
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        for _, charModel in ipairs(characters:GetChildren()) do
+            if charModel:IsA("Model") then
+                local ball = charModel:FindFirstChild("Ball")
+                if ball and ball:IsA("BasePart") then return ball end
             end
         end
+    end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Ball" then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function getHitboxAzure()
+    return getBallAzure()
+end
+
+local function euTenhoBolaAzure()
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        local myChar = characters:FindFirstChild(player.Name)
+        if myChar then
+            return myChar:FindFirstChild("Ball") ~= nil
+        end
+    end
+    return false
+end
+
+local aimbotPersonagemAzure = false
+local aimbotCameraAzure = false
+local aimbotDelayValueAzure = 0
+local aimbotBlockedAzure = false
+local aimbotBlockedUntilAzure = 0
+local visaoBolaEnabledAzure = false
+local advinhaChuteEnabledAzure = false
+local linhaVisaoAzure = nil
+local linhaChuteAzure = nil
+local circuloChuteAzure = nil
+
+local dribleEnabledAzure = false
+local dribleSphereAzure = nil
+local dribleLastFiredAzure = 0
+local dribleCooldownAzure = 0.2
+local dribleRadiusAzure = 70
+
+local cameraButtonActiveAzure = false
+local cameraScreenGuiAzure = nil
+local cameraToggleButtonAzure = nil
+local gyroAzure = nil
+
+local function shouldAimbotWorkAzure()
+    local tenho = euTenhoBolaAzure()
+    if tenho then
+        aimbotBlockedAzure = true
+        aimbotBlockedUntilAzure = tick() + aimbotDelayValueAzure
         return false
     end
-
-    -- VARIÁVEIS AZURE
-    local aimbotPersonagemAzure = false
-    local aimbotCameraAzure = false
-
-    local aimbotDelayValuesAzure = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-    local aimbotDelayValueAzure = 0
-    local aimbotBlockedAzure = false
-    local aimbotBlockedUntilAzure = 0
-
-    local visaoBolaEnabledAzure = false
-    local advinhaChuteEnabledAzure = false
-    local linhaVisaoAzure = nil
-    local linhaChuteAzure = nil
-    local circuloChuteAzure = nil
-
-    -- Drible Azure com raio 70
-    local dribleEnabledAzure = false
-    local dribleSphereAzure = nil
-    local dribleLastFiredAzure = 0
-    local dribleCooldownAzure = 0.2
-    local dribleRadiusAzure = 70
-
-    local cameraButtonActiveAzure = false
-    local cameraScreenGuiAzure = nil
-    local cameraToggleButtonAzure = nil
-    local gyroAzure = nil
-
-    -- LÓGICA DE BLOQUEIO
-    local function shouldAimbotWorkAzure()
-        local tenho = euTenhoBolaAzure()
-        if tenho then
-            aimbotBlockedAzure = true
-            aimbotBlockedUntilAzure = tick() + aimbotDelayValueAzure
+    if aimbotBlockedAzure then
+        if tick() >= aimbotBlockedUntilAzure then
+            aimbotBlockedAzure = false
+            return true
+        else
             return false
         end
-        if aimbotBlockedAzure then
-            if tick() >= aimbotBlockedUntilAzure then
-                aimbotBlockedAzure = false
-                return true
-            else
-                return false
-            end
-        end
-        return true
     end
+    return true
+end
 
-    -- AIMBOT PERSONAGEM
-    local function ativarAimbotPersonagemAzure(estado)
-        aimbotPersonagemAzure = estado
-        if not estado and gyroAzure then
+local function ativarAimbotPersonagemAzure(estado)
+    aimbotPersonagemAzure = estado
+    if not estado and gyroAzure then
+        gyroAzure:Destroy()
+        gyroAzure = nil
+    end
+end
+
+local function atualizarAimbotPersonagemAzure()
+    if not aimbotPersonagemAzure then
+        if gyroAzure then
             gyroAzure:Destroy()
             gyroAzure = nil
         end
+        return
     end
-
-    local function atualizarAimbotPersonagemAzure()
-        if not aimbotPersonagemAzure then
-            if gyroAzure then
-                gyroAzure:Destroy()
-                gyroAzure = nil
-            end
-            return
+    if not shouldAimbotWorkAzure() then
+        if gyroAzure then
+            gyroAzure:Destroy()
+            gyroAzure = nil
         end
-
-        if not shouldAimbotWorkAzure() then
-            if gyroAzure then
-                gyroAzure:Destroy()
-                gyroAzure = nil
-            end
-            return
-        end
-
-        local hitbox = getHitboxAzure()
-        if not hitbox then
-            if gyroAzure then
-                gyroAzure:Destroy()
-                gyroAzure = nil
-            end
-            return
-        end
-
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        if not gyroAzure then
-            gyroAzure = Instance.new("BodyGyro")
-            gyroAzure.Parent = hrp
-            gyroAzure.D = 1000
-            gyroAzure.P = 10000
-            gyroAzure.MaxTorque = Vector3.new(8000, 8000, 8000)
-        end
-
-        local posBola = hitbox.Position
-        local posJogador = hrp.Position
-        local direcao = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-        gyroAzure.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
+        return
     end
-
-    -- AIMBOT CÂMERA
-    local function atualizarAimbotCameraAzure()
-        if not aimbotCameraAzure then return end
-        if not shouldAimbotWorkAzure() then return end
-
-        local hitbox = getHitboxAzure()
-        if not hitbox then return end
-
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        local posBola = hitbox.Position
-        local posJogador = hrp.Position
-        local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-
-        local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
-        camera.CFrame = CFrame.new(camPos, hrp.Position)
+    local hitbox = getHitboxAzure()
+    if not hitbox then
+        if gyroAzure then
+            gyroAzure:Destroy()
+            gyroAzure = nil
+        end
+        return
     end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    if not gyroAzure then
+        gyroAzure = Instance.new("BodyGyro")
+        gyroAzure.Parent = hrp
+        gyroAzure.D = 1000
+        gyroAzure.P = 10000
+        gyroAzure.MaxTorque = Vector3.new(8000, 8000, 8000)
+    end
+    local posBola = hitbox.Position
+    local posJogador = hrp.Position
+    local direcao = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    gyroAzure.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
+end
 
-    -- VISÃO DA BOLA (LINHA VERDE) - igual à do Blue Lock
-    local function getInimigoComBolaAzure()
-        local characters = Workspace:FindFirstChild("characters")
-        if not characters then return nil end
+local function atualizarAimbotCameraAzure()
+    if not aimbotCameraAzure then return end
+    if not shouldAimbotWorkAzure() then return end
+    local hitbox = getHitboxAzure()
+    if not hitbox then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local posBola = hitbox.Position
+    local posJogador = hrp.Position
+    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
+    camera.CFrame = CFrame.new(camPos, hrp.Position)
+end
 
-        for _, charModel in ipairs(characters:GetChildren()) do
-            if charModel:IsA("Model") and charModel.Name ~= player.Name then
-                if charModel:FindFirstChild("Ball") then
-                    return charModel
-                end
+local function getInimigoComBolaAzure()
+    local characters = Workspace:FindFirstChild("characters")
+    if not characters then return nil end
+    for _, charModel in ipairs(characters:GetChildren()) do
+        if charModel:IsA("Model") and charModel.Name ~= player.Name then
+            if charModel:FindFirstChild("Ball") then
+                return charModel
             end
         end
-        return nil
     end
+    return nil
+end
 
-    local function criarLinhaVisaoAzure()
-        if not linhaVisaoAzure or not linhaVisaoAzure.Parent then
-            if linhaVisaoAzure then linhaVisaoAzure:Destroy() end
-            linhaVisaoAzure = Instance.new("Part")
-            linhaVisaoAzure.Name = "LinhaVisao"
-            linhaVisaoAzure.Anchored = true
-            linhaVisaoAzure.CanCollide = false
-            linhaVisaoAzure.Transparency = 0.1
-            linhaVisaoAzure.Color = Color3.fromRGB(0, 255, 0)
-            linhaVisaoAzure.Material = Enum.Material.Neon
-            linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, 100)
-            linhaVisaoAzure.Parent = workspace
-        end
-        return linhaVisaoAzure
-    end
-
-    local function atualizarVisaoBolaAzure()
-        if not visaoBolaEnabledAzure then
-            if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
-            return
-        end
-
-        local inimigo = getInimigoComBolaAzure()
-        if not inimigo then
-            if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
-            return
-        end
-
-        local head = inimigo:FindFirstChild("Head")
-        local hrp = inimigo:FindFirstChild("HumanoidRootPart")
-        local origem = head or hrp or inimigo.PrimaryPart
-        if not origem then
-            if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
-            return
-        end
-
-        local posInicio = origem.Position
-        if origem == hrp then
-            posInicio = posInicio + Vector3.new(0, 1.5, 0)
-        end
-
-        local direcao = Vector3.new(1, 0, 0)
-        if head then
-            direcao = head.CFrame.LookVector
-        elseif hrp then
-            direcao = hrp.CFrame.LookVector
-        end
-        direcao = Vector3.new(direcao.X, 0, direcao.Z)
-        if direcao.Magnitude < 0.001 then
-            direcao = Vector3.new(1, 0, 0)
-        else
-            direcao = direcao.Unit
-        end
-
-        local posFim = posInicio + direcao * 100
-
-        criarLinhaVisaoAzure()
-        local meio = (posInicio + posFim) / 2
-        local distancia = (posInicio - posFim).Magnitude
-        if distancia < 0.1 then distancia = 0.1 end
-        linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, distancia)
-        linhaVisaoAzure.CFrame = CFrame.lookAt(meio, posFim)
+local function criarLinhaVisaoAzure()
+    if not linhaVisaoAzure or not linhaVisaoAzure.Parent then
+        if linhaVisaoAzure then linhaVisaoAzure:Destroy() end
+        linhaVisaoAzure = Instance.new("Part")
+        linhaVisaoAzure.Name = "LinhaVisao"
+        linhaVisaoAzure.Anchored = true
+        linhaVisaoAzure.CanCollide = false
         linhaVisaoAzure.Transparency = 0.1
+        linhaVisaoAzure.Color = Color3.fromRGB(0, 255, 0)
+        linhaVisaoAzure.Material = Enum.Material.Neon
+        linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, 100)
+        linhaVisaoAzure.Parent = workspace
     end
+    return linhaVisaoAzure
+end
 
-    -- ADVINHA CHUTE (LINHA AMARELA)
-    local function atualizarAdvinhaChuteAzure()
-        if not advinhaChuteEnabledAzure then
-            if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
-            if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
-            return
-        end
+local function atualizarVisaoBolaAzure()
+    if not visaoBolaEnabledAzure then
+        if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
+        return
+    end
+    local inimigo = getInimigoComBolaAzure()
+    if not inimigo then
+        if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
+        return
+    end
+    local head = inimigo:FindFirstChild("Head")
+    local hrp = inimigo:FindFirstChild("HumanoidRootPart")
+    local origem = head or hrp or inimigo.PrimaryPart
+    if not origem then
+        if linhaVisaoAzure then linhaVisaoAzure:Destroy() linhaVisaoAzure = nil end
+        return
+    end
+    local posInicio = origem.Position
+    if origem == hrp then
+        posInicio = posInicio + Vector3.new(0, 1.5, 0)
+    end
+    local direcao = Vector3.new(1, 0, 0)
+    if head then
+        direcao = head.CFrame.LookVector
+    elseif hrp then
+        direcao = hrp.CFrame.LookVector
+    end
+    direcao = Vector3.new(direcao.X, 0, direcao.Z)
+    if direcao.Magnitude < 0.001 then
+        direcao = Vector3.new(1, 0, 0)
+    else
+        direcao = direcao.Unit
+    end
+    local posFim = posInicio + direcao * 100
+    criarLinhaVisaoAzure()
+    local meio = (posInicio + posFim) / 2
+    local distancia = (posInicio - posFim).Magnitude
+    if distancia < 0.1 then distancia = 0.1 end
+    linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, distancia)
+    linhaVisaoAzure.CFrame = CFrame.lookAt(meio, posFim)
+    linhaVisaoAzure.Transparency = 0.1
+end
 
-        local ball = getBallAzure()
-        if not ball then
-            if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
-            if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
-            return
-        end
-
-        local vel = ball.AssemblyLinearVelocity
-        local speed = vel.Magnitude
-
-        if speed < 0.5 then
-            if linhaChuteAzure then
-                linhaChuteAzure.Transparency = 1
-            end
-            if circuloChuteAzure then
-                circuloChuteAzure.Transparency = 1
-            end
-            return
-        end
-
-        local gravidade = Vector3.new(0, -55, 0)
-        local pos = ball.Position
-        local v = vel
-        local dt = 0.03
-        local maxPassos = 120
-        local chaoY = 0
-
-        local pontos = {}
+local function atualizarAdvinhaChuteAzure()
+    if not advinhaChuteEnabledAzure then
+        if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
+        if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
+        return
+    end
+    local ball = getBallAzure()
+    if not ball then
+        if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
+        if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
+        return
+    end
+    local vel = ball.AssemblyLinearVelocity
+    local speed = vel.Magnitude
+    if speed < 0.5 then
+        if linhaChuteAzure then linhaChuteAzure.Transparency = 1 end
+        if circuloChuteAzure then circuloChuteAzure.Transparency = 1 end
+        return
+    end
+    local gravidade = Vector3.new(0, -55, 0)
+    local pos = ball.Position
+    local v = vel
+    local dt = 0.03
+    local maxPassos = 120
+    local chaoY = 0
+    local pontos = {}
+    table.insert(pontos, pos)
+    for i = 1, maxPassos do
+        v = v + gravidade * dt
+        pos = pos + v * dt
         table.insert(pontos, pos)
-
-        for i = 1, maxPassos do
-            v = v + gravidade * dt
-            pos = pos + v * dt
-            table.insert(pontos, pos)
-            if pos.Y <= chaoY then
-                break
-            end
+        if pos.Y <= chaoY then
+            break
         end
-
-        if #pontos < 2 then
-            if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
-            if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
-            return
-        end
-
-        local inicio = pontos[1]
-        local fim = pontos[#pontos]
-        fim = Vector3.new(fim.X, chaoY, fim.Z)
-
-        local meio = (inicio + fim) / 2
-        local distancia = (inicio - fim).Magnitude
-
-        if not linhaChuteAzure then
-            linhaChuteAzure = Instance.new("Part")
-            linhaChuteAzure.Name = "LinhaChute"
-            linhaChuteAzure.Anchored = true
-            linhaChuteAzure.CanCollide = false
-            linhaChuteAzure.Transparency = 0.2
-            linhaChuteAzure.Color = Color3.fromRGB(255, 255, 0)
-            linhaChuteAzure.Material = Enum.Material.Neon
-            linhaChuteAzure.Parent = workspace
-        end
-
-        local tamanho = math.max(distancia, 1)
-        linhaChuteAzure.Size = Vector3.new(0.5, 0.5, tamanho)
-        linhaChuteAzure.CFrame = CFrame.lookAt(meio, fim)
+    end
+    if #pontos < 2 then
+        if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
+        if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
+        return
+    end
+    local inicio = pontos[1]
+    local fim = pontos[#pontos]
+    fim = Vector3.new(fim.X, chaoY, fim.Z)
+    local meio = (inicio + fim) / 2
+    local distancia = (inicio - fim).Magnitude
+    if not linhaChuteAzure then
+        linhaChuteAzure = Instance.new("Part")
+        linhaChuteAzure.Name = "LinhaChute"
+        linhaChuteAzure.Anchored = true
+        linhaChuteAzure.CanCollide = false
         linhaChuteAzure.Transparency = 0.2
-
-        if v.Y < -0.5 then
-            if not circuloChuteAzure then
-                circuloChuteAzure = Instance.new("Part")
-                circuloChuteAzure.Name = "CirculoChute"
-                circuloChuteAzure.Anchored = true
-                circuloChuteAzure.CanCollide = false
-                circuloChuteAzure.Transparency = 0.2
-                circuloChuteAzure.Color = Color3.fromRGB(255, 255, 0)
-                circuloChuteAzure.Material = Enum.Material.Neon
-                circuloChuteAzure.Shape = Enum.PartType.Cylinder
-                circuloChuteAzure.Size = Vector3.new(4, 0.1, 4)
-                circuloChuteAzure.Parent = workspace
-            end
-            circuloChuteAzure.Position = fim
-            local tamanhoCirculo = math.clamp(speed / 8, 3, 8)
-            circuloChuteAzure.Size = Vector3.new(tamanhoCirculo, 0.1, tamanhoCirculo)
+        linhaChuteAzure.Color = Color3.fromRGB(255, 255, 0)
+        linhaChuteAzure.Material = Enum.Material.Neon
+        linhaChuteAzure.Parent = workspace
+    end
+    local tamanho = math.max(distancia, 1)
+    linhaChuteAzure.Size = Vector3.new(0.5, 0.5, tamanho)
+    linhaChuteAzure.CFrame = CFrame.lookAt(meio, fim)
+    linhaChuteAzure.Transparency = 0.2
+    if v.Y < -0.5 then
+        if not circuloChuteAzure then
+            circuloChuteAzure = Instance.new("Part")
+            circuloChuteAzure.Name = "CirculoChute"
+            circuloChuteAzure.Anchored = true
+            circuloChuteAzure.CanCollide = false
             circuloChuteAzure.Transparency = 0.2
-        else
-            if circuloChuteAzure then
-                circuloChuteAzure.Transparency = 1
-            end
+            circuloChuteAzure.Color = Color3.fromRGB(255, 255, 0)
+            circuloChuteAzure.Material = Enum.Material.Neon
+            circuloChuteAzure.Shape = Enum.PartType.Cylinder
+            circuloChuteAzure.Size = Vector3.new(4, 0.1, 4)
+            circuloChuteAzure.Parent = workspace
         end
+        circuloChuteAzure.Position = fim
+        local tamanhoCirculo = math.clamp(speed / 8, 3, 8)
+        circuloChuteAzure.Size = Vector3.new(tamanhoCirculo, 0.1, tamanhoCirculo)
+        circuloChuteAzure.Transparency = 0.2
+    else
+        if circuloChuteAzure then circuloChuteAzure.Transparency = 1 end
     end
+end
 
-    -- DRIBLE (BYTENET)
-    local function dispararDrible()
-        if not ByteNet then return end
-        local args = {24, 1}
-        local buffer = buffer.create(#args)
-        for i, v in ipairs(args) do
-            buffer.writeu8(buffer, i - 1, v)
-        end
-        ByteNet:FireServer(buffer, { {"dribble", false} })
+local function dispararDrible()
+    if not ByteNet then return end
+    local args = {24, 1}
+    local buffer = buffer.create(#args)
+    for i, v in ipairs(args) do
+        buffer.writeu8(buffer, i - 1, v)
     end
+    ByteNet:FireServer(buffer, { {"dribble", false} })
+end
 
-    local function setupDribleAzure()
-        if not dribleSphereAzure then
-            dribleSphereAzure = Instance.new("Part")
-            dribleSphereAzure.Name = "DetectionSphereVisual"
-            dribleSphereAzure.Shape = Enum.PartType.Ball
-            dribleSphereAzure.Size = Vector3.new(dribleRadiusAzure * 2, dribleRadiusAzure * 2, dribleRadiusAzure * 2)
-            dribleSphereAzure.Material = Enum.Material.ForceField
-            dribleSphereAzure.Color = Color3.fromRGB(255, 0, 128)
-            dribleSphereAzure.Transparency = 0.6
-            dribleSphereAzure.CanCollide = false
-            dribleSphereAzure.Anchored = false
-            dribleSphereAzure.CastShadow = false
-            dribleSphereAzure.Parent = workspace
-        end
+local function setupDribleAzure()
+    if not dribleSphereAzure then
+        dribleSphereAzure = Instance.new("Part")
+        dribleSphereAzure.Name = "DetectionSphereVisual"
+        dribleSphereAzure.Shape = Enum.PartType.Ball
+        dribleSphereAzure.Size = Vector3.new(dribleRadiusAzure * 2, dribleRadiusAzure * 2, dribleRadiusAzure * 2)
+        dribleSphereAzure.Material = Enum.Material.ForceField
+        dribleSphereAzure.Color = Color3.fromRGB(255, 0, 128)
+        dribleSphereAzure.Transparency = 0.6
+        dribleSphereAzure.CanCollide = false
+        dribleSphereAzure.Anchored = false
+        dribleSphereAzure.CastShadow = false
+        dribleSphereAzure.Parent = workspace
     end
+end
 
-    local function isLookingAtLocalAzure(targetHrp, localHrp)
-        local directionToLocal = (localHrp.Position - targetHrp.Position).Unit
-        local lookVector = targetHrp.CFrame.LookVector
-        return lookVector:Dot(directionToLocal) >= 0.5
-    end
+local function isLookingAtLocalAzure(targetHrp, localHrp)
+    local directionToLocal = (localHrp.Position - targetHrp.Position).Unit
+    local lookVector = targetHrp.CFrame.LookVector
+    return lookVector:Dot(directionToLocal) >= 0.5
+end
 
-    local function aplicarDribleAzure()
-        if not dribleEnabledAzure then
-            if dribleSphereAzure then
-                dribleSphereAzure.Transparency = 1
-            end
-            return
-        end
-
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
+local function aplicarDribleAzure()
+    if not dribleEnabledAzure then
         if dribleSphereAzure then
-            dribleSphereAzure.Position = hrp.Position
-            dribleSphereAzure.Transparency = 0.6
-            dribleSphereAzure.Parent = workspace
+            dribleSphereAzure.Transparency = 1
         end
-
-        local now = tick()
-        if now - dribleLastFiredAzure < dribleCooldownAzure then return end
-
-        local characters = Workspace:FindFirstChild("characters")
-        if not characters then return end
-
-        for _, charModel in ipairs(characters:GetChildren()) do
-            if charModel:IsA("Model") and charModel ~= char then
-                local targetHrp = charModel:FindFirstChild("HumanoidRootPart")
-                if targetHrp then
-                    local dist = (targetHrp.Position - hrp.Position).Magnitude
-                    if dist <= dribleRadiusAzure then
-                        if isLookingAtLocalAzure(targetHrp, hrp) then
-                            dribleLastFiredAzure = now
-                            dispararDrible()
-                            break
-                        end
+        return
+    end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    if dribleSphereAzure then
+        dribleSphereAzure.Position = hrp.Position
+        dribleSphereAzure.Transparency = 0.6
+        dribleSphereAzure.Parent = workspace
+    end
+    local now = tick()
+    if now - dribleLastFiredAzure < dribleCooldownAzure then return end
+    local characters = Workspace:FindFirstChild("characters")
+    if not characters then return end
+    for _, charModel in ipairs(characters:GetChildren()) do
+        if charModel:IsA("Model") and charModel ~= char then
+            local targetHrp = charModel:FindFirstChild("HumanoidRootPart")
+            if targetHrp then
+                local dist = (targetHrp.Position - hrp.Position).Magnitude
+                if dist <= dribleRadiusAzure then
+                    if isLookingAtLocalAzure(targetHrp, hrp) then
+                        dribleLastFiredAzure = now
+                        dispararDrible()
+                        break
                     end
                 end
             end
         end
     end
+end
 
-    -- BOTÃO VOADOR DA CÂMERA
-    local function toggleCameraButtonAzure()
-        cameraButtonActiveAzure = not cameraButtonActiveAzure
-        if cameraButtonActiveAzure then
-            if cameraToggleButtonAzure then
+local function toggleCameraButtonAzure()
+    cameraButtonActiveAzure = not cameraButtonActiveAzure
+    if cameraButtonActiveAzure then
+        if cameraToggleButtonAzure then
+            cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            cameraToggleButtonAzure.Text = "Aimbot Cam [ON]"
+        end
+        aimbotCameraAzure = true
+    else
+        if cameraToggleButtonAzure then
+            cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            cameraToggleButtonAzure.Text = "Aimbot Cam [OFF]"
+        end
+        aimbotCameraAzure = false
+    end
+end
+
+local function criarBotaoCameraFlutuanteAzure()
+    if cameraScreenGuiAzure then return end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CameraAimbotGuiAzure"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.15, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Aimbot Cam [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCameraButtonAzure)
+    cameraToggleButtonAzure = btn
+    cameraScreenGuiAzure = screenGui
+end
+
+local function removerBotaoCameraFlutuanteAzure()
+    if cameraButtonActiveAzure then
+        toggleCameraButtonAzure()
+    end
+    if cameraScreenGuiAzure then
+        cameraScreenGuiAzure:Destroy()
+        cameraScreenGuiAzure = nil
+        cameraToggleButtonAzure = nil
+    end
+end
+
+RunService.Heartbeat:Connect(function()
+    atualizarAimbotPersonagemAzure()
+    atualizarAimbotCameraAzure()
+    atualizarVisaoBolaAzure()
+    atualizarAdvinhaChuteAzure()
+    aplicarDribleAzure()
+end)
+
+-- UI Azure
+local AimbotAzureSec = AzureTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
+AimbotAzureSec:Toggle({
+    Title = "Aimbot Personagem",
+    Desc = "Corpo vira para a bola",
+    Callback = function(v)
+        ativarAimbotPersonagemAzure(v)
+    end
+})
+AimbotAzureSec:Toggle({
+    Title = "Aimbot Câmera",
+    Desc = "Câmera atrás do personagem olhando para a bola",
+    Callback = function(v)
+        aimbotCameraAzure = v
+        if cameraToggleButtonAzure then
+            if v then
                 cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
                 cameraToggleButtonAzure.Text = "Aimbot Cam [ON]"
-            end
-            aimbotCameraAzure = true
-        else
-            if cameraToggleButtonAzure then
+                cameraButtonActiveAzure = true
+            else
                 cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
                 cameraToggleButtonAzure.Text = "Aimbot Cam [OFF]"
+                cameraButtonActiveAzure = false
             end
-            aimbotCameraAzure = false
         end
     end
-
-    local function criarBotaoCameraFlutuanteAzure()
-        if cameraScreenGuiAzure then return end
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CameraAimbotGuiAzure"
-        screenGui.ResetOnSpawn = false
-        safeParent(screenGui)
-
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 180, 0, 45)
-        btn.Position = UDim2.new(0.5, -90, 0.15, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        btn.Text = "Aimbot Cam [OFF]"
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 16
-        btn.Active = true
-        btn.Draggable = true
-        btn.Parent = screenGui
-        local uiCorner = Instance.new("UICorner")
-        uiCorner.CornerRadius = UDim.new(0, 8)
-        uiCorner.Parent = btn
-        btn.MouseButton1Click:Connect(toggleCameraButtonAzure)
-        cameraToggleButtonAzure = btn
-        cameraScreenGuiAzure = screenGui
-    end
-
-    local function removerBotaoCameraFlutuanteAzure()
-        if cameraButtonActiveAzure then
-            toggleCameraButtonAzure()
-        end
-        if cameraScreenGuiAzure then
-            cameraScreenGuiAzure:Destroy()
-            cameraScreenGuiAzure = nil
-            cameraToggleButtonAzure = nil
+})
+AimbotAzureSec:Toggle({
+    Title = "Botão Voador (Câmera)",
+    Desc = "Botão flutuante para ligar/desligar a câmera",
+    Callback = function(v)
+        if v then
+            criarBotaoCameraFlutuanteAzure()
+        else
+            removerBotaoCameraFlutuanteAzure()
         end
     end
+})
+AimbotAzureSec:Slider({
+    Title = "Tempo do Aimbot",
+    Desc = "Atraso após perder a bola (0-5s)",
+    Step = 1,
+    Value = { Min = 0, Max = 10, Default = 0 },
+    Callback = function(v)
+        aimbotDelayValueAzure = aimbotDelayValues[v] or 0
+    end
+})
 
-    -- LOOP PRINCIPAL AZURE
-    RunService.Heartbeat:Connect(function()
-        atualizarAimbotPersonagemAzure()
-        atualizarAimbotCameraAzure()
-        atualizarVisaoBolaAzure()
-        atualizarAdvinhaChuteAzure()
-        aplicarDribleAzure()
-    end)
-
-    -- UI AZURE
-    local AimbotAzureSec = AzureTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-
-    AimbotAzureSec:Toggle({
-        Title = "Aimbot Personagem (Grudado)",
-        Desc = "Corpo vira para a bola",
-        Callback = function(v)
-            ativarAimbotPersonagemAzure(v)
+local VisaoAzureSec = AzureTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
+VisaoAzureSec:Toggle({
+    Title = "Visão da bola",
+    Desc = "Linha verde saindo da cabeça do inimigo com a bola",
+    Callback = function(v)
+        visaoBolaEnabledAzure = v
+        if not v and linhaVisaoAzure then
+            linhaVisaoAzure:Destroy()
+            linhaVisaoAzure = nil
         end
-    })
+    end
+})
+VisaoAzureSec:Toggle({
+    Title = "Advinha Chute",
+    Desc = "Mostra a trajetória da bola e o ponto de queda",
+    Callback = function(v)
+        advinhaChuteEnabledAzure = v
+        if not v then
+            if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
+            if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
+        end
+    end
+})
 
-    AimbotAzureSec:Toggle({
-        Title = "Aimbot Câmera (Estilo antigo)",
-        Desc = "Câmera atrás do personagem olhando para a bola",
-        Callback = function(v)
-            aimbotCameraAzure = v
-            if cameraToggleButtonAzure then
-                if v then
-                    cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-                    cameraToggleButtonAzure.Text = "Aimbot Cam [ON]"
-                    cameraButtonActiveAzure = true
-                else
-                    cameraToggleButtonAzure.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-                    cameraToggleButtonAzure.Text = "Aimbot Cam [OFF]"
-                    cameraButtonActiveAzure = false
-                end
+local DribleAzureSec = AzureTab:Section({ Title = "Drible", TextXAlignment = "Left" })
+DribleAzureSec:Toggle({
+    Title = "Drible",
+    Desc = "Círculo rosa de detecção (raio 70)",
+    Callback = function(v)
+        dribleEnabledAzure = v
+        if v then
+            setupDribleAzure()
+        else
+            if dribleSphereAzure then
+                dribleSphereAzure.Transparency = 1
             end
         end
-    })
-
-    AimbotAzureSec:Toggle({
-        Title = "Botão Voador (Câmera)",
-        Desc = "Cria um botão flutuante para ativar/desativar a câmera",
-        Callback = function(v)
-            if v then
-                criarBotaoCameraFlutuanteAzure()
-            else
-                removerBotaoCameraFlutuanteAzure()
-            end
-        end
-    })
-
-    AimbotAzureSec:Slider({
-        Title = "Tempo do Aimbot (Delay)",
-        Desc = "0=0s | 1=0.1s | 2=0.2s | 3=0.25s | 4=0.40s | 5=0.60s | 6=0.70s | 7=1s | 8=2s | 9=3s | 10=5s",
-        Step = 1,
-        Value = { Min = 0, Max = 10, Default = 0 },
-        Callback = function(v)
-            aimbotDelayValueAzure = aimbotDelayValuesAzure[v] or 0
-        end
-    })
-
-    local VisaoAzureSec = AzureTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
-
-    VisaoAzureSec:Toggle({
-        Title = "Visão da bola (Linha Verde)",
-        Desc = "Linha verde grossa saindo da cabeça do inimigo com a bola",
-        Callback = function(v)
-            visaoBolaEnabledAzure = v
-            if not v and linhaVisaoAzure then
-                linhaVisaoAzure:Destroy()
-                linhaVisaoAzure = nil
-            end
-        end
-    })
-
-    VisaoAzureSec:Toggle({
-        Title = "Advinha Chute (Linha + Círculo Amarelo)",
-        Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
-        Callback = function(v)
-            advinhaChuteEnabledAzure = v
-            if not v then
-                if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
-                if circuloChuteAzure then circuloChuteAzure:Destroy() circuloChuteAzure = nil end
-            end
-        end
-    })
-
-    local DribleAzureSec = AzureTab:Section({ Title = "Drible", TextXAlignment = "Left" })
-
-    DribleAzureSec:Toggle({
-        Title = "Drible Ativo (Raio 70)",
-        Desc = "Ativa o círculo rosa de detecção e executa drible",
-        Callback = function(v)
-            dribleEnabledAzure = v
-            if v then
-                setupDribleAzure()
-            else
-                if dribleSphereAzure then
-                    dribleSphereAzure.Transparency = 1
-                end
-            end
-        end
-    })
-
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification",{
-            Title = "Azure Lock",
-            Text = "Drible com raio 70",
-            Duration = 3
-        })
-    end)
-end
+    end
+})
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "SorHub Esport",
-        Text = "Hub carregado com sucesso!",
+        Text = "Modo de Controle nas Curvas adicionado!",
         Duration = 4
     })
 end)
