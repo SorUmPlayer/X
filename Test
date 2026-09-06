@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – corrigido
+    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – Linha Amarela corrigida
 ]]
 
 local Players = game:GetService("Players")
@@ -89,7 +89,7 @@ local aimbotBlockedUntil = 0
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
 local linhaVisao = nil
-local linhaChuteParts = {}
+local linhaChute = nil       -- linha amarela (única parte)
 local circuloChute = nil
 
 -- Drible
@@ -97,7 +97,7 @@ local dribleEnabled = false
 local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.2
-local dribleRadius = 15  -- reduzido
+local dribleRadius = 15
 
 -- Botão Voador da Câmera
 local cameraButtonActive = false
@@ -290,39 +290,23 @@ end
 -- =====================================================
 --  ADVINHA CHUTE (LINHA AMARELA – CORRIGIDA)
 -- =====================================================
-local function criarParteTrajetoria(pos, cor)
-    local part = Instance.new("Part")
-    part.Anchored = true
-    part.CanCollide = false
-    part.Transparency = 0.3
-    part.Color = cor
-    part.Material = Enum.Material.Neon
-    part.Size = Vector3.new(0.4, 0.4, 0.4)
-    part.Position = pos
-    part.Parent = workspace
-    return part
-end
-
 local function atualizarAdvinhaChute()
     if not advinhaChuteEnabled then
-        for _, p in ipairs(linhaChuteParts) do p:Destroy() end
-        linhaChuteParts = {}
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
     local ball = getBall()
     if not ball then
-        for _, p in ipairs(linhaChuteParts) do p:Destroy() end
-        linhaChuteParts = {}
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
     local vel = ball.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then
-        for _, p in ipairs(linhaChuteParts) do p:Destroy() end
-        linhaChuteParts = {}
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
@@ -347,37 +331,42 @@ local function atualizarAdvinhaChute()
         end
     end
 
-    -- Limpa partes antigas
-    for _, p in ipairs(linhaChuteParts) do p:Destroy() end
-    linhaChuteParts = {}
-
     if #pontos < 2 then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
     end
 
-    -- Desenha a trajetória com pequenas partes
-    local cor = Color3.fromRGB(255, 255, 0)
-    for i = 1, #pontos - 1 do
-        local p1 = pontos[i]
-        local p2 = pontos[i+1]
-        local meio = (p1 + p2) / 2
-        local dist = (p1 - p2).Magnitude
-        if dist > 0.1 then
-            local part = criarParteTrajetoria(meio, cor)
-            part.Size = Vector3.new(0.3, 0.3, dist)
-            part.CFrame = CFrame.lookAt(meio, p2)
-            table.insert(linhaChuteParts, part)
-        end
+    local inicio = pontos[1]
+    local fim = pontos[#pontos]
+    fim = Vector3.new(fim.X, chaoY, fim.Z) -- força no chão
+
+    local meio = (inicio + fim) / 2
+    local distancia = (inicio - fim).Magnitude
+
+    -- Cria/atualiza linha amarela (única parte)
+    if not linhaChute then
+        linhaChute = Instance.new("Part")
+        linhaChute.Name = "LinhaChute"
+        linhaChute.Anchored = true
+        linhaChute.CanCollide = false
+        linhaChute.Transparency = 0.2
+        linhaChute.Color = Color3.fromRGB(255, 255, 0)
+        linhaChute.Material = Enum.Material.Neon
+        linhaChute.Parent = workspace
     end
 
-    -- Círculo no impacto (último ponto)
-    local posFinal = pontos[#pontos]
-    posFinal = Vector3.new(posFinal.X, chaoY, posFinal.Z)
+    if distancia > 0.1 then
+        linhaChute.Size = Vector3.new(0.5, 0.5, distancia)
+        linhaChute.CFrame = CFrame.lookAt(meio, fim)
+        linhaChute.Transparency = 0.2
+    else
+        linhaChute.Transparency = 1
+    end
 
+    -- Círculo de impacto
     if v.Y < -0.5 then
-        if not circuloChute or not circuloChute.Parent then
-            if circuloChute then circuloChute:Destroy() end
+        if not circuloChute then
             circuloChute = Instance.new("Part")
             circuloChute.Name = "CirculoChute"
             circuloChute.Anchored = true
@@ -389,7 +378,7 @@ local function atualizarAdvinhaChute()
             circuloChute.Size = Vector3.new(4, 0.1, 4)
             circuloChute.Parent = workspace
         end
-        circuloChute.Position = posFinal
+        circuloChute.Position = fim
         local tamanho = math.clamp(vel.Magnitude / 8, 3, 8)
         circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
         circuloChute.Transparency = 0.2
@@ -399,7 +388,7 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
---  DRIBLE (APENAS DRIBLE, DETECÇÃO MELHORADA)
+--  DRIBLE (APENAS DRIBLE)
 -- =====================================================
 local function dispararDrible()
     if not ByteNet then return end
@@ -465,7 +454,6 @@ local function aplicarDrible()
                 local dist = (targetHrp.Position - hrp.Position).Magnitude
                 if dist <= dribleRadius then
                     if isLookingAtLocal(targetHrp, hrp) then
-                        -- Drible disparado independente de animação
                         dribleLastFired = now
                         dispararDrible()
                         break
@@ -648,13 +636,12 @@ secVisao:Toggle({
 })
 
 secVisao:Toggle({
-    Title = "Advinha Chute (Trajetória Amarela)",
-    Desc = "Mostra a trajetória parabólica da bola até o chão",
+    Title = "Advinha Chute (Linha + Círculo Amarelo)",
+    Desc = "Trajetória da bola (linha grossa) e círculo amarelo no chão",
     Callback = function(v)
         advinhaChuteEnabled = v
         if not v then
-            for _, p in ipairs(linhaChuteParts) do p:Destroy() end
-            linhaChuteParts = {}
+            if linhaChute then linhaChute:Destroy() linhaChute = nil end
             if circuloChute then circuloChute:Destroy() circuloChute = nil end
         end
     end
@@ -683,7 +670,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Linha amarela corrigida e círculo ajustado!",
+        Text = "Linha amarela corrigida (única parte)!",
         Duration = 4
     })
 end)
