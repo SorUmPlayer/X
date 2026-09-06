@@ -168,12 +168,13 @@ local curvasTimer = 0
 local curvasIntervalo = 1.0
 local curvasDirecaoAtual = 1
 
+-- Drible Blue Lock – raio aumentado para 70
 local dribleEnabled = false
 local dribleSphere = nil
 local dribleLastFired = 0
 local dribleCooldown = 0.3
 local dribleAnimId = "18668814876"
-local dribleRadius = 25
+local dribleRadius = 70
 local driblePlayingAnims = {}
 local dribleEvent = nil
 
@@ -691,7 +692,7 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =====================================================
---  VISÃO DE JOGO BLUE LOCK
+--  VISÃO DE JOGO BLUE LOCK (LINHA VERDE CORRIGIDA)
 -- =====================================================
 local function getInimigoComBola()
     local myTeam = getMyTeam()
@@ -723,10 +724,10 @@ local function criarLinhaVisao()
         linhaVisao.Name = "LinhaVisao"
         linhaVisao.Anchored = true
         linhaVisao.CanCollide = false
-        linhaVisao.Transparency = 0.15
+        linhaVisao.Transparency = 0.1
         linhaVisao.Color = Color3.fromRGB(0, 255, 0)
         linhaVisao.Material = Enum.Material.Neon
-        linhaVisao.Size = Vector3.new(0.8, 0.8, 100)
+        linhaVisao.Size = Vector3.new(1.0, 1.0, 100)  -- mais grossa
         linhaVisao.Parent = workspace
     end
     return linhaVisao
@@ -750,6 +751,7 @@ local function atualizarVisaoBola()
         return
     end
 
+    -- Prioriza a cabeça
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local origem = head or hrp
@@ -758,11 +760,13 @@ local function atualizarVisaoBola()
         return
     end
 
+    -- Posição de início: centro da cabeça (ou torso + offset)
     local posInicio = origem.Position
     if origem == hrp then
         posInicio = posInicio + Vector3.new(0, 1.5, 0)
     end
 
+    -- Direção horizontal (ignora inclinação vertical)
     local direcao = Vector3.new(1, 0, 0)
     if head then
         direcao = head.CFrame.LookVector
@@ -776,15 +780,16 @@ local function atualizarVisaoBola()
         direcao = direcao.Unit
     end
 
+    -- Comprimento fixo (100 studs)
     local posFim = posInicio + direcao * 100
 
     criarLinhaVisao()
     local meio = (posInicio + posFim) / 2
     local distancia = (posInicio - posFim).Magnitude
     if distancia < 0.1 then distancia = 0.1 end
-    linhaVisao.Size = Vector3.new(0.8, 0.8, distancia)
+    linhaVisao.Size = Vector3.new(1.0, 1.0, distancia)
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
-    linhaVisao.Transparency = 0.15
+    linhaVisao.Transparency = 0.1
 end
 
 local function criarLinhaChute()
@@ -1188,7 +1193,7 @@ local VisaoSec = BlueLockTab:Section({ Title = "Visão de jogo", TextXAlignment 
 
 VisaoSec:Toggle({
     Title = "Visão da bola (Linha Verde)",
-    Desc = "Linha verde gigante (100 studs) saindo da cabeça do inimigo com a bola",
+    Desc = "Linha verde grossa saindo da cabeça do inimigo com a bola (100 studs)",
     Callback = function(v)
         visaoBolaEnabled = v
         if not v and linhaVisao then
@@ -1311,7 +1316,7 @@ CurvasSec:Slider({
 local DribleSec = BlueLockTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
 DribleSec:Toggle({
-    Title = "Drible",
+    Title = "Drible (Raio 70)",
     Desc = "Ativa o sistema de drible (esfera rosa ao redor do personagem)",
     Callback = function(v)
         dribleEnabled = v
@@ -1415,7 +1420,7 @@ VbSec:Slider({
 })
 
 -- =====================================================
---  ABA AZURE LOCK (NOVA)
+--  ABA AZURE LOCK (com raio de drible = 70)
 -- =====================================================
 
 do
@@ -1423,9 +1428,7 @@ do
 
     local ByteNet = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 
-    -- =====================================================
-    --  DETECÇÃO DA BOLA (AZURE)
-    -- =====================================================
+    -- DETECÇÃO DA BOLA
     local function getBallAzure()
         local terrain = Workspace:FindFirstChild("Terrain")
         if terrain then
@@ -1466,9 +1469,7 @@ do
         return false
     end
 
-    -- =====================================================
-    --  VARIÁVEIS AZURE
-    -- =====================================================
+    -- VARIÁVEIS AZURE
     local aimbotPersonagemAzure = false
     local aimbotCameraAzure = false
 
@@ -1483,20 +1484,19 @@ do
     local linhaChuteAzure = nil
     local circuloChuteAzure = nil
 
+    -- Drible Azure com raio 70
     local dribleEnabledAzure = false
     local dribleSphereAzure = nil
     local dribleLastFiredAzure = 0
     local dribleCooldownAzure = 0.2
-    local dribleRadiusAzure = 15
+    local dribleRadiusAzure = 70
 
     local cameraButtonActiveAzure = false
     local cameraScreenGuiAzure = nil
     local cameraToggleButtonAzure = nil
     local gyroAzure = nil
 
-    -- =====================================================
-    --  LÓGICA DE BLOQUEIO
-    -- =====================================================
+    -- LÓGICA DE BLOQUEIO
     local function shouldAimbotWorkAzure()
         local tenho = euTenhoBolaAzure()
         if tenho then
@@ -1515,9 +1515,7 @@ do
         return true
     end
 
-    -- =====================================================
-    --  AIMBOT PERSONAGEM
-    -- =====================================================
+    -- AIMBOT PERSONAGEM
     local function ativarAimbotPersonagemAzure(estado)
         aimbotPersonagemAzure = estado
         if not estado and gyroAzure then
@@ -1571,9 +1569,7 @@ do
         gyroAzure.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
     end
 
-    -- =====================================================
-    --  AIMBOT CÂMERA
-    -- =====================================================
+    -- AIMBOT CÂMERA
     local function atualizarAimbotCameraAzure()
         if not aimbotCameraAzure then return end
         if not shouldAimbotWorkAzure() then return end
@@ -1594,9 +1590,7 @@ do
         camera.CFrame = CFrame.new(camPos, hrp.Position)
     end
 
-    -- =====================================================
-    --  VISÃO DA BOLA (LINHA VERDE)
-    -- =====================================================
+    -- VISÃO DA BOLA (LINHA VERDE) - igual à do Blue Lock
     local function getInimigoComBolaAzure()
         local characters = Workspace:FindFirstChild("characters")
         if not characters then return nil end
@@ -1618,10 +1612,10 @@ do
             linhaVisaoAzure.Name = "LinhaVisao"
             linhaVisaoAzure.Anchored = true
             linhaVisaoAzure.CanCollide = false
-            linhaVisaoAzure.Transparency = 0.15
+            linhaVisaoAzure.Transparency = 0.1
             linhaVisaoAzure.Color = Color3.fromRGB(0, 255, 0)
             linhaVisaoAzure.Material = Enum.Material.Neon
-            linhaVisaoAzure.Size = Vector3.new(0.8, 0.8, 100)
+            linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, 100)
             linhaVisaoAzure.Parent = workspace
         end
         return linhaVisaoAzure
@@ -1671,14 +1665,12 @@ do
         local meio = (posInicio + posFim) / 2
         local distancia = (posInicio - posFim).Magnitude
         if distancia < 0.1 then distancia = 0.1 end
-        linhaVisaoAzure.Size = Vector3.new(0.8, 0.8, distancia)
+        linhaVisaoAzure.Size = Vector3.new(1.0, 1.0, distancia)
         linhaVisaoAzure.CFrame = CFrame.lookAt(meio, posFim)
-        linhaVisaoAzure.Transparency = 0.15
+        linhaVisaoAzure.Transparency = 0.1
     end
 
-    -- =====================================================
-    --  ADVINHA CHUTE (LINHA AMARELA)
-    -- =====================================================
+    -- ADVINHA CHUTE (LINHA AMARELA)
     local function atualizarAdvinhaChuteAzure()
         if not advinhaChuteEnabledAzure then
             if linhaChuteAzure then linhaChuteAzure:Destroy() linhaChuteAzure = nil end
@@ -1778,9 +1770,7 @@ do
         end
     end
 
-    -- =====================================================
-    --  DRIBLE (BYTENET)
-    -- =====================================================
+    -- DRIBLE (BYTENET)
     local function dispararDrible()
         if not ByteNet then return end
         local args = {24, 1}
@@ -1855,9 +1845,7 @@ do
         end
     end
 
-    -- =====================================================
-    --  BOTÃO VOADOR DA CÂMERA
-    -- =====================================================
+    -- BOTÃO VOADOR DA CÂMERA
     local function toggleCameraButtonAzure()
         cameraButtonActiveAzure = not cameraButtonActiveAzure
         if cameraButtonActiveAzure then
@@ -1912,9 +1900,7 @@ do
         end
     end
 
-    -- =====================================================
-    --  LOOP PRINCIPAL AZURE
-    -- =====================================================
+    -- LOOP PRINCIPAL AZURE
     RunService.Heartbeat:Connect(function()
         atualizarAimbotPersonagemAzure()
         atualizarAimbotCameraAzure()
@@ -1923,9 +1909,7 @@ do
         aplicarDribleAzure()
     end)
 
-    -- =====================================================
-    --  UI AZURE
-    -- =====================================================
+    -- UI AZURE
     local AimbotAzureSec = AzureTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 
     AimbotAzureSec:Toggle({
@@ -1981,7 +1965,7 @@ do
 
     VisaoAzureSec:Toggle({
         Title = "Visão da bola (Linha Verde)",
-        Desc = "Linha verde gigante (100 studs) saindo da cabeça do inimigo com a bola",
+        Desc = "Linha verde grossa saindo da cabeça do inimigo com a bola",
         Callback = function(v)
             visaoBolaEnabledAzure = v
             if not v and linhaVisaoAzure then
@@ -2006,7 +1990,7 @@ do
     local DribleAzureSec = AzureTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
     DribleAzureSec:Toggle({
-        Title = "Drible Ativo",
+        Title = "Drible Ativo (Raio 70)",
         Desc = "Ativa o círculo rosa de detecção e executa drible",
         Callback = function(v)
             dribleEnabledAzure = v
@@ -2023,7 +2007,7 @@ do
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification",{
             Title = "Azure Lock",
-            Text = "Aba adicionada ao SorHub!",
+            Text = "Drible com raio 70",
             Duration = 3
         })
     end)
