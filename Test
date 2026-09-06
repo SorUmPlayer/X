@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivals Hub – Aimbot, Visão, Drible, GK (com teleporte)
+    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet)
 ]]
 
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ByteNet = ReplicatedStorage:FindFirstChild("ByteNetReliable")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -31,56 +32,92 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  DETECÇÃO DA BOLA (BLUE LOCK RIVALS)
+--  DETECÇÃO DA BOLA (DINÂMICA)
 -- =====================================================
 local function getBall()
-    local football = Workspace:FindFirstChild("Football")
-    if football then
-        local ballAnims = football:FindFirstChild("BallAnims")
-        if ballAnims then
-            if ballAnims:IsA("BasePart") then
-                return ballAnims
-            end
-            return ballAnims:FindFirstChildWhichIsA("BasePart") or ballAnims.PrimaryPart
-        end
-        return football
+    local terrain = Workspace:FindFirstChild("Terrain")
+    if terrain then
+        local ball = terrain:FindFirstChild("Ball")
+        if ball and ball:IsA("BasePart") then return ball end
     end
 
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") and child:FindFirstChild("Football") then
-            return child:FindFirstChild("Football")
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        for _, charModel in ipairs(characters:GetChildren()) do
+            if charModel:IsA("Model") then
+                local ball = charModel:FindFirstChild("Ball")
+                if ball and ball:IsA("BasePart") then return ball end
+            end
+        end
+    end
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Ball" then
+            return obj
         end
     end
     return nil
 end
 
 local function getHitbox()
-    local ball = getBall()
-    if ball then
-        return ball:FindFirstChild("Hitbox") or ball
+    return getBall()
+end
+
+local function isBallFree()
+    local terrain = Workspace:FindFirstChild("Terrain")
+    if terrain then
+        local ball = terrain:FindFirstChild("Ball")
+        if ball and ball:IsA("BasePart") then return true end
     end
-    return nil
+    return false
 end
 
 local function euTenhoBola()
-    local meuModel = Workspace:FindFirstChild(player.Name)
-    if meuModel and meuModel:FindFirstChild("Football") then
-        return true
+    local characters = Workspace:FindFirstChild("characters")
+    if characters then
+        local myChar = characters:FindFirstChild(player.Name)
+        if myChar then
+            return myChar:FindFirstChild("Ball") ~= nil
+        end
     end
     return false
 end
 
 -- =====================================================
---  AIMBOT
+--  VARIÁVEIS DE CONTROLE
 -- =====================================================
 local aimbotPersonagem = false
 local aimbotCamera = false
-local gyro = nil
+
+-- Delay do Aimbot
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
 local aimbotDelayValue = 0
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 
+local visaoBolaEnabled = false
+local advinhaChuteEnabled = false
+local linhaVisao = nil
+local linhaChuteParts = {}
+local circuloChute = nil
+
+-- Drible
+local dribleEnabled = false
+local dribleSphere = nil
+local dribleLastFired = 0
+local dribleCooldown = 0.3
+local dribleAnimId = "18668814876"
+local driblePlayingAnims = {}
+local dribleRadius = 25
+
+-- Botão Voador da Câmera
+local cameraButtonActive = false
+local cameraScreenGui = nil
+local cameraToggleButton = nil
+
+-- =====================================================
+--  LÓGICA DE BLOQUEIO DO AIMBOT (DELAY)
+-- =====================================================
 local function shouldAimbotWork()
     local tenho = euTenhoBola()
     if tenho then
@@ -99,6 +136,10 @@ local function shouldAimbotWork()
     return true
 end
 
+-- =====================================================
+--  AIMBOT PERSONAGEM
+-- =====================================================
+local gyro = nil
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     if not estado and gyro then
@@ -152,6 +193,9 @@ local function atualizarAimbotPersonagem()
     gyro.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
 end
 
+-- =====================================================
+--  AIMBOT CÂMERA
+-- =====================================================
 local function atualizarAimbotCamera()
     if not aimbotCamera then return end
     if not shouldAimbotWork() then return end
@@ -173,20 +217,16 @@ local function atualizarAimbotCamera()
 end
 
 -- =====================================================
---  VISÃO DE JOGO
+--  VISÃO DA BOLA (LINHA VERDE)
 -- =====================================================
-local visaoBolaEnabled = false
-local advinhaChuteEnabled = false
-local linhaVisao = nil
-local linhaChuteParts = {}
-local circuloChute = nil
-
 local function getInimigoComBola()
-    for _, outro in ipairs(Players:GetPlayers()) do
-        if outro ~= player and outro.Character then
-            local football = outro.Character:FindFirstChild("Football")
-            if football then
-                return outro.Character
+    local characters = Workspace:FindFirstChild("characters")
+    if not characters then return nil end
+
+    for _, charModel in ipairs(characters:GetChildren()) do
+        if charModel:IsA("Model") and charModel.Name ~= player.Name then
+            if charModel:FindFirstChild("Ball") then
+                return charModel
             end
         end
     end
@@ -215,15 +255,15 @@ local function atualizarVisaoBola()
         return
     end
 
-    local inimigoChar = getInimigoComBola()
-    if not inimigoChar then
+    local inimigo = getInimigoComBola()
+    if not inimigo then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
     end
 
-    local head = inimigoChar:FindFirstChild("Head")
-    local hrp = inimigoChar:FindFirstChild("HumanoidRootPart")
-    local origem = head or hrp or inimigoChar.PrimaryPart
+    local head = inimigo:FindFirstChild("Head")
+    local hrp = inimigo:FindFirstChild("HumanoidRootPart")
+    local origem = head or hrp or inimigo.PrimaryPart
     if not origem then
         if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
@@ -258,6 +298,9 @@ local function atualizarVisaoBola()
     linhaVisao.Transparency = 0.15
 end
 
+-- =====================================================
+--  ADVINHA CHUTE (LINHA AMARELA – TRAJETÓRIA PARA BAIXO)
+-- =====================================================
 local function criarParteTrajetoria(pos, cor)
     local part = Instance.new("Part")
     part.Anchored = true
@@ -273,6 +316,13 @@ end
 
 local function atualizarAdvinhaChute()
     if not advinhaChuteEnabled then
+        for _, p in ipairs(linhaChuteParts) do p:Destroy() end
+        linhaChuteParts = {}
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
+    if not isBallFree() then
         for _, p in ipairs(linhaChuteParts) do p:Destroy() end
         linhaChuteParts = {}
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
@@ -295,6 +345,7 @@ local function atualizarAdvinhaChute()
         return
     end
 
+    -- Simulação física
     local gravidade = Vector3.new(0, -55, 0)
     local pos = ball.Position
     local v = vel
@@ -314,6 +365,7 @@ local function atualizarAdvinhaChute()
         end
     end
 
+    -- Limpa partes antigas
     for _, p in ipairs(linhaChuteParts) do p:Destroy() end
     linhaChuteParts = {}
 
@@ -322,6 +374,7 @@ local function atualizarAdvinhaChute()
         return
     end
 
+    -- Desenha a trajetória com pequenas partes
     local cor = Color3.fromRGB(255, 255, 0)
     for i = 1, #pontos - 1 do
         local p1 = pontos[i]
@@ -336,6 +389,7 @@ local function atualizarAdvinhaChute()
         end
     end
 
+    -- Círculo no impacto (último ponto)
     local posFinal = pontos[#pontos]
     posFinal = Vector3.new(posFinal.X, chaoY, posFinal.Z)
 
@@ -363,17 +417,8 @@ local function atualizarAdvinhaChute()
 end
 
 -- =====================================================
---  DRIBLE (BYTENETRELIABLE)
+--  DRIBLE (APENAS DRIBLE, SEM RASTEIRA)
 -- =====================================================
-local ByteNet = ReplicatedStorage:FindFirstChild("ByteNetReliable")
-local dribleEnabled = false
-local dribleSphere = nil
-local dribleLastFired = 0
-local dribleCooldown = 0.3
-local dribleAnimId = "18668814876"
-local driblePlayingAnims = {}
-local dribleRadius = 25
-
 local function dispararDrible()
     if not ByteNet then return end
     local args = {24, 1}
@@ -400,6 +445,7 @@ local function setupDrible()
     end
 end
 
+-- Rastreamento de animação (simplificado)
 local function trackDribleAnimation(character)
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then return end
@@ -482,15 +528,17 @@ local function aplicarDrible()
     local now = tick()
     if now - dribleLastFired < dribleCooldown then return end
 
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            local targetChar = plr.Character
-            local targetHrp = targetChar:FindFirstChild("HumanoidRootPart")
+    local characters = Workspace:FindFirstChild("characters")
+    if not characters then return end
+
+    for _, charModel in ipairs(characters:GetChildren()) do
+        if charModel:IsA("Model") and charModel ~= char then
+            local targetHrp = charModel:FindFirstChild("HumanoidRootPart")
             if targetHrp then
                 local dist = (targetHrp.Position - hrp.Position).Magnitude
                 if dist <= dribleRadius then
                     if isLookingAtLocal(targetHrp, hrp) then
-                        if isDribleAnimActive(targetChar) then
+                        if isDribleAnimActive(charModel) then
                             dribleLastFired = now
                             dispararDrible()
                             break
@@ -502,6 +550,7 @@ local function aplicarDrible()
     end
 end
 
+-- Inicializa tracking de jogadores
 for _, plr in ipairs(Players:GetPlayers()) do
     setupDriblePlayerTracking(plr)
 end
@@ -513,266 +562,8 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 -- =====================================================
---  GK (GOLEIRO) – COM TELEPORTE FORÇADO
--- =====================================================
-local gkEnabled = false
-local gkTeam = nil
-local gkPosition = nil
-local gkCircle = nil
-local gkRadius = 30
-local gkGrabRadius = 5
-local gkLastDive = 0
-local gkDiveCooldown = 1.0
-
--- Determina o time pela posição
-local function determinarTime()
-    local char = player.Character
-    if not char then return nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-
-    local pos = hrp.Position
-    local homePos = Vector3.new(-234, 11, -49)
-    local awayPos = Vector3.new(311, 11, -48)
-
-    if (pos - homePos).Magnitude < (pos - awayPos).Magnitude then
-        return "Home"
-    else
-        return "Away"
-    end
-end
-
--- Posição fixa do goleiro
-local function getGKPosition()
-    if gkTeam == "Home" then
-        return Vector3.new(-234, 11, -47)
-    elseif gkTeam == "Away" then
-        return Vector3.new(311, 11, -50)
-    else
-        return nil
-    end
-end
-
--- Cria círculo de detecção
-local function criarCirculoGK()
-    if gkCircle then return end
-    if not gkPosition then return end
-
-    gkCircle = Instance.new("Part")
-    gkCircle.Name = "GKDetectionCircle"
-    gkCircle.Shape = Enum.PartType.Cylinder
-    gkCircle.Size = Vector3.new(gkRadius * 2, 0.5, gkRadius * 2)
-    gkCircle.Position = gkPosition
-    gkCircle.Transparency = 0.6
-    gkCircle.Color = Color3.fromRGB(0, 150, 255)
-    gkCircle.Anchored = true
-    gkCircle.CanCollide = false
-    gkCircle.Parent = workspace
-    print("Círculo GK criado!")
-end
-
--- Remove o círculo
-local function removerCirculoGK()
-    if gkCircle then
-        gkCircle:Destroy()
-        gkCircle = nil
-    end
-end
-
--- Teleporta o personagem para uma posição
-local function teleportarPersonagem(pos)
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    hrp.CFrame = CFrame.new(pos)
-end
-
--- Funções do goleiro
-local function pegarBola(ball)
-    local tempPart = Instance.new("Part")
-    tempPart.Size = Vector3.new(2, 2, 2)
-    tempPart.Position = gkPosition
-    tempPart.Anchored = true
-    tempPart.CanCollide = false
-    tempPart.Transparency = 1
-    tempPart.Parent = workspace
-
-    if firetouchinterest then
-        firetouchinterest(tempPart, ball, 0)
-        task.wait(0.01)
-        firetouchinterest(tempPart, ball, 1)
-    end
-
-    tempPart:Destroy()
-    print("Bola pega!")
-end
-
-local function chutarLonge(ball)
-    local dir = (ball.Position - gkPosition).Unit
-    local shootEvent = ReplicatedStorage:FindFirstChild("Packages")
-        and ReplicatedStorage.Packages:FindFirstChild("Knit")
-        and ReplicatedStorage.Packages.Knit:FindFirstChild("Services")
-        and ReplicatedStorage.Packages.Knit.Services:FindFirstChild("BallService")
-        and ReplicatedStorage.Packages.Knit.Services.BallService:FindFirstChild("RE")
-        and ReplicatedStorage.Packages.Knit.Services.BallService.RE:FindFirstChild("Shoot")
-    if shootEvent then
-        shootEvent:FireServer(110, ball.Position + dir * 60)
-        print("Chutou longe!")
-    end
-end
-
-local function usarDive()
-    local now = tick()
-    if now - gkLastDive < gkDiveCooldown then return end
-    gkLastDive = now
-
-    local diveEvent = ReplicatedStorage:FindFirstChild("Packages")
-        and ReplicatedStorage.Packages:FindFirstChild("Knit")
-        and ReplicatedStorage.Packages.Knit:FindFirstChild("Services")
-        and ReplicatedStorage.Packages.Knit.Services:FindFirstChild("BallService")
-        and ReplicatedStorage.Packages.Knit.Services.BallService:FindFirstChild("RE")
-        and ReplicatedStorage.Packages.Knit.Services.BallService.RE:FindFirstChild("Dive")
-    if diveEvent then
-        diveEvent:FireServer()
-        print("Dive usado!")
-    end
-end
-
--- Adversário com bola na área AttemptGrabBox
-local function getAdversarioComBolaNaArea()
-    local area = workspace:FindFirstChild("AttemptGrabBox")
-    if not area or not area:IsA("BasePart") then return nil end
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player then
-            local char = plr.Character
-            if char and char:FindFirstChild("Football") then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local relative = hrp.Position - area.Position
-                    local size = area.Size / 2
-                    if math.abs(relative.X) <= size.X and
-                       math.abs(relative.Y) <= size.Y and
-                       math.abs(relative.Z) <= size.Z then
-                        return plr
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- Posiciona o goleiro na frente do adversário
-local function posicionarFrenteAdversario(adversario)
-    local char = adversario.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local advPos = hrp.Position
-    local dir = (gkPosition - advPos).Unit
-    local novaPos = advPos + dir * 8
-
-    gkPosition = novaPos
-    if gkCircle then
-        gkCircle.Position = novaPos
-    end
-    teleportarPersonagem(novaPos)
-    print("Posicionado na frente do adversário.")
-end
-
--- Restaura posição fixa
-local function restaurarPosicaoGK()
-    local pos = getGKPosition()
-    if pos then
-        gkPosition = pos
-        if gkCircle then
-            gkCircle.Position = pos
-        end
-        teleportarPersonagem(pos)
-        print("Voltou à posição fixa.")
-    end
-end
-
--- Inicializa o GK
-local function iniciarGK()
-    gkTeam = determinarTime()
-    if not gkTeam then
-        warn("Não foi possível determinar o time. Fique perto do gol.")
-        return
-    end
-
-    gkPosition = getGKPosition()
-    if not gkPosition then
-        warn("Posição do gol não encontrada.")
-        return
-    end
-
-    print("GK Ativado! Time: " .. gkTeam)
-    criarCirculoGK()
-    teleportarPersonagem(gkPosition)
-    gkEnabled = true
-end
-
--- Desativa o GK
-local function desativarGK()
-    gkEnabled = false
-    removerCirculoGK()
-    print("GK Desativado.")
-end
-
--- Função principal atualizarGK
-local function atualizarGK()
-    if not gkEnabled then return end
-    if not gkPosition then return end
-
-    local ball = getBall()
-    if not ball then return end
-
-    local distBola = (ball.Position - gkPosition).Magnitude
-
-    -- Dentro do círculo?
-    if distBola <= gkRadius then
-        local vel = ball.AssemblyLinearVelocity
-        local speed = vel.Magnitude
-
-        if speed < 2 then
-            pegarBola(ball)
-            chutarLonge(ball)
-        else
-            local dirBola = vel.Unit
-            local dirGol = (gkPosition - ball.Position).Unit
-            local dot = dirBola:Dot(dirGol)
-
-            if dot > 0.3 then
-                if speed > 15 or distBola > 15 then
-                    usarDive()
-                elseif distBola < gkGrabRadius then
-                    pegarBola(ball)
-                    chutarLonge(ball)
-                end
-            end
-        end
-    end
-
-    -- Adversário na área?
-    local adv = getAdversarioComBolaNaArea()
-    if adv then
-        posicionarFrenteAdversario(adv)
-    else
-        restaurarPosicaoGK()
-    end
-end
-
--- =====================================================
 --  BOTÃO VOADOR DA CÂMERA
 -- =====================================================
-local cameraButtonActive = false
-local cameraScreenGui = nil
-local cameraToggleButton = nil
-
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     if cameraButtonActive then
@@ -840,11 +631,10 @@ RunService.Heartbeat:Connect(function()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
     aplicarDrible()
-    atualizarGK()
 end)
 
 -- =====================================================
---  INTERFACE WINDUI (BLUE LOCK RIVALS)
+--  INTERFACE WINDUI (AZURE LOCK)
 -- =====================================================
 local WindUI
 local loaded, _ = pcall(function()
@@ -856,11 +646,11 @@ if not loaded or not WindUI then
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivals",
+    Title = "🌊 Azure Lock",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
-    Folder = "BlueLockRivals",
-    Size = UDim2.fromOffset(500, 620),
+    Folder = "AzureHub",
+    Size = UDim2.fromOffset(500, 520),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -869,7 +659,7 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-local MainTab = Window:Tab({ Title = "Blue Lock Rivals", Icon = "home" })
+local MainTab = Window:Tab({ Title = "Azure Lock", Icon = "home" })
 
 -- =====================================================
 --  SEÇÃO AIMBOT
@@ -956,7 +746,7 @@ secVisao:Toggle({
 })
 
 -- =====================================================
---  SEÇÃO DRIBLE
+--  SEÇÃO DRIBLE (APENAS DRIBLE, SEM MODO)
 -- =====================================================
 local secDrible = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 
@@ -975,30 +765,10 @@ secDrible:Toggle({
     end
 })
 
--- =====================================================
---  SEÇÃO GK (GOLEIRO)
--- =====================================================
-local secGK = MainTab:Section({ Title = "GK (Goleiro)", TextXAlignment = "Left" })
-
-secGK:Toggle({
-    Title = "Auto GK",
-    Desc = "Ativa o goleiro automático (detecta time e defende o gol)",
-    Callback = function(v)
-        if v then
-            iniciarGK()
-        else
-            desativarGK()
-        end
-    end
-})
-
--- =====================================================
---  NOTIFICAÇÃO INICIAL
--- =====================================================
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals",
-        Text = "Hub carregado com GK corrigido!",
+        Title = "Azure Lock",
+        Text = "Drible apenas (modo removido)",
         Duration = 4
     })
 end)
