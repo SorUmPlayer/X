@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – Linha Amarela corrigida
+    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – Linha Amarela final
 ]]
 
 local Players = game:GetService("Players")
@@ -308,13 +308,20 @@ local function atualizarAdvinhaChute()
     end
 
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 0.5 then
-        if linhaChute then linhaChute:Destroy() linhaChute = nil end
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+    local speed = vel.Magnitude
+
+    -- Se a bola estiver parada, mantém a linha invisível mas não destrói (evita flicker)
+    if speed < 0.5 then
+        if linhaChute then
+            linhaChute.Transparency = 1
+        end
+        if circuloChute then
+            circuloChute.Transparency = 1
+        end
         return
     end
 
-    -- Simulação física
+    -- Simulação física (trajetória parabólica)
     local gravidade = Vector3.new(0, -55, 0)
     local pos = ball.Position
     local v = vel
@@ -342,12 +349,12 @@ local function atualizarAdvinhaChute()
 
     local inicio = pontos[1]
     local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z) -- força no chão
+    fim = Vector3.new(fim.X, chaoY, fim.Z) -- forçar chão
 
     local meio = (inicio + fim) / 2
     local distancia = (inicio - fim).Magnitude
 
-    -- Cria/atualiza linha amarela
+    -- Cria/atualiza linha amarela (única parte)
     if not linhaChute then
         linhaChute = Instance.new("Part")
         linhaChute.Name = "LinhaChute"
@@ -359,15 +366,13 @@ local function atualizarAdvinhaChute()
         linhaChute.Parent = workspace
     end
 
-    if distancia > 0.1 then
-        linhaChute.Size = Vector3.new(0.5, 0.5, distancia)
-        linhaChute.CFrame = CFrame.lookAt(meio, fim)
-        linhaChute.Transparency = 0.2
-    else
-        linhaChute.Transparency = 1
-    end
+    -- Tamanho mínimo para garantir visibilidade
+    local tamanho = math.max(distancia, 1)
+    linhaChute.Size = Vector3.new(0.5, 0.5, tamanho)
+    linhaChute.CFrame = CFrame.lookAt(meio, fim)
+    linhaChute.Transparency = 0.2
 
-    -- Círculo de impacto
+    -- Círculo de impacto (se a bola estiver descendo)
     if v.Y < -0.5 then
         if not circuloChute then
             circuloChute = Instance.new("Part")
@@ -382,11 +387,13 @@ local function atualizarAdvinhaChute()
             circuloChute.Parent = workspace
         end
         circuloChute.Position = fim
-        local tamanho = math.clamp(vel.Magnitude / 8, 3, 8)
-        circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
+        local tamanhoCirculo = math.clamp(speed / 8, 3, 8)
+        circuloChute.Size = Vector3.new(tamanhoCirculo, 0.1, tamanhoCirculo)
         circuloChute.Transparency = 0.2
     else
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        if circuloChute then
+            circuloChute.Transparency = 1 -- esconde, não destrói
+        end
     end
 end
 
@@ -673,7 +680,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Linha amarela corrigida (bola em qualquer lugar)!",
+        Text = "Linha amarela corrigida: funciona em qualquer situação!",
         Duration = 4
     })
 end)
