@@ -365,8 +365,8 @@ local function aplicarCurvas()
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
-    -- Verifica se o modo de controle está ativo e a velocidade >= 50
-    if controleCurvasAtivo and speed >= 50 then
+    -- Verifica se o modo de controle está ativo e a velocidade >= 30
+    if controleCurvasAtivo and speed >= 30 then
         -- Direção da câmera (horizontal)
         local camDir = camera.CFrame.LookVector
         camDir = Vector3.new(camDir.X, 0, camDir.Z)
