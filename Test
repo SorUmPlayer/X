@@ -1,5 +1,5 @@
 --[[
-    Azure Lock Hub – Aimbot, Visão, Drible (ByteNet) – Linha Amarela corrigida
+    Azure Lock Hub – Detector de bola em loop + Linha amarela corrigida
 ]]
 
 local Players = game:GetService("Players")
@@ -32,46 +32,73 @@ local function safeParent(gui)
 end
 
 -- =====================================================
---  DETECÇÃO DA BOLA (DINÂMICA)
+--  DETECTOR DE BOLA EM LOOP
 -- =====================================================
-local function getBall()
-    -- 1. Bola solta (workspace.Terrain.Ball)
+local currentBall = nil
+
+local function atualizarBola()
     local terrain = Workspace:FindFirstChild("Terrain")
     if terrain then
         local ball = terrain:FindFirstChild("Ball")
-        if ball and ball:IsA("BasePart") then return ball end
+        if ball and ball:IsA("BasePart") then
+            currentBall = ball
+            return
+        end
     end
 
-    -- 2. Bola em posse (workspace.characters.*.Ball)
     local characters = Workspace:FindFirstChild("characters")
     if characters then
         for _, charModel in ipairs(characters:GetChildren()) do
             if charModel:IsA("Model") then
                 local ball = charModel:FindFirstChild("Ball")
-                if ball and ball:IsA("BasePart") then return ball end
+                if ball and ball:IsA("BasePart") then
+                    currentBall = ball
+                    return
+                end
             end
         end
     end
 
-    -- 3. Fallback
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name == "Ball" then
-            return obj
+            currentBall = obj
+            return
         end
     end
-    return nil
+
+    currentBall = nil
+end
+
+-- Loop dedicado para atualizar a referência da bola
+task.spawn(function()
+    while true do
+        atualizarBola()
+        task.wait(0.1)
+    end
+end)
+
+-- Eventos para atualizar imediatamente
+Workspace.ChildAdded:Connect(atualizarBola)
+Workspace.ChildRemoved:Connect(atualizarBola)
+
+-- =====================================================
+--  FUNÇÕES AUXILIARES
+-- =====================================================
+local function getBall()
+    return currentBall
 end
 
 local function getHitbox()
-    return getBall()
+    return currentBall
 end
 
 local function euTenhoBola()
+    if not currentBall then return false end
     local characters = Workspace:FindFirstChild("characters")
     if characters then
         local myChar = characters:FindFirstChild(player.Name)
         if myChar then
-            return myChar:FindFirstChild("Ball") ~= nil
+            return myChar:FindFirstChild("Ball") == currentBall
         end
     end
     return false
@@ -92,7 +119,7 @@ local aimbotBlockedUntil = 0
 local visaoBolaEnabled = false
 local advinhaChuteEnabled = false
 local linhaVisao = nil
-local linhaChute = nil       -- linha amarela (única parte)
+local linhaChute = nil
 local circuloChute = nil
 
 -- Drible
@@ -212,12 +239,13 @@ end
 --  VISÃO DA BOLA (LINHA VERDE)
 -- =====================================================
 local function getInimigoComBola()
+    if not currentBall then return nil end
     local characters = Workspace:FindFirstChild("characters")
     if not characters then return nil end
 
     for _, charModel in ipairs(characters:GetChildren()) do
         if charModel:IsA("Model") and charModel.Name ~= player.Name then
-            if charModel:FindFirstChild("Ball") then
+            if charModel:FindFirstChild("Ball") == currentBall then
                 return charModel
             end
         end
@@ -308,8 +336,7 @@ local function atualizarAdvinhaChute()
     end
 
     local vel = ball.AssemblyLinearVelocity
-    -- Limiar reduzido para 0.1 – agora detecta até movimentos muito lentos
-    if vel.Magnitude < 0.1 then
+    if vel.Magnitude < 0.5 then
         if linhaChute then linhaChute:Destroy() linhaChute = nil end
         if circuloChute then circuloChute:Destroy() circuloChute = nil end
         return
@@ -343,12 +370,12 @@ local function atualizarAdvinhaChute()
 
     local inicio = pontos[1]
     local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z) -- força no chão
+    fim = Vector3.new(fim.X, chaoY, fim.Z)
 
     local meio = (inicio + fim) / 2
     local distancia = (inicio - fim).Magnitude
 
-    -- Cria/atualiza linha amarela (única parte)
+    -- Cria/atualiza linha amarela
     if not linhaChute then
         linhaChute = Instance.new("Part")
         linhaChute.Name = "LinhaChute"
@@ -674,7 +701,7 @@ secDrible:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Azure Lock",
-        Text = "Linha amarela corrigida (limiar de velocidade reduzido)!",
+        Text = "Detector de bola em loop – Linha amarela corrigida!",
         Duration = 4
     })
 end)
