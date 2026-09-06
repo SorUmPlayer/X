@@ -1,7 +1,3 @@
---[[
-    🍊 SorHub Esport – Atualizado: Modo de Controle nas Curvas
-]]
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -40,7 +36,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "SorHub",
-    Size = UDim2.fromOffset(500, 760),
+    Size = UDim2.fromOffset(500, 800),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -49,7 +45,7 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
--- ===== BLUE LOCK =====
+-- Blue Lock
 local BlueLockTab = Window:Tab({ Title = "Blue Lock Rivels", Icon = "home" })
 
 local bola = nil
@@ -151,8 +147,9 @@ local curvasTimer = 0
 local curvasIntervalo = 1.0
 local curvasDirecaoAtual = 1
 
--- NOVO: Modo de Controle nas Curvas
-local controleCurvasAtivo = false
+-- Novas variáveis para o Modo de Controle
+local curvasModoControle = false
+local curvasControleIntensidade = 5
 
 local dribleEnabled = false
 local dribleSphere = nil
@@ -346,7 +343,6 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
--- ===== CURVAS ATUALIZADAS =====
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bola or not bolaValida then return end
@@ -354,68 +350,53 @@ local function aplicarCurvas()
 
     local vel = bola.AssemblyLinearVelocity
     local speed = vel.Magnitude
+
+    -- Modo de Controle: quando a velocidade cai abaixo de 40, puxa para a direção da câmera
+    if curvasModoControle and speed < 40 and speed > 0.5 then
+        local dir = camera.CFrame.LookVector
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.001 then return end
+        dir = dir.Unit
+
+        local forca = (curvasControleIntensidade / 10) * 8 + 2
+        local velAtual = Vector3.new(vel.X, 0, vel.Z)
+        if velAtual.Magnitude < 0.1 then return end
+        velAtual = velAtual.Unit
+
+        local diff = dir - velAtual
+        local correcao = diff * forca * 0.1
+        bola.AssemblyLinearVelocity = vel + correcao
+        return
+    end
+
+    -- Curvas normais (speed >= 40 ou modo controle desativado)
     if speed < 40 then return end
     if bola.Position.Y < 0.5 then return end
 
-    local dirAtual = Vector3.new(vel.X, 0, vel.Z)
-    if dirAtual.Magnitude < 0.01 then return end
-    dirAtual = dirAtual.Unit
+    local dir = Vector3.new(vel.X, 0, vel.Z)
+    if dir.Magnitude < 0.01 then return end
+    dir = dir.Unit
 
-    local perp = Vector3.new(-dirAtual.Z, 0, dirAtual.X)
+    local perp = Vector3.new(-dir.Z, 0, dir.X)
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
 
-    -- Verifica se o modo de controle está ativo e a velocidade >= 30
-    if controleCurvasAtivo and speed >= 30 then
-        -- Direção da câmera (horizontal)
-        local camDir = camera.CFrame.LookVector
-        camDir = Vector3.new(camDir.X, 0, camDir.Z)
-        if camDir.Magnitude < 0.001 then
-            camDir = Vector3.new(1, 0, 0)
-        else
-            camDir = camDir.Unit
+    if curvasModo == 1 then
+        lado = 1
+    elseif curvasModo == 2 then
+        lado = -1
+    elseif curvasModo == 3 then
+        local now = tick()
+        if now - curvasTimer > curvasIntervalo then
+            curvasTimer = now
+            curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
+            curvasIntervalo = 0.5 + math.random() * 0.5
         end
-
-        -- Determina se a bola deve curvar para a esquerda ou direita em direção à câmera
-        -- Calcula o ângulo entre a direção atual e a direção da câmera
-        local cross = dirAtual.X * camDir.Z - dirAtual.Z * camDir.X
-        local dot = dirAtual.X * camDir.X + dirAtual.Z * camDir.Z
-        local angle = math.atan2(cross, dot)
-
-        -- Se o ângulo for positivo, curva para a esquerda; se negativo, para a direita
-        if angle > 0.05 then
-            lado = -1  -- vira para a esquerda (em relação à direção atual)
-        elseif angle < -0.05 then
-            lado = 1   -- vira para a direita
-        else
-            lado = 0   -- já está alinhado, não curva
-        end
-
-        -- Aplica a força lateral com intensidade proporcional ao ângulo (mas limitada)
-        if lado ~= 0 then
-            local forcaControle = math.min(math.abs(angle) * 3, fator) -- intensidade adaptativa
-            local forcaLateral = perp * lado * forcaControle
-            bola.AssemblyLinearVelocity = vel + forcaLateral
-        end
-    else
-        -- Modo normal (direita/esquerda/aleatório)
-        if curvasModo == 1 then
-            lado = 1
-        elseif curvasModo == 2 then
-            lado = -1
-        elseif curvasModo == 3 then
-            local now = tick()
-            if now - curvasTimer > curvasIntervalo then
-                curvasTimer = now
-                curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
-                curvasIntervalo = 0.5 + math.random() * 0.5
-            end
-            lado = curvasDirecaoAtual
-        end
-
-        local forcaLateral = perp * lado * fator
-        bola.AssemblyLinearVelocity = vel + forcaLateral
+        lado = curvasDirecaoAtual
     end
+
+    local forcaLateral = perp * lado * fator
+    bola.AssemblyLinearVelocity = vel + forcaLateral
 end
 
 local function setupDrible()
@@ -911,9 +892,9 @@ local function onChatMessage(msg)
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
                 forcaBolaVelocidade = val
-                player:Chat("Força da bola ajustada para " .. val)
+                player:Chat("Força ajustada para " .. val)
             else
-                player:Chat("Use um número entre 1 e 200.")
+                player:Chat("Use 1-200")
             end
         else
             player:Chat("Use: Força da bola [número]")
@@ -1332,16 +1313,6 @@ CurvasSec:Toggle({
         end
     end
 })
-
--- NOVO TOGGLE: Modo de Controle
-CurvasSec:Toggle({
-    Title = "Modo de Controle",
-    Desc = "Ao atingir velocidade 50, a bola curva em direção à sua câmera",
-    Callback = function(v)
-        controleCurvasAtivo = v
-    end
-})
-
 CurvasSec:Slider({
     Title = "Intensidade da Curva",
     Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
@@ -1349,6 +1320,23 @@ CurvasSec:Slider({
     Value = { Min = 1, Max = 10, Default = 5 },
     Callback = function(v)
         curvasIntensidade = v
+    end
+})
+-- Modo de Controle
+CurvasSec:Toggle({
+    Title = "Modo de Controle",
+    Desc = "Bola vai em direção ao olhar do jogador ao perder velocidade",
+    Callback = function(v)
+        curvasModoControle = v
+    end
+})
+CurvasSec:Slider({
+    Title = "Controle da Curva",
+    Desc = "Força da correção para o olhar do jogador (1-10)",
+    Step = 1,
+    Value = { Min = 1, Max = 10, Default = 5 },
+    Callback = function(v)
+        curvasControleIntensidade = v
     end
 })
 
@@ -1912,7 +1900,7 @@ DribleAzureSec:Toggle({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "SorHub Esport",
-        Text = "Modo de Controle nas Curvas adicionado!",
+        Text = "Modo de Controle adicionado às curvas!",
         Duration = 4
     })
 end)
