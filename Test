@@ -1,135 +1,258 @@
---[[
-    🍊 SorHub Universal Esport
-    Abas: Games | Auto Execute
-]]
+-- =============================================
+-- 🍊 SorHub Universal Esport
+-- =============================================
+local players = game:GetService("Players")
+local coreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+local LocalPlayer = players.LocalPlayer
 
-local WindUI
-local loaded, _ = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-if not loaded or not WindUI then
-    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-end
+-- =============================================
+-- CONFIGURAÇÕES PERSISTENTES
+-- =============================================
+local CONFIG_FILE = "SorHubUniversal_Config.json"
 
-local Window = WindUI:CreateWindow({
-    Title = "🍊 SorHub Universal Esport",
-    Icon = "rbxassetid://10723343321",
-    Author = "Sor_Gostoso",
-    Folder = "SorHubCentral",
-    Size = UDim2.fromOffset(450, 400),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
-
--- ===== ABA GAMES =====
-local GamesTab = Window:Tab({ Title = "Games", Icon = "game" })
-local GamesSec = GamesTab:Section({ Title = "Selecione o Game", TextXAlignment = "Left" })
-
-local selectedGame = "BlueLockRivals"
-local gameUrls = {
-    BlueLockRivals = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Blue%20Lock%20Rivals",
-    VolleyballLegends = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Volleyball%20Legends",
-    FechaduraAzure = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Fechadura%20Azure"
-}
-
-GamesSec:Button({
-    Title = "Blue Lock Rivals",
-    Desc = "Carrega o script do Blue Lock",
-    Callback = function()
-        selectedGame = "BlueLockRivals"
-        loadstring(game:HttpGet(gameUrls.BlueLockRivals))()
-    end
-})
-
-GamesSec:Button({
-    Title = "Volleyball Legends",
-    Desc = "Carrega o script do Volleyball",
-    Callback = function()
-        selectedGame = "VolleyballLegends"
-        loadstring(game:HttpGet(gameUrls.VolleyballLegends))()
-    end
-})
-
-GamesSec:Button({
-    Title = "Fechadura Azure",
-    Desc = "Carrega o script do Azure Lock",
-    Callback = function()
-        selectedGame = "FechaduraAzure"
-        loadstring(game:HttpGet(gameUrls.FechaduraAzure))()
-    end
-})
-
--- ===== ABA AUTO EXECUTE =====
-local AutoTab = Window:Tab({ Title = "Auto Execute", Icon = "clock" })
-local AutoSec = AutoTab:Section({ Title = "Configuração", TextXAlignment = "Left" })
-
-local savedGame = "BlueLockRivals"
-local autoEnabled = false
-
--- Salvar estado (usando dados do jogador)
-local function saveState()
-    local data = {
-        game = savedGame,
-        enabled = autoEnabled
-    }
-    -- Salva no player (persiste entre sessões)
-    local save = Instance.new("StringValue")
-    save.Name = "SorHubAutoExecute"
-    save.Value = game:GetService("HttpService"):JSONEncode(data)
-    save.Parent = player
-end
-
-local function loadState()
-    local save = player:FindFirstChild("SorHubAutoExecute")
-    if save then
-        local data = game:GetService("HttpService"):JSONDecode(save.Value)
-        savedGame = data.game or "BlueLockRivals"
-        autoEnabled = data.enabled or false
-    end
-end
-
-loadState()
-
-local dropdown = AutoSec:Dropdown({
-    Title = "Script",
-    Desc = "Selecione o script para executar automaticamente",
-    Options = {"BlueLockRivals", "VolleyballLegends", "FechaduraAzure"},
-    Callback = function(opt)
-        savedGame = opt
-        saveState()
-    end
-})
-
-local toggle = AutoSec:Toggle({
-    Title = "Executar",
-    Desc = "Ativa/desativa a execução automática ao entrar",
-    Callback = function(v)
-        autoEnabled = v
-        saveState()
-        if v then
-            loadstring(game:HttpGet(gameUrls[savedGame]))()
+local function LoadConfig()
+    if not isfile then return {} end
+    if isfile(CONFIG_FILE) then
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(CONFIG_FILE))
+        end)
+        if success and type(data) == "table" then
+            return data
         end
     end
-})
+    return {}
+end
 
--- Executa automaticamente se estiver ativado
-if autoEnabled then
-    task.spawn(function()
-        loadstring(game:HttpGet(gameUrls[savedGame]))()
+local function SaveConfigToFile(configTable)
+    if not writefile then return end
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(configTable)
+    end)
+    if success then
+        pcall(function() writefile(CONFIG_FILE, json) end)
+    end
+end
+
+local Config = {
+    JogoSelecionado = "BlueLockRivals",
+    AutoExecutar = false,
+}
+local savedConfig = LoadConfig()
+for k, v in pairs(savedConfig) do
+    Config[k] = v
+end
+
+local function SaveConfig()
+    SaveConfigToFile(Config)
+end
+
+-- =============================================
+-- SCRIPTS DOS JOGOS
+-- =============================================
+local Scripts = {
+    BlueLockRivals = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Blue%20Lock%20Rivals",
+    VolleyballLegends = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Volleyball%20Legends",
+    FechaduraAzure = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Fechadura%20Azure",
+}
+
+local function CarregarScript(jogo)
+    local url = Scripts[jogo]
+    if not url then
+        StarterGui:SetCore("SendNotification", {
+            Title = "Erro",
+            Text = "Jogo não encontrado!",
+            Duration = 3
+        })
+        return
+    end
+    pcall(function()
+        local success, result = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success then
+            local func, err = loadstring(result)
+            if func then
+                func()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "SorHub",
+                    Text = "Script carregado: " .. jogo,
+                    Duration = 3
+                })
+            else
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Falha ao compilar: " .. tostring(err),
+                    Duration = 5
+                })
+            end
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Falha ao baixar: " .. tostring(result),
+                Duration = 5
+            })
+        end
     end)
 end
 
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "SorHub",
-        Text = "Hub Central carregado!",
-        Duration = 3
-    })
+-- =============================================
+-- AUTO EXECUTAR
+-- =============================================
+local autoExecutado = false
+
+local function TentarAutoExecutar()
+    if Config.AutoExecutar and not autoExecutado then
+        autoExecutado = true
+        CarregarScript(Config.JogoSelecionado)
+    end
+end
+
+-- Tenta executar automaticamente quando o jogo carregar
+task.spawn(function()
+    -- Aguarda o jogador estar pronto
+    repeat task.wait(1) until LocalPlayer and LocalPlayer.Character
+    TentarAutoExecutar()
 end)
+
+-- Também tenta executar quando o script é carregado (já pode estar pronto)
+if LocalPlayer and LocalPlayer.Character then
+    TentarAutoExecutar()
+end
+
+-- =============================================
+-- MENU – WINDUI
+-- =============================================
+local oldWindow = nil
+
+local function CriarMenu()
+    if oldWindow then
+        pcall(function() oldWindow:Destroy() end)
+        oldWindow = nil
+    end
+
+    local WindUI
+    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and result then
+        WindUI = result
+    else
+        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+        success, result = pcall(function()
+            return loadstring(game:HttpGet(fallbackUrl))()
+        end)
+        if success and result then
+            WindUI = result
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Não foi possível carregar a WindUI.",
+                Duration = 5
+            })
+            return
+        end
+    end
+
+    local Window = WindUI:CreateWindow({
+        Title = "🍊 SorHub Universal Esport",
+        Icon = "rbxassetid://135710581431595",
+        Author = "Sor_UmPlayer",
+        Folder = "SorHub Universal Esport",
+        Size = UDim2.fromOffset(460, 320),
+        Transparent = false,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        BackgroundImageTransparency = 0.42,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+        User = {
+            Enabled = true,
+            Anonymous = false,
+            Callback = function() print("clicked") end,
+        },
+    })
+    oldWindow = Window
+    Window:SetIconSize(60)
+
+    Window:EditOpenButton({
+        Title = "🍊 SorHub",
+        Icon = "",
+        CornerRadius = UDim.new(0, 16),
+        StrokeThickness = 2,
+        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
+        OnlyMobile = false,
+        Enabled = true,
+        Draggable = false
+    })
+
+    -- ====== ABA GAMES ======
+    local TabGames = Window:Tab({ Title = "Games", Icon = "rbxassetid://135710581431595" })
+
+    -- Seção "Selecione Game"
+    TabGames:Section({ Title = "🎮 Selecione Game" })
+    TabGames:Button({
+        Title = "Blue Lock Rivals",
+        Desc = "Carrega o script do Blue Lock Rivals",
+        Callback = function()
+            CarregarScript("BlueLockRivals")
+        end
+    })
+    TabGames:Button({
+        Title = "Volleyball Legends",
+        Desc = "Carrega o script do Volleyball Legends",
+        Callback = function()
+            CarregarScript("VolleyballLegends")
+        end
+    })
+    TabGames:Button({
+        Title = "Fechadura Azure",
+        Desc = "Carrega o script do Fechadura Azure",
+        Callback = function()
+            CarregarScript("FechaduraAzure")
+        end
+    })
+
+    -- Seção "Auto Execute"
+    TabGames:Section({ Title = "⚡ Auto Execute" })
+    local dropdownJogos = TabGames:Dropdown({
+        Title = "Selecionar Jogo",
+        Values = {"BlueLockRivals", "VolleyballLegends", "FechaduraAzure"},
+        Value = Config.JogoSelecionado,
+        Callback = function(value)
+            Config.JogoSelecionado = value
+            SaveConfig()
+            print("[SorHub] Jogo selecionado:", value)
+        end
+    })
+
+    local toggleAuto = TabGames:Toggle({
+        Title = "Executar",
+        Desc = "Ative para executar o script automaticamente ao entrar no jogo",
+        Value = Config.AutoExecutar,
+        Callback = function(value)
+            Config.AutoExecutar = value
+            SaveConfig()
+            autoExecutado = false -- Permite executar novamente se reativar
+            if value then
+                -- Se ativou, tenta executar imediatamente
+                TentarAutoExecutar()
+            end
+        end
+    })
+end
+
+pcall(CriarMenu)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "🍊 SorHub Universal Esport",
+    Text = "Carregado com sucesso!",
+    Duration = 3
+})
+
+print("🍊 SorHub Universal Esport carregado.")
