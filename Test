@@ -1,37 +1,34 @@
 --[[
-    Blue Lock Rivals – Interface Ultra Simplificada (Teste)
+    Blue Lock Rivals – Interface Completa com Auto Save
 ]]
 
--- =============================================
--- MENSAGEM DE INÍCIO (para confirmar execução)
--- =============================================
-print("[BlueLock] Script iniciado!")
+print("[BlueLock] Iniciando...")
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local StarterGui = game:GetService("StarterGui")
 local HttpService = game:GetService("HttpService")
-
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
-print("[BlueLock] Player: " .. player.Name)
 
 -- =============================================
--- SISTEMA DE SAVE SIMPLES
+-- SISTEMA DE SAVE
 -- =============================================
-local CONFIG_FILE = "BlueLockTest.json"
-local Config = { toggle = false }
+local CONFIG_FILE = "BlueLockConfig.json"
+local Config = {
+    toggle = false,
+    input = "",
+    slider = 5,
+    dropdown = "Opção 1",
+}
 
 local function SaveConfig()
-    if not writefile then 
-        print("[BlueLock] writefile não disponível.")
-        return 
-    end
+    if not writefile then return end
     local success, json = pcall(function()
         return HttpService:JSONEncode(Config)
     end)
     if success then
         pcall(function() writefile(CONFIG_FILE, json) end)
-        print("[BlueLock] Config salva.")
     end
 end
 
@@ -42,114 +39,349 @@ local function LoadConfig()
             return HttpService:JSONDecode(readfile(CONFIG_FILE))
         end)
         if success and type(data) == "table" then
-            Config.toggle = data.toggle or false
-            print("[BlueLock] Config carregada: toggle=" .. tostring(Config.toggle))
+            for k, v in pairs(data) do Config[k] = v end
         end
     end
 end
-
 LoadConfig()
 
 -- =============================================
--- CRIA UMA INTERFACE SUPER SIMPLES
+-- CRIA INTERFACE
 -- =============================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BlueLockTest"
+screenGui.Name = "BlueLockGUI"
 screenGui.ResetOnSpawn = false
 
--- Tenta colocar em CoreGui, com fallback para PlayerGui
-local success, err = pcall(function()
-    if gethui then
-        screenGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(screenGui)
-        screenGui.Parent = CoreGui
-    else
-        screenGui.Parent = CoreGui
+local function safeParent(gui)
+    local ok = pcall(function()
+        if gethui then
+            gui.Parent = gethui()
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(gui)
+            gui.Parent = CoreGui
+        else
+            gui.Parent = CoreGui
+        end
+    end)
+    if not ok then
+        gui.Parent = player:WaitForChild("PlayerGui")
     end
-end)
-
-if not success then
-    print("[BlueLock] Erro ao colocar no CoreGui: " .. tostring(err))
-    screenGui.Parent = player:WaitForChild("PlayerGui")
-    print("[BlueLock] Colocado no PlayerGui")
 end
+safeParent(screenGui)
 
--- Cria um Frame simples
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 200)
-frame.Position = UDim2.new(0.5, -150, 0.5, -100)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
+-- Frame principal com tamanho fixo e arrastável
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 450)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -225)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = frame
+corner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(100, 100, 150)
+stroke.Thickness = 1.5
+stroke.Parent = mainFrame
+
+-- Título (arrastável)
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundTransparency = 1
+titleBar.Parent = mainFrame
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Size = UDim2.new(1, 0, 1, 0)
 title.BackgroundTransparency = 1
-title.Text = "⚽ Blue Lock Test"
+title.Text = "⚽ Blue Lock Rivals"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 20
+title.TextSize = 18
 title.Font = Enum.Font.GothamBold
-title.Parent = frame
+title.Parent = titleBar
 
--- Toggle
+-- Sistema de arrastar
+local dragging = false
+local dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ====== TOGGLE ======
+local toggleY = 50
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Size = UDim2.new(0, 150, 0, 30)
+toggleLabel.Position = UDim2.new(0, 15, 0, toggleY)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.Text = "Ativar recurso"
+toggleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+toggleLabel.TextSize = 15
+toggleLabel.Font = Enum.Font.Gotham
+toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+toggleLabel.Parent = mainFrame
+
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 100, 0, 40)
-toggleBtn.Position = UDim2.new(0.5, -50, 0, 60)
+toggleBtn.Size = UDim2.new(0, 70, 0, 30)
+toggleBtn.Position = UDim2.new(1, -85, 0, toggleY)
 toggleBtn.BackgroundColor3 = Config.toggle and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
 toggleBtn.Text = Config.toggle and "ON" or "OFF"
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.TextSize = 16
+toggleBtn.TextSize = 14
 toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.Parent = frame
-
-local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = UDim.new(0, 8)
-toggleCorner.Parent = toggleBtn
+toggleBtn.Parent = mainFrame
+local tCorner = Instance.new("UICorner")
+tCorner.CornerRadius = UDim.new(0, 6)
+tCorner.Parent = toggleBtn
 
 toggleBtn.MouseButton1Click:Connect(function()
     Config.toggle = not Config.toggle
     toggleBtn.BackgroundColor3 = Config.toggle and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
     toggleBtn.Text = Config.toggle and "ON" or "OFF"
     SaveConfig()
-    print("[Toggle] Estado: " .. tostring(Config.toggle))
 end)
 
--- Botão de notificação
-local notifBtn = Instance.new("TextButton")
-notifBtn.Size = UDim2.new(0, 150, 0, 40)
-notifBtn.Position = UDim2.new(0.5, -75, 0, 120)
-notifBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-notifBtn.Text = "Notificar"
-notifBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-notifBtn.TextSize = 16
-notifBtn.Font = Enum.Font.GothamBold
-notifBtn.Parent = frame
+-- ====== INPUT ======
+local inputY = 100
+local inputLabel = Instance.new("TextLabel")
+inputLabel.Size = UDim2.new(0, 80, 0, 30)
+inputLabel.Position = UDim2.new(0, 15, 0, inputY)
+inputLabel.BackgroundTransparency = 1
+inputLabel.Text = "Texto:"
+inputLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+inputLabel.TextSize = 15
+inputLabel.Font = Enum.Font.Gotham
+inputLabel.TextXAlignment = Enum.TextXAlignment.Left
+inputLabel.Parent = mainFrame
 
-local notifCorner = Instance.new("UICorner")
-notifCorner.CornerRadius = UDim.new(0, 8)
-notifCorner.Parent = notifBtn
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(0, 250, 0, 30)
+inputBox.Position = UDim2.new(0, 100, 0, inputY)
+inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextSize = 14
+inputBox.Font = Enum.Font.Gotham
+inputBox.PlaceholderText = "Digite algo..."
+inputBox.Text = Config.input
+inputBox.Parent = mainFrame
+local iCorner = Instance.new("UICorner")
+iCorner.CornerRadius = UDim.new(0, 6)
+iCorner.Parent = inputBox
 
-notifBtn.MouseButton1Click:Connect(function()
+inputBox.FocusLost:Connect(function()
+    Config.input = inputBox.Text
+    SaveConfig()
+end)
+
+-- ====== SLIDER ======
+local sliderY = 150
+local sliderLabel = Instance.new("TextLabel")
+sliderLabel.Size = UDim2.new(0, 80, 0, 30)
+sliderLabel.Position = UDim2.new(0, 15, 0, sliderY)
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.Text = "Slider:"
+sliderLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+sliderLabel.TextSize = 15
+sliderLabel.Font = Enum.Font.Gotham
+sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+sliderLabel.Parent = mainFrame
+
+local sliderValue = Instance.new("TextLabel")
+sliderValue.Size = UDim2.new(0, 40, 0, 30)
+sliderValue.Position = UDim2.new(1, -55, 0, sliderY)
+sliderValue.BackgroundTransparency = 1
+sliderValue.Text = tostring(Config.slider)
+sliderValue.TextColor3 = Color3.fromRGB(255, 200, 100)
+sliderValue.TextSize = 16
+sliderValue.Font = Enum.Font.GothamBold
+sliderValue.Parent = mainFrame
+
+local sliderBtn = Instance.new("TextButton")
+sliderBtn.Size = UDim2.new(0, 200, 0, 30)
+sliderBtn.Position = UDim2.new(0, 100, 0, sliderY)
+sliderBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+sliderBtn.Text = ""
+sliderBtn.Parent = mainFrame
+local sCorner = Instance.new("UICorner")
+sCorner.CornerRadius = UDim.new(0, 15)
+sCorner.Parent = sliderBtn
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(Config.slider / 10, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBtn
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(0, 15)
+fillCorner.Parent = sliderFill
+
+local draggingSlider = false
+local function updateSlider(x)
+    local relX = math.clamp((x - sliderBtn.AbsolutePosition.X) / sliderBtn.AbsoluteSize.X, 0, 1)
+    local val = math.floor(relX * 10 + 0.5)
+    if val < 1 then val = 1 end
+    if val > 10 then val = 10 end
+    Config.slider = val
+    sliderValue.Text = tostring(val)
+    sliderFill.Size = UDim2.new(val / 10, 0, 1, 0)
+    SaveConfig()
+end
+
+sliderBtn.MouseButton1Down:Connect(function()
+    draggingSlider = true
+    local mouse = player:GetMouse()
+    updateSlider(mouse.X)
+end)
+sliderBtn.MouseButton1Up:Connect(function() draggingSlider = false end)
+sliderBtn.MouseMoved:Connect(function()
+    if draggingSlider then
+        local mouse = player:GetMouse()
+        updateSlider(mouse.X)
+    end
+end)
+
+-- ====== DROPDOWN ======
+local dropY = 200
+local dropLabel = Instance.new("TextLabel")
+dropLabel.Size = UDim2.new(0, 80, 0, 30)
+dropLabel.Position = UDim2.new(0, 15, 0, dropY)
+dropLabel.BackgroundTransparency = 1
+dropLabel.Text = "Dropdown:"
+dropLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+dropLabel.TextSize = 15
+dropLabel.Font = Enum.Font.Gotham
+dropLabel.TextXAlignment = Enum.TextXAlignment.Left
+dropLabel.Parent = mainFrame
+
+local dropBtn = Instance.new("TextButton")
+dropBtn.Size = UDim2.new(0, 200, 0, 30)
+dropBtn.Position = UDim2.new(0, 100, 0, dropY)
+dropBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+dropBtn.Text = Config.dropdown
+dropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+dropBtn.TextSize = 14
+dropBtn.Font = Enum.Font.Gotham
+dropBtn.Parent = mainFrame
+local dCorner = Instance.new("UICorner")
+dCorner.CornerRadius = UDim.new(0, 6)
+dCorner.Parent = dropBtn
+
+local dropList = Instance.new("Frame")
+dropList.Size = UDim2.new(0, 200, 0, 120)
+dropList.Position = UDim2.new(0, 100, 0, dropY + 30)
+dropList.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+dropList.Visible = false
+dropList.Parent = mainFrame
+local dlCorner = Instance.new("UICorner")
+dlCorner.CornerRadius = UDim.new(0, 6)
+dlCorner.Parent = dropList
+
+local options = {"Opção 1", "Opção 2", "Opção 3", "Opção 4"}
+for i, opt in ipairs(options) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, (i-1)*30)
+    btn.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(50, 50, 70) or Color3.fromRGB(40, 40, 55)
+    btn.Text = opt
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = dropList
+    btn.MouseButton1Click:Connect(function()
+        Config.dropdown = opt
+        dropBtn.Text = opt
+        dropList.Visible = false
+        SaveConfig()
+    end)
+end
+
+dropBtn.MouseButton1Click:Connect(function()
+    dropList.Visible = not dropList.Visible
+end)
+
+-- ====== BOTÕES ======
+local btnY = 260
+local saveBtn = Instance.new("TextButton")
+saveBtn.Size = UDim2.new(0, 120, 0, 40)
+saveBtn.Position = UDim2.new(0.5, -130, 0, btnY)
+saveBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+saveBtn.Text = "Salvar"
+saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveBtn.TextSize = 16
+saveBtn.Font = Enum.Font.GothamBold
+saveBtn.Parent = mainFrame
+local sBtnCorner = Instance.new("UICorner")
+sBtnCorner.CornerRadius = UDim.new(0, 8)
+sBtnCorner.Parent = saveBtn
+
+saveBtn.MouseButton1Click:Connect(function()
+    SaveConfig()
     StarterGui:SetCore("SendNotification", {
-        Title = "Blue Lock",
-        Text = "Botão funcionando! Toggle: " .. tostring(Config.toggle),
-        Duration = 3
+        Title = "Config",
+        Text = "Salvo com sucesso!",
+        Duration = 2
     })
-    print("[Notif] Botão clicado")
+end)
+
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(0, 120, 0, 40)
+resetBtn.Position = UDim2.new(0.5, 10, 0, btnY)
+resetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+resetBtn.Text = "Resetar"
+resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetBtn.TextSize = 16
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.Parent = mainFrame
+local rBtnCorner = Instance.new("UICorner")
+rBtnCorner.CornerRadius = UDim.new(0, 8)
+rBtnCorner.Parent = resetBtn
+
+resetBtn.MouseButton1Click:Connect(function()
+    Config.toggle = false
+    Config.input = ""
+    Config.slider = 5
+    Config.dropdown = "Opção 1"
+    SaveConfig()
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    toggleBtn.Text = "OFF"
+    inputBox.Text = ""
+    sliderValue.Text = "5"
+    sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+    dropBtn.Text = "Opção 1"
+    StarterGui:SetCore("SendNotification", {
+        Title = "Config",
+        Text = "Resetado!",
+        Duration = 2
+    })
 end)
 
 -- =============================================
--- NOTIFICAÇÃO DE CARREGAMENTO
+-- NOTIFICAÇÃO
 -- =============================================
 StarterGui:SetCore("SendNotification", {
-    Title = "Blue Lock Test",
-    Text = "Interface carregada!",
+    Title = "Blue Lock",
+    Text = "Interface completa carregada!",
     Duration = 3
 })
 
-print("[BlueLock] Interface criada com sucesso.")
+print("[BlueLock] Interface completa carregada com sucesso.")
