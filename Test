@@ -1,5 +1,5 @@
 --[[
-    Blue Lock Rivals – Interface Nova (Corrigido)
+    Blue Lock Rivals – Script completo com Auto Save
 ]]
 
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- =============================================
--- CONFIGURAÇÕES PERSISTENTES
+-- CONFIGURAÇÕES PERSISTENTES (Auto Save)
 -- =============================================
 local CONFIG_FILE = "BlueLockConfig.json"
 
@@ -32,7 +32,7 @@ local function LoadConfig()
 end
 
 local function SaveConfigToFile(configTable)
-    if not writefile then return end
+    if not writefile then return
     local success, json = pcall(function()
         return HttpService:JSONEncode(configTable)
     end)
@@ -42,25 +42,26 @@ local function SaveConfigToFile(configTable)
 end
 
 local Config = {
-    VelocidadeBola = "65",
-    AimbotPersonagem = false,
-    AimbotCamera = false,
-    TempoAimbot = 0,
-    VisaoBola = false,
-    AdvinhaChute = false,
-    HitboxPersonagem = false,
-    TamanhoHitbox = 5,
-    HitboxBola = false,
-    AlcanceBola = 20,
-    MostrarESP = false,
-    ForcaBola = false,
-    ForcaMaxima = 100,
-    Curvas = false,
-    IntensidadeCurva = 5,
-    Drible = false,
-    Time = "Home",
-    BotaoFlutuante = false,
-    BotaoCam = false
+    velocidadeBola = 65,
+    aimbotPersonagem = false,
+    aimbotCamera = false,
+    botaoFlutuante = false,
+    botaoCameraFlutuante = false,
+    aimbotDelayIndex = 1, -- índice do slider
+    visaoBola = false,
+    advinhaChute = false,
+    hitboxPersonagem = false,
+    hitboxPersonagemTamanho = 5,
+    hitboxBola = false,
+    reachDistancia = 20,
+    mostrarESP = false,
+    forcaBola = false,
+    forcaBolaVelocidade = 100,
+    curvas = false,
+    curvasIntensidade = 5,
+    curvasModo = 1,
+    drible = false,
+    selectedTeam = "Home",
 }
 local saved = LoadConfig()
 for k, v in pairs(saved) do
@@ -71,29 +72,78 @@ local function SaveConfig()
     SaveConfigToFile(Config)
 end
 
+-- Variáveis locais (sincronizadas com Config)
+local velocidadeBola = Config.velocidadeBola
+local aimbotPersonagem = Config.aimbotPersonagem
+local aimbotCamera = Config.aimbotCamera
+local reachAtivo = Config.hitboxBola
+local reachDistancia = Config.reachDistancia
+local mostrarESP = Config.mostrarESP
+local hitboxPersonagemAtivo = Config.hitboxPersonagem
+local hitboxPersonagemTamanho = Config.hitboxPersonagemTamanho
+local forcaBolaEnabled = Config.forcaBola
+local forcaBolaVelocidade = Config.forcaBolaVelocidade
+local curvasEnabled = Config.curvas
+local curvasIntensidade = Config.curvasIntensidade
+local curvasModo = Config.curvasModo
+local dribleEnabled = Config.drible
+local visaoBolaEnabled = Config.visaoBola
+local advinhaChuteEnabled = Config.advinhaChute
+local selectedTeam = Config.selectedTeam
+local aimbotDelayValue = 0
+local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+if Config.aimbotDelayIndex then
+    aimbotDelayValue = aimbotDelayValues[Config.aimbotDelayIndex] or 0
+end
+
 -- =============================================
--- CARREGA A WINDUI
+-- SEGURANÇA PARA PARENT DA GUI
 -- =============================================
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"))()
+local function safeParent(gui)
+    local ok = pcall(function()
+        if gethui then
+            gui.Parent = gethui()
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(gui)
+            gui.Parent = CoreGui
+        else
+            gui.Parent = CoreGui
+        end
+    end)
+    if not ok then
+        gui.Parent = player:WaitForChild("PlayerGui")
+    end
+end
+
+-- =============================================
+-- CARREGA WINDUI
+-- =============================================
+local WindUI
+local loaded, _ = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+end)
+if not loaded or not WindUI then
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end
 
 local Window = WindUI:CreateWindow({
     Title = "⚽ Blue Lock Rivals",
-    Icon = "rbxassetid://135710581431595",
+    Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "BlueLock",
-    Size = UDim2.fromOffset(460, 500),
-    Transparent = false,
+    Size = UDim2.fromOffset(500, 760),
+    Transparent = true,
     Theme = "Dark",
     Resizable = true,
     SideBarWidth = 200,
-    BackgroundImageTransparency = 0.42,
     HideSearchBar = true,
     ScrollBarEnabled = false,
 })
 
 -- =============================================
--- CÓDIGO FUNCIONAL (100% ORIGINAL)
+-- CÓDIGO DO BLUE LOCK (com variáveis sincronizadas)
 -- =============================================
+
 local bola = nil
 local hitbox = nil
 local bolaValida = false
@@ -171,60 +221,11 @@ local function getMyTeam()
     return nil
 end
 
-local aimbotPersonagem = false
-local aimbotCamera = false
-local reachAtivo = false
-local reachDistancia = 20
-local mostrarESP = false
-
-local hitboxPersonagemAtivo = false
-local hitboxPersonagemTamanho = 5
-
-local forcaBolaEnabled = false
-local forcaBolaVelocidade = 100
-local tinhaBola = false
-
-local curvasEnabled = false
-local curvasModo = 1
-local curvasIntensidade = 5
-local curvasBotaoGUI = nil
-local curvasBotao = nil
-local curvasTimer = 0
-local curvasIntervalo = 1.0
-local curvasDirecaoAtual = 1
-
-local dribleEnabled = false
-local dribleSphere = nil
-local dribleLastFired = 0
-local dribleCooldown = 0.3
-local dribleAnimId = "18668814876"
-local dribleRadius = 70
-local driblePlayingAnims = {}
-local dribleEvent = nil
-
-local velocidadeBola = 65
-local isControlActive = false
-local controlConnection = nil
-local controlScreenGui = nil
-local toggleButton = nil
-
-local cameraButtonActive = false
-local cameraScreenGui = nil
-local cameraToggleButton = nil
-
-local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-local aimbotDelayValue = 0
-local aimbotBlocked = false
-local aimbotBlockedUntil = 0
-
-local visaoBolaEnabled = false
-local advinhaChuteEnabled = false
-local linhaVisao = nil
-local linhaChute = nil
-local circuloChute = nil
+-- =============================================
+-- FUNÇÕES DE INTERFACE (usam Config)
+-- =============================================
 
 local gyro = nil
-local selectedTeam = "Home"
 local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
@@ -246,6 +247,9 @@ local function shouldAimbotWork()
     end
     return true
 end
+
+local aimbotBlocked = false
+local aimbotBlockedUntil = 0
 
 local function aplicarTamanhoHitbox()
     if not hitbox then return end
@@ -305,6 +309,7 @@ local function aplicarForcaBola()
     end
     tinhaBola = tenho
 end
+local tinhaBola = false
 
 local function aplicarCurvas()
     if not curvasEnabled then return end
@@ -341,6 +346,20 @@ local function aplicarCurvas()
     local forcaLateral = perp * lado * fator
     bola.AssemblyLinearVelocity = vel + forcaLateral
 end
+local curvasTimer = 0
+local curvasIntervalo = 1.0
+local curvasDirecaoAtual = 1
+
+-- =============================================
+-- DRIBLE
+-- =============================================
+local dribleSphere = nil
+local dribleLastFired = 0
+local dribleCooldown = 0.3
+local dribleAnimId = "18668814876"
+local dribleRadius = 70
+local driblePlayingAnims = {}
+local dribleEvent = nil
 
 local function setupDrible()
     if not dribleEvent then
@@ -495,6 +514,14 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
+-- =============================================
+-- CONTROLE DE BOLA (Botão Flutuante)
+-- =============================================
+local isControlActive = false
+local controlConnection = nil
+local controlScreenGui = nil
+local toggleButton = nil
+
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
@@ -541,12 +568,7 @@ local function criarBotaoFlutuante()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ControlBallGui"
     screenGui.ResetOnSpawn = false
-    pcall(function()
-        screenGui.Parent = CoreGui
-    end)
-    if not screenGui.Parent then
-        screenGui.Parent = player:WaitForChild("PlayerGui")
-    end
+    safeParent(screenGui)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -578,6 +600,13 @@ local function removerBotaoFlutuante()
     end
 end
 
+-- =============================================
+-- AIMBOT CÂMERA (Botão Flutuante)
+-- =============================================
+local cameraButtonActive = false
+local cameraScreenGui = nil
+local cameraToggleButton = nil
+
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     if cameraButtonActive then
@@ -586,12 +615,16 @@ local function toggleCameraButton()
             cameraToggleButton.Text = "Aimbot Cam [ON]"
         end
         aimbotCamera = true
+        Config.aimbotCamera = true
+        SaveConfig()
     else
         if cameraToggleButton then
             cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             cameraToggleButton.Text = "Aimbot Cam [OFF]"
         end
         aimbotCamera = false
+        Config.aimbotCamera = false
+        SaveConfig()
     end
 end
 
@@ -600,12 +633,7 @@ local function criarBotaoCameraFlutuante()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "CameraAimbotGui"
     screenGui.ResetOnSpawn = false
-    pcall(function()
-        screenGui.Parent = CoreGui
-    end)
-    if not screenGui.Parent then
-        screenGui.Parent = player:WaitForChild("PlayerGui")
-    end
+    safeParent(screenGui)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -637,6 +665,9 @@ local function removerBotaoCameraFlutuante()
     end
 end
 
+-- =============================================
+-- VISÃO DE JOGO
+-- =============================================
 local function getInimigoComBola()
     local myTeam = getMyTeam()
     if not myTeam then return nil end
@@ -660,6 +691,7 @@ local function getInimigoComBola()
     return nil
 end
 
+local linhaVisao = nil
 local function criarLinhaVisao()
     if not linhaVisao or not linhaVisao.Parent then
         if linhaVisao then linhaVisao:Destroy() end
@@ -730,6 +762,12 @@ local function atualizarVisaoBola()
     linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
     linhaVisao.Transparency = 0.1
 end
+
+-- =============================================
+-- ADIVINHA CHUTE
+-- =============================================
+local linhaChute = nil
+local circuloChute = nil
 
 local function criarLinhaChute()
     if not linhaChute or not linhaChute.Parent then
@@ -837,6 +875,9 @@ local function atualizarAdvinhaChute()
     end
 end
 
+-- =============================================
+-- COMANDO DE CHAT
+-- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -845,6 +886,8 @@ local function onChatMessage(msg)
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
                 forcaBolaVelocidade = val
+                Config.forcaBolaVelocidade = val
+                SaveConfig()
                 player:Chat("Força da bola ajustada para " .. val)
             else
                 player:Chat("Use um número entre 1 e 200.")
@@ -866,8 +909,15 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
+-- =============================================
+-- AIMBOT PERSONAGEM
+-- =============================================
+local gyro = nil
+
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
+    Config.aimbotPersonagem = estado
+    SaveConfig()
     if not estado and gyro then
         gyro:Destroy()
         gyro = nil
@@ -918,6 +968,9 @@ local function atualizarAimbotPersonagem()
     gyro.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
 end
 
+-- =============================================
+-- AIMBOT CÂMERA (lógica)
+-- =============================================
 local function atualizarAimbotCamera()
     if isControlActive then return end
     if not aimbotCamera then return end
@@ -941,6 +994,11 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
 
+-- =============================================
+-- ESP
+-- =============================================
+local espSphere = nil
+
 local function atualizarESP()
     if euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then
@@ -963,6 +1021,12 @@ local function atualizarESP()
     espSphere.Scale = Vector3.new(scale, scale, scale)
 end
 
+-- =============================================
+-- BOTÃO CURVAS
+-- =============================================
+local curvasBotaoGUI = nil
+local curvasBotao = nil
+
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -980,6 +1044,8 @@ end
 local function toggleCurvasModo()
     curvasModo = curvasModo + 1
     if curvasModo > 3 then curvasModo = 1 end
+    Config.curvasModo = curvasModo
+    SaveConfig()
     atualizarBotaoCurvas()
 end
 
@@ -988,12 +1054,7 @@ local function criarBotaoCurvas()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "CurvasGui"
     screenGui.ResetOnSpawn = false
-    pcall(function()
-        screenGui.Parent = CoreGui
-    end)
-    if not screenGui.Parent then
-        screenGui.Parent = player:WaitForChild("PlayerGui")
-    end
+    safeParent(screenGui)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 200, 0, 45)
@@ -1024,6 +1085,9 @@ local function removerBotaoCurvas()
     end
 end
 
+-- =============================================
+-- LOOP PRINCIPAL (Heartbeat)
+-- =============================================
 RunService.Heartbeat:Connect(function()
     aplicarTamanhoHitbox()
     atualizarAimbotPersonagem()
@@ -1038,32 +1102,34 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =============================================
--- INTERFACE
+-- UI - BLUE LOCK (com Auto Save)
 -- =============================================
-local TabMain = Window:Tab({ Title = "Blue Lock", Icon = "rbxassetid://135710581431595" })
+local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
--- Controle de Bola
-local secControle = TabMain:Section({ Title = "Controle de Bola" })
-secControle:Input({
+-- ===== Controle de Bola =====
+local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+BlueLockSec:Input({
     Title = "Velocidade da Bola",
-    Value = tostring(Config.VelocidadeBola),
-    Placeholder = "65",
-    Callback = function(text)
-        local val = tonumber(text)
+    Desc = "Força com que a bola é empurrada no controle",
+    Value = tostring(Config.velocidadeBola),
+    Placeholder = "Digite a velocidade...",
+    Callback = function(txt)
+        local val = tonumber(txt)
         if val then
             velocidadeBola = val
-            Config.VelocidadeBola = text
+            Config.velocidadeBola = val
             SaveConfig()
         end
     end
 })
-secControle:Toggle({
+BlueLockSec:Toggle({
     Title = "Botão Flutuante",
-    Value = Config.BotaoFlutuante,
-    Callback = function(value)
-        Config.BotaoFlutuante = value
+    Desc = "Cria um botão arrastável para controlar a bola",
+    Value = Config.botaoFlutuante,
+    Callback = function(v)
+        Config.botaoFlutuante = v
         SaveConfig()
-        if value then
+        if v then
             criarBotaoFlutuante()
         else
             removerBotaoFlutuante()
@@ -1071,26 +1137,26 @@ secControle:Toggle({
     end
 })
 
--- Aimbot
-local secAimbot = TabMain:Section({ Title = "Aimbot" })
-secAimbot:Toggle({
+-- ===== Aimbot =====
+local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
+AimbotSec:Toggle({
     Title = "Aimbot Personagem",
-    Value = Config.AimbotPersonagem,
-    Callback = function(value)
-        Config.AimbotPersonagem = value
-        SaveConfig()
-        ativarAimbotPersonagem(value)
+    Desc = "Corpo vira para a bola",
+    Value = Config.aimbotPersonagem,
+    Callback = function(v)
+        ativarAimbotPersonagem(v)
     end
 })
-secAimbot:Toggle({
+AimbotSec:Toggle({
     Title = "Aimbot Câmera",
-    Value = Config.AimbotCamera,
-    Callback = function(value)
-        Config.AimbotCamera = value
+    Desc = "Câmera atrás do personagem olhando para a bola",
+    Value = Config.aimbotCamera,
+    Callback = function(v)
+        aimbotCamera = v
+        Config.aimbotCamera = v
         SaveConfig()
-        aimbotCamera = value
         if cameraToggleButton then
-            if value then
+            if v then
                 cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
                 cameraToggleButton.Text = "Aimbot Cam [ON]"
                 cameraButtonActive = true
@@ -1102,147 +1168,151 @@ secAimbot:Toggle({
         end
     end
 })
-secAimbot:Toggle({
+AimbotSec:Toggle({
     Title = "Botão Voador (Câmera)",
-    Value = Config.BotaoCam,
-    Callback = function(value)
-        Config.BotaoCam = value
+    Desc = "Botão flutuante para ligar/desligar a câmera",
+    Value = Config.botaoCameraFlutuante,
+    Callback = function(v)
+        Config.botaoCameraFlutuante = v
         SaveConfig()
-        if value then
+        if v then
             criarBotaoCameraFlutuante()
         else
             removerBotaoCameraFlutuante()
         end
     end
 })
-secAimbot:Slider({
+AimbotSec:Slider({
     Title = "Tempo do Aimbot",
-    Value = Config.TempoAimbot,
-    Min = 0,
-    Max = 10,
+    Desc = "Atraso após perder a bola (0-5s)",
     Step = 1,
-    Callback = function(value)
-        Config.TempoAimbot = value
+    Value = { Min = 0, Max = 10, Default = Config.aimbotDelayIndex or 1 },
+    Callback = function(v)
+        Config.aimbotDelayIndex = v
+        aimbotDelayValue = aimbotDelayValues[v] or 0
         SaveConfig()
-        aimbotDelayValue = aimbotDelayValues[value] or 0
     end
 })
 
--- Visão de jogo
-local secVisao = TabMain:Section({ Title = "Visão de jogo" })
-secVisao:Toggle({
+-- ===== Visão de Jogo =====
+local VisaoSec = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
+VisaoSec:Toggle({
     Title = "Visão da bola",
-    Value = Config.VisaoBola,
-    Callback = function(value)
-        Config.VisaoBola = value
+    Desc = "Linha verde saindo da cabeça do inimigo com a bola",
+    Value = Config.visaoBola,
+    Callback = function(v)
+        visaoBolaEnabled = v
+        Config.visaoBola = v
         SaveConfig()
-        visaoBolaEnabled = value
-        if not value and linhaVisao then
+        if not v and linhaVisao then
             linhaVisao:Destroy()
             linhaVisao = nil
         end
     end
 })
-secVisao:Toggle({
+VisaoSec:Toggle({
     Title = "Advinha Chute",
-    Value = Config.AdvinhaChute,
-    Callback = function(value)
-        Config.AdvinhaChute = value
+    Desc = "Mostra a trajetória da bola e o ponto de queda",
+    Value = Config.advinhaChute,
+    Callback = function(v)
+        advinhaChuteEnabled = v
+        Config.advinhaChute = v
         SaveConfig()
-        advinhaChuteEnabled = value
-        if not value then
+        if not v then
             if linhaChute then linhaChute:Destroy() linhaChute = nil end
             if circuloChute then circuloChute:Destroy() circuloChute = nil end
         end
     end
 })
 
--- Hitbox
-local secHitbox = TabMain:Section({ Title = "Hitbox de Coleta" })
-secHitbox:Toggle({
+-- ===== Hitbox de Coleta =====
+local HitboxSec = MainTab:Section({ Title = "Hitbox de Coleta", TextXAlignment = "Left" })
+HitboxSec:Toggle({
     Title = "Hitbox do Personagem",
-    Value = Config.HitboxPersonagem,
-    Callback = function(value)
-        Config.HitboxPersonagem = value
+    Desc = "Força a coleta da bola quando estiver próximo",
+    Value = Config.hitboxPersonagem,
+    Callback = function(v)
+        hitboxPersonagemAtivo = v
+        Config.hitboxPersonagem = v
         SaveConfig()
-        hitboxPersonagemAtivo = value
     end
 })
-secHitbox:Slider({
+HitboxSec:Slider({
     Title = "Tamanho da Hitbox",
-    Value = Config.TamanhoHitbox,
-    Min = 1,
-    Max = 30,
+    Desc = "Raio de detecção (1-30)",
     Step = 1,
-    Callback = function(value)
-        Config.TamanhoHitbox = value
+    Value = { Min = 1, Max = 30, Default = Config.hitboxPersonagemTamanho },
+    Callback = function(v)
+        hitboxPersonagemTamanho = v
+        Config.hitboxPersonagemTamanho = v
         SaveConfig()
-        hitboxPersonagemTamanho = value
     end
 })
-secHitbox:Toggle({
+HitboxSec:Toggle({
     Title = "Hitbox da Bola",
-    Value = Config.HitboxBola,
-    Callback = function(value)
-        Config.HitboxBola = value
+    Desc = "Aumenta a hitbox da bola (invisível)",
+    Value = Config.hitboxBola,
+    Callback = function(v)
+        reachAtivo = v
+        Config.hitboxBola = v
         SaveConfig()
-        reachAtivo = value
     end
 })
-secHitbox:Slider({
+HitboxSec:Slider({
     Title = "Alcance da Bola",
-    Value = Config.AlcanceBola,
-    Min = 1,
-    Max = 30,
+    Desc = "Tamanho da hitbox da bola (1-30)",
     Step = 1,
-    Callback = function(value)
-        Config.AlcanceBola = value
+    Value = { Min = 1, Max = 30, Default = Config.reachDistancia },
+    Callback = function(v)
+        reachDistancia = v
+        Config.reachDistancia = v
         SaveConfig()
-        reachDistancia = value
         if espSphere then
-            espSphere.Scale = Vector3.new(value / 2.5, value / 2.5, value / 2.5)
+            espSphere.Scale = Vector3.new(v / 2.5, v / 2.5, v / 2.5)
         end
     end
 })
-secHitbox:Toggle({
+HitboxSec:Toggle({
     Title = "Mostrar Área ESP",
-    Value = Config.MostrarESP,
-    Callback = function(value)
-        Config.MostrarESP = value
+    Desc = "Círculo verde ao redor da hitbox da bola",
+    Value = Config.mostrarESP,
+    Callback = function(v)
+        mostrarESP = v
+        Config.mostrarESP = v
         SaveConfig()
-        mostrarESP = value
-        if not value and espSphere then
+        if not v and espSphere then
             espSphere:Destroy()
             espSphere = nil
         end
     end
 })
 
--- Extras
-local secExtras = TabMain:Section({ Title = "Extras" })
-secExtras:Toggle({
+-- ===== Extras =====
+local ExtrasSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
+ExtrasSec:Toggle({
     Title = "Força da Bola",
-    Value = Config.ForcaBola,
-    Callback = function(value)
-        Config.ForcaBola = value
+    Desc = "Chute sempre com potência máxima",
+    Value = Config.forcaBola,
+    Callback = function(v)
+        forcaBolaEnabled = v
+        Config.forcaBola = v
         SaveConfig()
-        forcaBolaEnabled = value
     end
 })
-secExtras:Slider({
+ExtrasSec:Slider({
     Title = "Força Máxima",
-    Value = Config.ForcaMaxima,
-    Min = 10,
-    Max = 200,
+    Desc = "Velocidade do chute (10-200)",
     Step = 1,
-    Callback = function(value)
-        Config.ForcaMaxima = value
+    Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
+    Callback = function(v)
+        forcaBolaVelocidade = v
+        Config.forcaBolaVelocidade = v
         SaveConfig()
-        forcaBolaVelocidade = value
     end
 })
-secExtras:Button({
+ExtrasSec:Button({
     Title = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
     Callback = function()
         task.spawn(function()
             while true do
@@ -1254,18 +1324,20 @@ secExtras:Button({
         end)
     end
 })
-secExtras:Dropdown({
+ExtrasSec:Dropdown({
     Title = "Time",
+    Desc = "Selecione para fazer gol",
     Values = {"Home", "Away"},
-    Value = Config.Time,
-    Callback = function(value)
-        Config.Time = value
+    Value = Config.selectedTeam or "Home",
+    Callback = function(opt)
+        selectedTeam = opt
+        Config.selectedTeam = opt
         SaveConfig()
-        selectedTeam = value
     end
 })
-secExtras:Button({
+ExtrasSec:Button({
     Title = "Fazer Gol",
+    Desc = "Marca um gol automaticamente",
     Callback = function()
         if not selectedTeam then return end
         local char = player.Character
@@ -1300,45 +1372,46 @@ secExtras:Button({
     end
 })
 
--- Curvas
-local secCurvas = TabMain:Section({ Title = "Curvas" })
-secCurvas:Toggle({
+-- ===== Curvas =====
+local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
+CurvasSec:Toggle({
     Title = "Bola com curvas",
-    Value = Config.Curvas,
-    Callback = function(value)
-        Config.Curvas = value
+    Desc = "Ativa curvas na bola (botão flutuante aparece)",
+    Value = Config.curvas,
+    Callback = function(v)
+        curvasEnabled = v
+        Config.curvas = v
         SaveConfig()
-        curvasEnabled = value
-        if value then
+        if v then
             criarBotaoCurvas()
         else
             removerBotaoCurvas()
         end
     end
 })
-secCurvas:Slider({
+CurvasSec:Slider({
     Title = "Intensidade da Curva",
-    Value = Config.IntensidadeCurva,
-    Min = 1,
-    Max = 10,
+    Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
     Step = 1,
-    Callback = function(value)
-        Config.IntensidadeCurva = value
+    Value = { Min = 1, Max = 10, Default = Config.curvasIntensidade },
+    Callback = function(v)
+        curvasIntensidade = v
+        Config.curvasIntensidade = v
         SaveConfig()
-        curvasIntensidade = value
     end
 })
 
--- Drible
-local secDrible = TabMain:Section({ Title = "Drible" })
-secDrible:Toggle({
+-- ===== Drible =====
+local DribleSec = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
+DribleSec:Toggle({
     Title = "Drible",
-    Value = Config.Drible,
-    Callback = function(value)
-        Config.Drible = value
+    Desc = "Círculo rosa de detecção (raio 70)",
+    Value = Config.drible,
+    Callback = function(v)
+        dribleEnabled = v
+        Config.drible = v
         SaveConfig()
-        dribleEnabled = value
-        if value then
+        if v then
             setupDrible()
         else
             if dribleSphere then
@@ -1348,46 +1421,76 @@ secDrible:Toggle({
     end
 })
 
--- Aba Config
-local TabConfig = Window:Tab({ Title = "Config", Icon = "rbxassetid://135710581431595" })
+-- ===== ABA CONFIG (com Auto Save) =====
+local TabConfig = Window:Tab({ Title = "Config", Icon = "settings" })
 TabConfig:Section({ Title = "Salvamento Automático" })
 TabConfig:Paragraph({
     Title = "Status",
     Desc = "Todas as configurações são salvas automaticamente."
 })
 TabConfig:Button({
-    Title = "Resetar configurações",
+    Title = "Salvar manualmente",
+    Desc = "Força o salvamento das configurações atuais",
     Callback = function()
-        Config.VelocidadeBola = "65"
-        Config.AimbotPersonagem = false
-        Config.AimbotCamera = false
-        Config.TempoAimbot = 0
-        Config.VisaoBola = false
-        Config.AdvinhaChute = false
-        Config.HitboxPersonagem = false
-        Config.TamanhoHitbox = 5
-        Config.HitboxBola = false
-        Config.AlcanceBola = 20
-        Config.MostrarESP = false
-        Config.ForcaBola = false
-        Config.ForcaMaxima = 100
-        Config.Curvas = false
-        Config.IntensidadeCurva = 5
-        Config.Drible = false
-        Config.Time = "Home"
-        Config.BotaoFlutuante = false
-        Config.BotaoCam = false
         SaveConfig()
         StarterGui:SetCore("SendNotification", {
             Title = "Config",
-            Text = "Configurações resetadas! Recarregue o script.",
+            Text = "Configurações salvas!",
+            Duration = 2
+        })
+    end
+})
+TabConfig:Button({
+    Title = "Resetar configurações",
+    Desc = "Restaura os valores padrão",
+    Callback = function()
+        Config.velocidadeBola = 65
+        Config.aimbotPersonagem = false
+        Config.aimbotCamera = false
+        Config.botaoFlutuante = false
+        Config.botaoCameraFlutuante = false
+        Config.aimbotDelayIndex = 1
+        Config.visaoBola = false
+        Config.advinhaChute = false
+        Config.hitboxPersonagem = false
+        Config.hitboxPersonagemTamanho = 5
+        Config.hitboxBola = false
+        Config.reachDistancia = 20
+        Config.mostrarESP = false
+        Config.forcaBola = false
+        Config.forcaBolaVelocidade = 100
+        Config.curvas = false
+        Config.curvasIntensidade = 5
+        Config.curvasModo = 1
+        Config.drible = false
+        Config.selectedTeam = "Home"
+        SaveConfig()
+        -- Recarregar a UI (fechar e reabrir)
+        Window:Destroy()
+        pcall(CriarMenu)
+        StarterGui:SetCore("SendNotification", {
+            Title = "Config",
+            Text = "Configurações resetadas!",
             Duration = 3
         })
     end
 })
 
-StarterGui:SetCore("SendNotification", {
-    Title = "Blue Lock Rivals",
-    Text = "Carregado com sucesso!",
-    Duration = 3
-})
+-- =============================================
+-- FUNÇÃO PARA RECRIAR O MENU (APÓS RESET)
+-- =============================================
+local function CriarMenu()
+    -- O código principal já está executando, mas precisamos recarregar a UI
+    -- Esta função será chamada no reset
+end
+
+-- =============================================
+-- NOTIFICAÇÃO DE CARREGAMENTO
+-- =============================================
+pcall(function()
+    StarterGui:SetCore("SendNotification",{
+        Title = "Blue Lock Rivals",
+        Text = "Carregado com sucesso! (Auto Save ativo)",
+        Duration = 3
+    })
+end)
