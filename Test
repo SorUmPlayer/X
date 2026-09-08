@@ -1,69 +1,24 @@
 --[[
-    Blue Lock Rivals – Interface com Auto Save (VERSÃO CORRIGIDA)
+    Blue Lock Rivals – Interface Nativa com Auto Save
+    (Sem dependência de WindUI)
 ]]
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
-local camera = Workspace.CurrentCamera
-
-print("[Blue Lock] Iniciando script...")
-
--- =============================================
--- CARREGA A WINDUI COM FALLBACK
--- =============================================
-local WindUI = nil
-local urls = {
-    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
-    "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua",
-    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-}
-
-for _, url in ipairs(urls) do
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        WindUI = result
-        print("[Blue Lock] WindUI carregada de: " .. url)
-        break
-    end
-end
-
-if not WindUI then
-    error("[Blue Lock] Falha ao carregar WindUI em todas as tentativas. Verifique sua conexão.")
-end
 
 -- =============================================
 -- SISTEMA DE SAVE (com fallback)
 -- =============================================
 local CONFIG_FILE = "BlueLockConfig.json"
 local Config = {
-    velocidadeBola = 65,
-    aimbotPersonagem = false,
-    aimbotCamera = false,
-    botaoFlutuante = false,
-    botaoCameraFlutuante = false,
-    aimbotDelayIndex = 1,
-    visaoBola = false,
-    advinhaChute = false,
-    hitboxPersonagem = false,
-    hitboxPersonagemTamanho = 5,
-    hitboxBola = false,
-    reachDistancia = 20,
-    mostrarESP = false,
-    forcaBola = false,
-    forcaBolaVelocidade = 100,
-    curvas = false,
-    curvasIntensidade = 5,
-    curvasModo = 1,
-    drible = false,
-    selectedTeam = "Home",
+    toggle1 = false,
+    input1 = "",
+    slider1 = 5,
+    dropdown1 = "Opção 1",
+    botaoClicado = false,
 }
 
 local function LoadConfig()
@@ -76,7 +31,7 @@ local function LoadConfig()
             for k, v in pairs(data) do
                 Config[k] = v
             end
-            print("[Blue Lock] Config carregada com sucesso.")
+            print("[BlueLock] Config carregada.")
         end
     end
 end
@@ -88,187 +43,331 @@ local function SaveConfig()
     end)
     if success then
         pcall(function() writefile(CONFIG_FILE, json) end)
-        print("[Blue Lock] Config salva.")
+        print("[BlueLock] Config salva.")
     end
 end
 
 LoadConfig()
 
 -- =============================================
--- CRIA A INTERFACE
+-- SEGURANÇA PARA PARENT DA GUI
 -- =============================================
-print("[Blue Lock] Criando interface...")
-local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivals",
-    Icon = "rbxassetid://10723343321",
-    Author = "Sor_Gostoso",
-    Folder = "BlueLock",
-    Size = UDim2.fromOffset(500, 700),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
-print("[Blue Lock] Janela criada.")
-
--- =============================================
--- ABA PRINCIPAL (TESTE DE COMPONENTES)
--- =============================================
-local TabMain = Window:Tab({ Title = "Blue Lock", Icon = "home" })
-
-TabMain:Section({ Title = "Controle" })
-
-TabMain:Toggle({
-    Title = "Toggle Teste",
-    Desc = "Este toggle é salvo automaticamente",
-    Value = Config.aimbotPersonagem,
-    Callback = function(v)
-        Config.aimbotPersonagem = v
-        SaveConfig()
-        print("[Blue Lock] Toggle alterado para: " .. tostring(v))
-    end
-})
-
-TabMain:Input({
-    Title = "Input Teste",
-    Desc = "Texto salvo automaticamente",
-    Value = tostring(Config.velocidadeBola),
-    Placeholder = "Digite um número...",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val then
-            Config.velocidadeBola = val
-            SaveConfig()
-            print("[Blue Lock] Valor salvo: " .. val)
+local function safeParent(gui)
+    local ok = pcall(function()
+        if gethui then
+            gui.Parent = gethui()
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(gui)
+            gui.Parent = CoreGui
+        else
+            gui.Parent = CoreGui
         end
+    end)
+    if not ok then
+        gui.Parent = player:WaitForChild("PlayerGui")
     end
-})
-
-TabMain:Slider({
-    Title = "Slider Teste",
-    Desc = "Valor salvo automaticamente",
-    Step = 1,
-    Value = { Min = 1, Max = 10, Default = Config.aimbotDelayIndex },
-    Callback = function(v)
-        Config.aimbotDelayIndex = v
-        SaveConfig()
-        print("[Blue Lock] Slider valor: " .. v)
-    end
-})
-
-TabMain:Dropdown({
-    Title = "Dropdown Teste",
-    Values = {"Opção 1", "Opção 2", "Opção 3"},
-    Value = Config.selectedTeam or "Opção 1",
-    Callback = function(v)
-        Config.selectedTeam = v
-        SaveConfig()
-        print("[Blue Lock] Dropdown selecionado: " .. v)
-    end
-})
-
-TabMain:Button({
-    Title = "Clique aqui",
-    Desc = "Teste do botão",
-    Callback = function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "Blue Lock",
-            Text = "Botão funcionando!",
-            Duration = 2
-        })
-    end
-})
-
--- =============================================
--- ABA CONFIG
--- =============================================
-local TabConfig = Window:Tab({ Title = "Config", Icon = "settings" })
-TabConfig:Section({ Title = "Salvamento" })
-TabConfig:Paragraph({
-    Title = "Status",
-    Desc = "Todas as configurações são salvas automaticamente."
-})
-TabConfig:Button({
-    Title = "Salvar manualmente",
-    Desc = "Força o salvamento",
-    Callback = function()
-        SaveConfig()
-        StarterGui:SetCore("SendNotification", {
-            Title = "Config",
-            Text = "Salvo!",
-            Duration = 2
-        })
-    end
-})
-TabConfig:Button({
-    Title = "Resetar tudo",
-    Desc = "Restaura os valores padrão",
-    Callback = function()
-        Config = {
-            velocidadeBola = 65,
-            aimbotPersonagem = false,
-            aimbotCamera = false,
-            botaoFlutuante = false,
-            botaoCameraFlutuante = false,
-            aimbotDelayIndex = 1,
-            visaoBola = false,
-            advinhaChute = false,
-            hitboxPersonagem = false,
-            hitboxPersonagemTamanho = 5,
-            hitboxBola = false,
-            reachDistancia = 20,
-            mostrarESP = false,
-            forcaBola = false,
-            forcaBolaVelocidade = 100,
-            curvas = false,
-            curvasIntensidade = 5,
-            curvasModo = 1,
-            drible = false,
-            selectedTeam = "Home",
-        }
-        SaveConfig()
-        -- Recarregar a interface (fechar e reabrir)
-        Window:Destroy()
-        _G.CriarMenu()
-        StarterGui:SetCore("SendNotification", {
-            Title = "Config",
-            Text = "Resetado!",
-            Duration = 2
-        })
-    end
-})
-
--- =============================================
--- FUNÇÃO PARA RECRIAR O MENU
--- =============================================
-_G.CriarMenu = function()
-    -- Apenas recria a UI (simplificado)
-    Window = WindUI:CreateWindow({
-        Title = "⚽ Blue Lock Rivals",
-        Icon = "rbxassetid://10723343321",
-        Author = "Sor_Gostoso",
-        Folder = "BlueLock",
-        Size = UDim2.fromOffset(500, 700),
-        Transparent = true,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 200,
-        HideSearchBar = true,
-        ScrollBarEnabled = false,
-    })
-    -- Recriar abas (simplificado, mas você pode reutilizar as funções)
-    -- Para este teste, a função reset já recria a janela.
 end
+
+-- =============================================
+-- CRIA INTERFACE (ScreenGui puro)
+-- =============================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BlueLockGUI"
+screenGui.ResetOnSpawn = false
+safeParent(screenGui)
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 500)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "⚽ Blue Lock Rivals"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 22
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+-- ========== TOGGLE ==========
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Size = UDim2.new(0, 120, 0, 30)
+toggleLabel.Position = UDim2.new(0, 10, 0, 50)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.Text = "Ativar recurso"
+toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+toggleLabel.TextSize = 14
+toggleLabel.Font = Enum.Font.Gotham
+toggleLabel.Parent = mainFrame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 60, 0, 30)
+toggleBtn.Position = UDim2.new(0, 320, 0, 50)
+toggleBtn.BackgroundColor3 = Config.toggle1 and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
+toggleBtn.Text = Config.toggle1 and "ON" or "OFF"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 14
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Parent = mainFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggleCorner.Parent = toggleBtn
+
+toggleBtn.MouseButton1Click:Connect(function()
+    Config.toggle1 = not Config.toggle1
+    toggleBtn.BackgroundColor3 = Config.toggle1 and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 50, 50)
+    toggleBtn.Text = Config.toggle1 and "ON" or "OFF"
+    SaveConfig()
+    print("[Toggle] Estado: " .. tostring(Config.toggle1))
+end)
+
+-- ========== INPUT ==========
+local inputLabel = Instance.new("TextLabel")
+inputLabel.Size = UDim2.new(0, 100, 0, 30)
+inputLabel.Position = UDim2.new(0, 10, 0, 95)
+inputLabel.BackgroundTransparency = 1
+inputLabel.Text = "Digite algo:"
+inputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+inputLabel.TextSize = 14
+inputLabel.Font = Enum.Font.Gotham
+inputLabel.Parent = mainFrame
+
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(0, 250, 0, 30)
+inputBox.Position = UDim2.new(0, 120, 0, 95)
+inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextSize = 14
+inputBox.Font = Enum.Font.Gotham
+inputBox.PlaceholderText = "Digite aqui..."
+inputBox.Text = Config.input1 or ""
+inputBox.Parent = mainFrame
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 6)
+inputCorner.Parent = inputBox
+
+inputBox.FocusLost:Connect(function()
+    Config.input1 = inputBox.Text
+    SaveConfig()
+    print("[Input] Texto: " .. Config.input1)
+end)
+
+-- ========== SLIDER ==========
+local sliderLabel = Instance.new("TextLabel")
+sliderLabel.Size = UDim2.new(0, 100, 0, 30)
+sliderLabel.Position = UDim2.new(0, 10, 0, 140)
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.Text = "Slider (1-10):"
+sliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+sliderLabel.TextSize = 14
+sliderLabel.Font = Enum.Font.Gotham
+sliderLabel.Parent = mainFrame
+
+local sliderValue = Instance.new("TextLabel")
+sliderValue.Size = UDim2.new(0, 30, 0, 30)
+sliderValue.Position = UDim2.new(0, 350, 0, 140)
+sliderValue.BackgroundTransparency = 1
+sliderValue.Text = tostring(Config.slider1 or 5)
+sliderValue.TextColor3 = Color3.fromRGB(255, 200, 100)
+sliderValue.TextSize = 16
+sliderValue.Font = Enum.Font.GothamBold
+sliderValue.Parent = mainFrame
+
+local sliderBtn = Instance.new("TextButton")
+sliderBtn.Size = UDim2.new(0, 200, 0, 30)
+sliderBtn.Position = UDim2.new(0, 120, 0, 140)
+sliderBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+sliderBtn.Text = ""
+sliderBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+sliderBtn.TextSize = 14
+sliderBtn.Font = Enum.Font.Gotham
+sliderBtn.Parent = mainFrame
+
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(0, 15)
+sliderCorner.Parent = sliderBtn
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new((Config.slider1 or 5) / 10, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBtn
+
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(0, 15)
+fillCorner.Parent = sliderFill
+
+local dragging = false
+local function updateSlider(mouseX)
+    local relX = math.clamp((mouseX - sliderBtn.AbsolutePosition.X) / sliderBtn.AbsoluteSize.X, 0, 1)
+    local val = math.floor(relX * 10 + 0.5)
+    if val < 1 then val = 1 end
+    if val > 10 then val = 10 end
+    Config.slider1 = val
+    sliderValue.Text = tostring(val)
+    sliderFill.Size = UDim2.new(val / 10, 0, 1, 0)
+    SaveConfig()
+    print("[Slider] Valor: " .. val)
+end
+
+sliderBtn.MouseButton1Down:Connect(function()
+    dragging = true
+    local mouse = player:GetMouse()
+    updateSlider(mouse.X)
+end)
+
+sliderBtn.MouseButton1Up:Connect(function()
+    dragging = false
+end)
+
+sliderBtn.MouseMoved:Connect(function()
+    if dragging then
+        local mouse = player:GetMouse()
+        updateSlider(mouse.X)
+    end
+end)
+
+-- ========== DROPDOWN ==========
+local dropLabel = Instance.new("TextLabel")
+dropLabel.Size = UDim2.new(0, 100, 0, 30)
+dropLabel.Position = UDim2.new(0, 10, 0, 185)
+dropLabel.BackgroundTransparency = 1
+dropLabel.Text = "Dropdown:"
+dropLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+dropLabel.TextSize = 14
+dropLabel.Font = Enum.Font.Gotham
+dropLabel.Parent = mainFrame
+
+local dropBtn = Instance.new("TextButton")
+dropBtn.Size = UDim2.new(0, 200, 0, 30)
+dropBtn.Position = UDim2.new(0, 120, 0, 185)
+dropBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+dropBtn.Text = Config.dropdown1 or "Opção 1"
+dropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+dropBtn.TextSize = 14
+dropBtn.Font = Enum.Font.Gotham
+dropBtn.Parent = mainFrame
+
+local dropCorner = Instance.new("UICorner")
+dropCorner.CornerRadius = UDim.new(0, 6)
+dropCorner.Parent = dropBtn
+
+local dropList = Instance.new("Frame")
+dropList.Size = UDim2.new(0, 200, 0, 90)
+dropList.Position = UDim2.new(0, 120, 0, 215)
+dropList.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+dropList.Visible = false
+dropList.Parent = mainFrame
+
+local listCorner = Instance.new("UICorner")
+listCorner.CornerRadius = UDim.new(0, 6)
+listCorner.Parent = dropList
+
+local options = {"Opção 1", "Opção 2", "Opção 3", "Opção 4"}
+local dropItems = {}
+for i, opt in ipairs(options) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, (i-1)*30)
+    btn.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(50, 50, 60) or Color3.fromRGB(40, 40, 50)
+    btn.Text = opt
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = dropList
+    btn.MouseButton1Click:Connect(function()
+        Config.dropdown1 = opt
+        dropBtn.Text = opt
+        dropList.Visible = false
+        SaveConfig()
+        print("[Dropdown] Selecionado: " .. opt)
+    end)
+    dropItems[i] = btn
+end
+
+dropBtn.MouseButton1Click:Connect(function()
+    dropList.Visible = not dropList.Visible
+end)
+
+-- ========== BOTÃO ==========
+local actionBtn = Instance.new("TextButton")
+actionBtn.Size = UDim2.new(0, 200, 0, 40)
+actionBtn.Position = UDim2.new(0.5, -100, 0, 240)
+actionBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+actionBtn.Text = "Clique aqui"
+actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+actionBtn.TextSize = 16
+actionBtn.Font = Enum.Font.GothamBold
+actionBtn.Parent = mainFrame
+
+local actionCorner = Instance.new("UICorner")
+actionCorner.CornerRadius = UDim.new(0, 8)
+actionCorner.Parent = actionBtn
+
+actionBtn.MouseButton1Click:Connect(function()
+    Config.botaoClicado = not Config.botaoClicado
+    SaveConfig()
+    StarterGui:SetCore("SendNotification", {
+        Title = "Botão",
+        Text = "Clicado! Estado: " .. tostring(Config.botaoClicado),
+        Duration = 2
+    })
+    print("[Botão] Clicado, estado: " .. tostring(Config.botaoClicado))
+end)
+
+-- ========== BOTÃO RESET ==========
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(0, 120, 0, 30)
+resetBtn.Position = UDim2.new(0.5, -60, 0, 300)
+resetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+resetBtn.Text = "Resetar"
+resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetBtn.TextSize = 14
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.Parent = mainFrame
+
+local resetCorner = Instance.new("UICorner")
+resetCorner.CornerRadius = UDim.new(0, 6)
+resetCorner.Parent = resetBtn
+
+resetBtn.MouseButton1Click:Connect(function()
+    Config.toggle1 = false
+    Config.input1 = ""
+    Config.slider1 = 5
+    Config.dropdown1 = "Opção 1"
+    Config.botaoClicado = false
+    SaveConfig()
+    -- Atualiza UI
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    toggleBtn.Text = "OFF"
+    inputBox.Text = ""
+    sliderValue.Text = "5"
+    sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+    dropBtn.Text = "Opção 1"
+    StarterGui:SetCore("SendNotification", {
+        Title = "Config",
+        Text = "Resetado com sucesso!",
+        Duration = 2
+    })
+    print("[Reset] Configurações resetadas.")
+end)
 
 -- =============================================
 -- NOTIFICAÇÃO DE INÍCIO
 -- =============================================
 StarterGui:SetCore("SendNotification", {
     Title = "Blue Lock Rivals",
-    Text = "Carregado com sucesso!",
+    Text = "Interface carregada com sucesso! (Auto Save ativo)",
     Duration = 3
 })
 
-print("[Blue Lock] Script finalizado com sucesso.")
+print("[BlueLock] Interface carregada com sucesso.")
