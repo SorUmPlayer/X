@@ -12,7 +12,7 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- =============================================
--- AUTO SAVE
+-- SISTEMA DE AUTO SAVE
 -- =============================================
 local CONFIG_FILE = "BasketBallZero_AutoSave.json"
 
@@ -40,11 +40,11 @@ local function SaveConfigToFile(configTable)
 end
 
 local Config = {
-    aimbotPersonagem = false,
     aimbotCamera = false,
-    aimbotDelay = 0,
+    botaoCamera = false,
     hitboxAtivo = false,
     hitboxTamanho = 5,
+    aimbotDelay = 0,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -96,8 +96,8 @@ local Window = WindUI:CreateWindow({
     Title = "🏀 BasketBall Zero",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
-    Folder = "BasketBall",
-    Size = UDim2.fromOffset(450, 400),
+    Folder = "BasketBallZero",
+    Size = UDim2.fromOffset(450, 450),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -107,7 +107,7 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
--- DETECÇÃO DA BOLA
+-- DETECÇÃO DA BOLA E POSSE
 -- =============================================
 local function getBall()
     local basketball = Workspace:FindFirstChild("Basketball")
@@ -116,70 +116,64 @@ local function getBall()
         if animBall and animBall:IsA("BasePart") then
             return animBall
         end
-        local collider = basketball:FindFirstChild("Collider")
-        if collider and collider:IsA("BasePart") then
-            return collider
-        end
     end
     return nil
 end
 
-local function getHitbox()
+local function getCollider()
     local basketball = Workspace:FindFirstChild("Basketball")
     if basketball then
         local collider = basketball:FindFirstChild("Collider")
         if collider and collider:IsA("BasePart") then
             return collider
         end
-        local animBall = basketball:FindFirstChild("AnimBall")
-        if animBall and animBall:IsA("BasePart") then
-            return animBall
+    end
+    return nil
+end
+
+local function euTenhoBola()
+    local ball = getBall()
+    if not ball then return false end
+    local char = player.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    return (hrp.Position - ball.Position).Magnitude < 2.5
+end
+
+local function getInimigoComBola()
+    -- Verifica se algum outro jogador está com a bola (distância < 2.5)
+    local ball = getBall()
+    if not ball then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and (hrp.Position - ball.Position).Magnitude < 2.5 then
+                return plr
+            end
         end
     end
     return nil
 end
 
 -- =============================================
--- POSSE DA BOLA (simplificada)
+-- AIMBOT CÂMERA
 -- =============================================
-local function euTenhoBola()
-    -- Verifica se a bola está no character do jogador
-    local char = player.Character
-    if char then
-        for _, child in ipairs(char:GetChildren()) do
-            if child:IsA("BasePart") and child.Name == "AnimBall" then
-                return true
-            end
-        end
-    end
-    return false
-end
-
--- =============================================
--- VARIÁVEIS
--- =============================================
-local aimbotPersonagem = Config.aimbotPersonagem
-local aimbotCamera = Config.aimbotCamera
-local aimbotDelayValue = Config.aimbotDelay
+local aimbotCameraAtivo = Config.aimbotCamera
+local cameraButtonAtivo = Config.botaoCamera
+local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+local aimbotDelay = Config.aimbotDelay
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 
-local hitboxAtivo = Config.hitboxAtivo
-local hitboxTamanho = Config.hitboxTamanho
-local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
-local hitboxOriginalTransparency = 0
+local cameraScreenGui = nil
+local cameraToggleButton = nil
 
-local gyro = nil
-local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-
--- =============================================
--- LÓGICA DE BLOQUEIO (DELAY)
--- =============================================
 local function shouldAimbotWork()
     local tenho = euTenhoBola()
     if tenho then
         aimbotBlocked = true
-        aimbotBlockedUntil = tick() + aimbotDelayValue
+        aimbotBlockedUntil = tick() + aimbotDelay
         return false
     end
     if aimbotBlocked then
@@ -193,69 +187,8 @@ local function shouldAimbotWork()
     return true
 end
 
--- =============================================
--- AIMBOT PERSONAGEM
--- =============================================
-local function ativarAimbotPersonagem(estado)
-    aimbotPersonagem = estado
-    Config.aimbotPersonagem = estado
-    SaveConfig()
-    if not estado and gyro then
-        gyro:Destroy()
-        gyro = nil
-    end
-end
-
-local function atualizarAimbotPersonagem()
-    if not aimbotPersonagem then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    if not shouldAimbotWork() then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    local ball = getBall()
-    if not ball then
-        if gyro then
-            gyro:Destroy()
-            gyro = nil
-        end
-        return
-    end
-
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    if not gyro then
-        gyro = Instance.new("BodyGyro")
-        gyro.Parent = hrp
-        gyro.D = 1000
-        gyro.P = 10000
-        gyro.MaxTorque = Vector3.new(8000, 8000, 8000)
-    end
-
-    local posBola = ball.Position
-    local posJogador = hrp.Position
-    local direcao = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-    gyro.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
-end
-
--- =============================================
--- AIMBOT CÂMERA
--- =============================================
 local function atualizarAimbotCamera()
-    if not aimbotCamera then return end
+    if not aimbotCameraAtivo then return end
     if not shouldAimbotWork() then return end
 
     local ball = getBall()
@@ -266,33 +199,98 @@ local function atualizarAimbotCamera()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local posBola = ball.Position
-    local posJogador = hrp.Position
-    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
-
+    local direction = (ball.Position - hrp.Position).Unit
     local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
 
 -- =============================================
+-- BOTÃO VOADOR DA CÂMERA
+-- =============================================
+local function toggleCameraButton()
+    cameraButtonAtivo = not cameraButtonAtivo
+    if cameraButtonAtivo then
+        if cameraToggleButton then
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            cameraToggleButton.Text = "Aimbot Cam [ON]"
+        end
+        aimbotCameraAtivo = true
+        Config.aimbotCamera = true
+        SaveConfig()
+    else
+        if cameraToggleButton then
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            cameraToggleButton.Text = "Aimbot Cam [OFF]"
+        end
+        aimbotCameraAtivo = false
+        Config.aimbotCamera = false
+        SaveConfig()
+    end
+end
+
+local function criarBotaoCameraFlutuante()
+    if cameraScreenGui then return end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CameraAimbotGui"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.15, 0)
+    btn.BackgroundColor3 = cameraButtonAtivo and Color3.fromRGB(40, 167, 69) or Color3.fromRGB(220, 53, 69)
+    btn.Text = cameraButtonAtivo and "Aimbot Cam [ON]" or "Aimbot Cam [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCameraButton)
+    cameraToggleButton = btn
+    cameraScreenGui = screenGui
+end
+
+local function removerBotaoCameraFlutuante()
+    if cameraButtonAtivo then
+        toggleCameraButton() -- desativa primeiro
+    end
+    if cameraScreenGui then
+        cameraScreenGui:Destroy()
+        cameraScreenGui = nil
+        cameraToggleButton = nil
+    end
+end
+
+-- =============================================
 -- HITBOX
 -- =============================================
+local hitboxAtivo = Config.hitboxAtivo
+local hitboxTamanho = Config.hitboxTamanho
+local hitboxOriginalSize = nil
+
 local function aplicarHitbox()
-    local hitbox = getHitbox()
-    if not hitbox then return end
+    local collider = getCollider()
+    if not collider then return end
 
     if not hitboxAtivo then
-        if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
-            hitbox.Size = hitboxOriginalSize
-            hitbox.Transparency = hitboxOriginalTransparency
+        if hitboxOriginalSize then
+            collider.Size = hitboxOriginalSize
         end
         return
     end
 
-    local novoSize = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-    if hitbox.Size ~= novoSize then
-        hitbox.Size = novoSize
-        hitbox.Transparency = 1 -- invisível
+    -- Salva o tamanho original na primeira vez
+    if not hitboxOriginalSize then
+        hitboxOriginalSize = collider.Size
+    end
+
+    local tamanho = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
+    if collider.Size ~= tamanho then
+        collider.Size = tamanho
     end
 end
 
@@ -300,7 +298,6 @@ end
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
-    atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     aplicarHitbox()
 end)
@@ -310,23 +307,41 @@ end)
 -- =============================================
 local MainTab = Window:Tab({ Title = "BasketBall", Icon = "home" })
 
+-- AIMBOT
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-AimbotSec:Toggle({
-    Title = "Aimbot Personagem",
-    Desc = "Corpo vira para a bola",
-    Value = Config.aimbotPersonagem,
-    Callback = function(v)
-        ativarAimbotPersonagem(v)
-    end
-})
 AimbotSec:Toggle({
     Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
     Value = Config.aimbotCamera,
     Callback = function(v)
-        aimbotCamera = v
+        aimbotCameraAtivo = v
         Config.aimbotCamera = v
         SaveConfig()
+        if cameraToggleButton then
+            if v then
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+                cameraToggleButton.Text = "Aimbot Cam [ON]"
+                cameraButtonAtivo = true
+            else
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+                cameraToggleButton.Text = "Aimbot Cam [OFF]"
+                cameraButtonAtivo = false
+            end
+        end
+    end
+})
+AimbotSec:Toggle({
+    Title = "Botão Voador (Câmera)",
+    Desc = "Botão flutuante para ligar/desligar a câmera",
+    Value = Config.botaoCamera,
+    Callback = function(v)
+        Config.botaoCamera = v
+        SaveConfig()
+        if v then
+            criarBotaoCameraFlutuante()
+        else
+            removerBotaoCameraFlutuante()
+        end
     end
 })
 AimbotSec:Slider({
@@ -335,26 +350,33 @@ AimbotSec:Slider({
     Step = 1,
     Value = { Min = 0, Max = 10, Default = Config.aimbotDelay },
     Callback = function(v)
-        aimbotDelayValue = aimbotDelayValues[v] or 0
+        aimbotDelay = aimbotDelayValues[v] or 0
         Config.aimbotDelay = v
         SaveConfig()
     end
 })
 
+-- HITBOX
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
-    Desc = "Aumenta a hitbox da bola (invisível)",
+    Desc = "Aumenta o Collider da bola",
     Value = Config.hitboxAtivo,
     Callback = function(v)
         hitboxAtivo = v
         Config.hitboxAtivo = v
         SaveConfig()
+        if not v and hitboxOriginalSize then
+            local collider = getCollider()
+            if collider then
+                collider.Size = hitboxOriginalSize
+            end
+        end
     end
 })
 HitboxSec:Slider({
     Title = "Tamanho",
-    Desc = "Tamanho da hitbox (1-30)",
+    Desc = "Tamanho do Collider (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.hitboxTamanho },
     Callback = function(v)
@@ -364,7 +386,7 @@ HitboxSec:Slider({
     end
 })
 
--- Botão Salvar
+-- SALVAR
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
