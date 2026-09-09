@@ -1,26 +1,25 @@
 --[[
-    ⚽ Street Soccer – Script completo (Auto Save) – Corrigido
+    ⚽ Street Soccer – Script completo (com Auto Save)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-print("[Street Soccer] Iniciando carregamento...")
-
 -- =============================================
--- SISTEMA DE AUTO SAVE
+-- SISTEMA DE AUTO SAVE (COM VERIFICAÇÃO)
 -- =============================================
 local CONFIG_FILE = "StreetSoccer_AutoSave.json"
+local HAS_FILE_SYSTEM = pcall(function() return isfile and writefile and readfile and HttpService end)
+local HttpService = game:GetService("HttpService")
 
 local function LoadConfig()
-    if not isfile then return {} end
+    if not HAS_FILE_SYSTEM then return {} end
     if isfile(CONFIG_FILE) then
         local success, data = pcall(function()
             return HttpService:JSONDecode(readfile(CONFIG_FILE))
@@ -33,7 +32,7 @@ local function LoadConfig()
 end
 
 local function SaveConfigToFile(configTable)
-    if not writefile then return end
+    if not HAS_FILE_SYSTEM then return end
     local success, json = pcall(function()
         return HttpService:JSONEncode(configTable)
     end)
@@ -64,13 +63,11 @@ local function SaveConfig()
 end
 
 task.spawn(function()
-    while true do
+    while HAS_FILE_SYSTEM do
         task.wait(5)
         SaveConfig()
     end
 end)
-
-print("[Street Soccer] Auto Save inicializado.")
 
 -- =============================================
 -- FUNÇÃO SEGURA DE PARENT
@@ -94,18 +91,12 @@ end
 -- =============================================
 -- WINDUI
 -- =============================================
-print("[Street Soccer] Carregando WindUI...")
 local WindUI
 local loaded, _ = pcall(function()
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
 if not loaded or not WindUI then
     WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-end
-
-if not WindUI then
-    warn("[Street Soccer] Falha ao carregar WindUI!")
-    return
 end
 
 local Window = WindUI:CreateWindow({
@@ -122,14 +113,11 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-print("[Street Soccer] UI criada.")
-
 -- =============================================
--- DETECÇÃO DA BOLA (com fallback)
+-- DETECÇÃO DA BOLA
 -- =============================================
 local function getBall()
-    local ball = Workspace:FindFirstChild("ball") or Workspace:FindFirstChild("Ball")
-    return ball
+    return Workspace:FindFirstChild("ball")
 end
 
 local function euTenhoBola()
@@ -142,8 +130,6 @@ local function euTenhoBola()
     return (hrp.Position - ball.Position).Magnitude < 3
 end
 
-print("[Street Soccer] Detecção de bola configurada.")
-
 -- =============================================
 -- VARIÁVEIS
 -- =============================================
@@ -153,8 +139,8 @@ local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
 
-local visaoBolaEnabled = Config.advinhaBola      -- linha amarela (trajetória)
-local visaoChuteEnabled = Config.advinhaChute    -- linha verde (olhar do jogador)
+local visaoBolaEnabled = Config.advinhaBola
+local visaoChuteEnabled = Config.advinhaChute
 local linhaTrajetoria = nil
 local linhaOlhar = nil
 local circuloImpacto = nil
@@ -215,10 +201,9 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(camPos, hrp.Position)
 end
 
--- =====================================================
+-- =============================================
 -- VISÃO DE JOGO
--- =====================================================
--- 1. Advinha a bola (linha amarela – trajetória)
+-- =============================================
 local function atualizarAdvinhaBola()
     if not visaoBolaEnabled then
         if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
@@ -313,17 +298,13 @@ local function atualizarAdvinhaBola()
     end
 end
 
--- 2. Advinhe Chute (linha verde – olhar do jogador com a bola)
 local function getJogadorComBola()
-    local ball = getBall()
-    if not ball then return nil end
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player then
             local char = plr.Character
             if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp and (hrp.Position - ball.Position).Magnitude < 3 then
+                local ball = getBall()
+                if ball and (char:FindFirstChild("HumanoidRootPart").Position - ball.Position).Magnitude < 3 then
                     return plr
                 end
             end
@@ -398,9 +379,9 @@ local function atualizarAdvinheChute()
     linhaOlhar.Transparency = 0.1
 end
 
--- =====================================================
+-- =============================================
 -- CONTROLE DE BOLA
--- =====================================================
+-- =============================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
@@ -479,9 +460,9 @@ local function removerBotaoFlutuante()
     end
 end
 
--- =====================================================
+-- =============================================
 -- BOTÃO VOADOR DA CÂMERA
--- =====================================================
+-- =============================================
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     if cameraButtonActive then
@@ -538,32 +519,21 @@ local function removerBotaoCameraFlutuante()
     end
 end
 
--- =====================================================
+-- =============================================
 -- HITBOX (REACH)
--- =====================================================
-local originalBallSize = nil
-local function guardarTamanhoOriginal()
-    local ball = getBall()
-    if ball and ball:IsA("BasePart") then
-        originalBallSize = ball.Size
-    end
-end
-task.spawn(guardarTamanhoOriginal)
-
+-- =============================================
 local function aplicarHitbox()
     local ball = getBall()
-    if not ball or not ball:IsA("BasePart") then return end
+    if not ball then return end
 
     if hitboxAtivo and not euTenhoBola() then
         ball.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
         ball.Transparency = 1
     else
-        if originalBallSize then
-            ball.Size = originalBallSize
-        else
+        if hitboxAtivo then
             ball.Size = Vector3.new(1.4, 1.4, 1.4)
+            ball.Transparency = 0
         end
-        ball.Transparency = 0
     end
 end
 
@@ -577,7 +547,7 @@ local function atualizarESP()
         return
     end
 
-    if espHitbox and hitboxAtivo and not euTenhoBola() and ball:IsA("BasePart") then
+    if espHitbox and hitboxAtivo and not euTenhoBola() then
         if not espSphere then
             espSphere = Instance.new("SelectionSphere")
             espSphere.Name = "ReachESP"
@@ -596,40 +566,37 @@ local function atualizarESP()
     end
 end
 
--- =====================================================
+-- =============================================
 -- INFINITE STAMINA
--- =====================================================
+-- =============================================
 local function infiniteStamina()
     task.spawn(function()
         while true do
-            pcall(function()
-                local stats = player:FindFirstChild("PlayerStats")
-                if stats then
-                    local stamina = stats:FindFirstChild("Stamina")
-                    if stamina and stamina:IsA("NumberValue") then
-                        stamina.Value = 100
+            local stats = player:FindFirstChild("PlayerStats")
+            if stats then
+                local stamina = stats:FindFirstChild("Stamina")
+                if stamina and stamina:IsA("NumberValue") then
+                    stamina.Value = 100
+                end
+            end
+            local gui = player.PlayerGui:FindFirstChild("Stamina")
+            if gui then
+                local frame = gui:FindFirstChild("Frame")
+                if frame then
+                    local label = frame:FindFirstChild("Stamina")
+                    if label and label:IsA("TextLabel") then
+                        label.Text = "100"
                     end
                 end
-                -- UI fallback
-                local gui = player.PlayerGui:FindFirstChild("Stamina")
-                if gui then
-                    local frame = gui:FindFirstChild("Frame")
-                    if frame then
-                        local label = frame:FindFirstChild("Stamina")
-                        if label and label:IsA("TextLabel") then
-                            label.Text = "100"
-                        end
-                    end
-                end
-            end)
+            end
             task.wait()
         end
     end)
 end
 
--- =====================================================
+-- =============================================
 -- CHAT INPUT
--- =====================================================
+-- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^velocidade da bola") then
@@ -651,39 +618,32 @@ local function onChatMessage(msg)
 end
 
 local function setupChatCommand()
-    pcall(function()
-        local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-        if chatService then
-            local onMessage = chatService:FindFirstChild("OnMessage")
-            if onMessage then
-                onMessage.OnClientEvent:Connect(onChatMessage)
-            end
+    local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatService then
+        local onMessage = chatService:FindFirstChild("OnMessage")
+        if onMessage then
+            onMessage.OnClientEvent:Connect(onChatMessage)
         end
-    end)
+    end
 end
 setupChatCommand()
 
--- =====================================================
+-- =============================================
 -- LOOP PRINCIPAL
--- =====================================================
+-- =============================================
 RunService.Heartbeat:Connect(function()
-    pcall(function()
-        atualizarAimbotCamera()
-        atualizarAdvinhaBola()
-        atualizarAdvinheChute()
-        aplicarHitbox()
-        atualizarESP()
-    end)
+    atualizarAimbotCamera()
+    atualizarAdvinhaBola()
+    atualizarAdvinheChute()
+    aplicarHitbox()
+    atualizarESP()
 end)
 
-print("[Street Soccer] Loop principal iniciado.")
-
--- =====================================================
--- UI STREET SOCCER (com Auto Save)
--- =====================================================
+-- =============================================
+-- UI STREET SOCCER
+-- =============================================
 local MainTab = Window:Tab({ Title = "Street Soccer", Icon = "home" })
 
--- Categoria Aimbot
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
     Title = "Aimbot Câmera",
@@ -732,7 +692,6 @@ AimbotSec:Slider({
     end
 })
 
--- Categoria Visão de Jogo
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Advinha a bola",
@@ -763,7 +722,6 @@ VisaoSec:Toggle({
     end
 })
 
--- Categoria Controle de Bola
 local ControleSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControleSec:Toggle({
     Title = "Controle de Bola",
@@ -795,7 +753,6 @@ ControleSec:Input({
     end
 })
 
--- Categoria Hitbox
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
@@ -807,12 +764,8 @@ HitboxSec:Toggle({
         SaveConfig()
         if not v then
             local ball = getBall()
-            if ball and ball:IsA("BasePart") then
-                if originalBallSize then
-                    ball.Size = originalBallSize
-                else
-                    ball.Size = Vector3.new(1.4, 1.4, 1.4)
-                end
+            if ball then
+                ball.Size = Vector3.new(1.4, 1.4, 1.4)
                 ball.Transparency = 0
             end
             if espSphere then
@@ -848,22 +801,15 @@ HitboxSec:Toggle({
     end
 })
 
--- Categoria Config
 local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
 ConfigSec:Button({
     Title = "Infinite Stamina",
     Desc = "Stamina sempre no máximo",
     Callback = function()
         infiniteStamina()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Street Soccer",
-            Text = "Stamina infinita ativada!",
-            Duration = 2
-        })
     end
 })
 
--- Botão Salvar
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -877,8 +823,6 @@ SaveSec:Button({
         })
     end
 })
-
-print("[Street Soccer] UI completamente carregada!")
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
