@@ -1,17 +1,19 @@
 --[[
-    Basketball Zero – com Auto Save
+    Basketball Zero – Script completo
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
 -- =============================================
--- AUTO SAVE
+-- SISTEMA DE AUTO SAVE
 -- =============================================
 local CONFIG_FILE = "BasketballZero_AutoSave.json"
 
@@ -39,10 +41,12 @@ local function SaveConfigToFile(configTable)
 end
 
 local Config = {
-    advinhaChute = false,
-    delay = 0.1,
+    controleAtivo = false,
+    velocidadeBola = 65,
+    autoSexta = false,
+    timeSelecionado = "Home", -- "Home" ou "Away"
     hitboxAtivo = false,
-    hitboxTamanho = 10,
+    hitboxTamanho = 20,
     espHitbox = false,
 }
 local savedConfig = LoadConfig()
@@ -62,7 +66,7 @@ task.spawn(function()
 end)
 
 -- =============================================
--- SEGURO DE PARENT
+-- FUNÇÃO SEGURA DE PARENT
 -- =============================================
 local function safeParent(gui)
     local ok = pcall(function()
@@ -96,7 +100,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "Basketball",
-    Size = UDim2.fromOffset(480, 420),
+    Size = UDim2.fromOffset(500, 600),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -106,12 +110,13 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
--- CÓDIGO DO JOGO
+-- REFERÊNCIAS DA BOLA
 -- =============================================
 local function getBall()
     local basketball = Workspace:FindFirstChild("Basketball")
     if basketball then
-        return basketball:FindFirstChild("AnimBall")
+        local animBall = basketball:FindFirstChild("AnimBall")
+        if animBall then return animBall end
     end
     return nil
 end
@@ -119,210 +124,278 @@ end
 local function getCollider()
     local basketball = Workspace:FindFirstChild("Basketball")
     if basketball then
-        return basketball:FindFirstChild("Collider")
+        local collider = basketball:FindFirstChild("Collider")
+        if collider then return collider end
     end
     return nil
 end
 
-local linhaChute = nil
-local circuloChute = nil
+local function getAro(team)
+    if team == "Home" then
+        return Workspace:FindFirstChild("AnimatedHome")
+    elseif team == "Away" then
+        return Workspace:FindFirstChild("AnimatedAway")
+    end
+    return nil
+end
+
+-- =============================================
+-- VARIÁVEIS
+-- =============================================
+local controleAtivo = Config.controleAtivo
+local velocidadeBola = Config.velocidadeBola
+local autoSexta = Config.autoSexta
+local timeSelecionado = Config.timeSelecionado
+local hitboxAtivo = Config.hitboxAtivo
+local hitboxTamanho = Config.hitboxTamanho
+local espHitbox = Config.espHitbox
+
+local controlConnection = nil
+local controlScreenGui = nil
+local toggleButton = nil
 local espSphere = nil
-local ultimaAtualizacao = 0
 
-local function criarLinhaChute()
-    if not linhaChute or not linhaChute.Parent then
-        if linhaChute then linhaChute:Destroy() end
-        linhaChute = Instance.new("Part")
-        linhaChute.Name = "LinhaChute"
-        linhaChute.Anchored = true
-        linhaChute.CanCollide = false
-        linhaChute.Transparency = 0.3
-        linhaChute.Color = Color3.fromRGB(255, 255, 0)
-        linhaChute.Material = Enum.Material.Neon
-        linhaChute.Size = Vector3.new(0.3, 0.3, 10)
-        linhaChute.Parent = workspace
+-- =============================================
+-- CONTROLE DE BOLA (BOTÃO FLUTUANTE)
+-- =============================================
+local function resetCamera()
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = player.Character.Humanoid
     end
-    return linhaChute
 end
 
-local function criarCirculoChute()
-    if not circuloChute or not circuloChute.Parent then
-        if circuloChute then circuloChute:Destroy() end
-        circuloChute = Instance.new("Part")
-        circuloChute.Name = "CirculoChute"
-        circuloChute.Anchored = true
-        circuloChute.CanCollide = false
-        circuloChute.Transparency = 0.3
-        circuloChute.Color = Color3.fromRGB(255, 255, 0)
-        circuloChute.Material = Enum.Material.Neon
-        circuloChute.Shape = Enum.PartType.Cylinder
-        circuloChute.Size = Vector3.new(3, 0.1, 3)
-        circuloChute.Parent = workspace
+local function toggleControl()
+    controleAtivo = not controleAtivo
+    Config.controleAtivo = controleAtivo
+    SaveConfig()
+
+    if controleAtivo then
+        if toggleButton then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            toggleButton.Text = "Control BALL [ON]"
+        end
+        if controlConnection then controlConnection:Disconnect() end
+        controlConnection = RunService.Heartbeat:Connect(function()
+            local ball = getBall()
+            if ball then
+                camera.CameraSubject = ball
+                local lookVector = camera.CFrame.LookVector
+                ball.AssemblyLinearVelocity = lookVector * velocidadeBola
+            else
+                resetCamera()
+            end
+        end)
+    else
+        if toggleButton then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            toggleButton.Text = "Control BALL [OFF]"
+        end
+        if controlConnection then
+            controlConnection:Disconnect()
+            controlConnection = nil
+        end
+        resetCamera()
     end
-    return circuloChute
 end
 
-local function criarEspHitbox()
-    if not espSphere or not espSphere.Parent then
-        if espSphere then espSphere:Destroy() end
-        espSphere = Instance.new("SelectionSphere")
-        espSphere.Name = "ESP_Hitbox"
-        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-        espSphere.Transparency = 0.5
-        espSphere.Parent = workspace
-    end
-    return espSphere
+local function criarBotaoFlutuante()
+    if controlScreenGui then return end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ControlBallGui"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Control BALL [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = btn
+    btn.MouseButton1Click:Connect(toggleControl)
+    toggleButton = btn
+    controlScreenGui = screenGui
 end
 
-local function atualizarAdvinhaChute()
-    if not Config.advinhaChute then
-        if linhaChute then linhaChute:Destroy() linhaChute = nil end
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
-        return
+local function removerBotaoFlutuante()
+    if controleAtivo then
+        toggleControl()
     end
+    if controlScreenGui then
+        controlScreenGui:Destroy()
+        controlScreenGui = nil
+        toggleButton = nil
+    end
+end
 
-    local agora = tick()
-    if agora - ultimaAtualizacao < Config.delay then
-        return
-    end
-    ultimaAtualizacao = agora
+-- =============================================
+-- AUTO SEXTA (LANÇAR PARA O ARO)
+-- =============================================
+local function aplicarAutoSexta()
+    if not autoSexta then return end
 
     local ball = getBall()
-    if not ball then
-        if linhaChute then linhaChute:Destroy() linhaChute = nil end
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
-        return
-    end
+    if not ball then return end
 
+    local aro = getAro(timeSelecionado)
+    if not aro then return end
+
+    -- Verifica se a bola está em movimento (velocidade alta) - sinal de arremesso
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 0.5 then
-        if linhaChute then linhaChute:Destroy() linhaChute = nil end
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
-        return
-    end
+    if vel.Magnitude < 5 then return end -- se estiver parada ou muito lenta, ignora
 
-    -- Simulação física
-    local gravidade = Vector3.new(0, -50, 0)
-    local pos = ball.Position
-    local v = vel
-    local dt = 0.03
-    local maxPassos = 150
-    local chaoY = 0
+    -- Direção do centro do aro
+    local targetPos = aro.Position
+    local dir = (targetPos - ball.Position).Unit
 
-    local pontos = {}
-    table.insert(pontos, pos)
-
-    for i = 1, maxPassos do
-        v = v + gravidade * dt
-        pos = pos + v * dt
-        table.insert(pontos, pos)
-        if pos.Y <= chaoY then
-            break
-        end
-    end
-
-    if #pontos < 2 then
-        if linhaChute then linhaChute:Destroy() linhaChute = nil end
-        if circuloChute then circuloChute:Destroy() circuloChute = nil end
-        return
-    end
-
-    local inicio = pontos[1]
-    local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z)
-
-    local meio = (inicio + fim) / 2
-    local distancia = (inicio - fim).Magnitude
-
-    criarLinhaChute()
-    if distancia > 0.1 then
-        linhaChute.Size = Vector3.new(0.3, 0.3, distancia)
-        linhaChute.CFrame = CFrame.lookAt(meio, fim)
-        linhaChute.Transparency = 0.3
-    else
-        linhaChute.Transparency = 1
-    end
-
-    if v.Y < -0.5 then
-        criarCirculoChute()
-        circuloChute.Position = fim
-        local tamanho = math.clamp(vel.Magnitude / 10, 2, 6)
-        circuloChute.Size = Vector3.new(tamanho, 0.1, tamanho)
-        circuloChute.Transparency = 0.3
-    else
-        if circuloChute then
-            circuloChute.Transparency = 1
-        end
-    end
+    -- Aplica uma força para direcionar a bola ao aro
+    local forca = dir * 80 -- velocidade ajustável
+    ball.AssemblyLinearVelocity = forca
 end
 
+-- =============================================
+-- HITBOX (COLLIDER)
+-- =============================================
 local function aplicarHitbox()
     local collider = getCollider()
     if not collider then return end
 
-    if Config.hitboxAtivo then
-        local tamanho = Vector3.new(Config.hitboxTamanho, Config.hitboxTamanho, Config.hitboxTamanho)
-        if collider.Size ~= tamanho then
-            collider.Size = tamanho
-        end
-        collider.Transparency = 0.5  -- visível para depuração
+    if hitboxAtivo then
+        collider.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
+        collider.Transparency = 0.5
     else
-        -- Restaura tamanho original (supondo 1.4, ajuste se necessário)
-        if collider.Size ~= Vector3.new(1.4, 1.4, 1.4) then
-            collider.Size = Vector3.new(1.4, 1.4, 1.4)
-        end
+        -- Tamanho original (1.4,1.4,1.4)
+        collider.Size = Vector3.new(1.4, 1.4, 1.4)
         collider.Transparency = 0
     end
+end
 
-    -- ESP da hitbox
-    if Config.espHitbox and Config.hitboxAtivo then
-        criarEspHitbox()
-        espSphere.Adornee = collider
-        local scale = Config.hitboxTamanho / 2
-        espSphere.Scale = Vector3.new(scale, scale, scale)
-        espSphere.Transparency = 0.5
-    else
+local function atualizarESP()
+    if not espHitbox then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
         end
+        return
+    end
+
+    local collider = getCollider()
+    if not collider then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
+        return
+    end
+
+    if not espSphere then
+        espSphere = Instance.new("SelectionSphere")
+        espSphere.Name = "HitboxESP"
+        espSphere.Adornee = collider
+        espSphere.Parent = collider
+        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
+        espSphere.Transparency = 0.6
+    end
+
+    local scale = hitboxTamanho / 2.5
+    espSphere.Scale = Vector3.new(scale, scale, scale)
+end
+
+-- =============================================
+-- COMANDO DE CHAT (VELOCIDADE DA BOLA)
+-- =============================================
+local function onChatMessage(msg)
+    local lower = msg:lower()
+    if lower:match("^velocidade da bola") then
+        local num = msg:match("^velocidade da bola (%d+)")
+        if num then
+            local val = tonumber(num)
+            if val and val > 0 and val <= 200 then
+                velocidadeBola = val
+                Config.velocidadeBola = val
+                SaveConfig()
+                player:Chat("Velocidade da bola ajustada para " .. val)
+            else
+                player:Chat("Use um número entre 1 e 200.")
+            end
+        else
+            player:Chat("Use: Velocidade da bola [número]")
+        end
     end
 end
 
--- Loop principal
+local function setupChatCommand()
+    local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatService then
+        local onMessage = chatService:FindFirstChild("OnMessage")
+        if onMessage then
+            onMessage.OnClientEvent:Connect(onChatMessage)
+        end
+    end
+end
+setupChatCommand()
+
+-- =============================================
+-- LOOP PRINCIPAL
+-- =============================================
 RunService.Heartbeat:Connect(function()
-    atualizarAdvinhaChute()
     aplicarHitbox()
+    atualizarESP()
+    aplicarAutoSexta()
 end)
 
 -- =============================================
--- UI BASKETBALL ZERO
+-- UI
 -- =============================================
 local MainTab = Window:Tab({ Title = "Basketball", Icon = "home" })
 
--- Visão de jogo
-local VisaoSec = MainTab:Section({ Title = "Visão de jogo", TextXAlignment = "Left" })
-VisaoSec:Toggle({
-    Title = "Advinha Chute",
-    Desc = "Linha amarela mostrando onde a bola vai cair",
-    Value = Config.advinhaChute,
+-- Controle de Bola
+local ControlSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+ControlSec:Toggle({
+    Title = "Control",
+    Desc = "Botão flutuante para controlar a bola",
+    Value = Config.controleAtivo,
     Callback = function(v)
-        Config.advinhaChute = v
+        Config.controleAtivo = v
         SaveConfig()
-        if not v then
-            if linhaChute then linhaChute:Destroy() linhaChute = nil end
-            if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        if v then
+            criarBotaoFlutuante()
+        else
+            removerBotaoFlutuante()
         end
     end
 })
-VisaoSec:Slider({
-    Title = "Delay",
-    Desc = "Intervalo de atualização (0.05s – 1s)",
-    Step = 0.05,
-    Value = { Min = 0.05, Max = 1, Default = Config.delay },
+
+-- Movimentação
+local MovSec = MainTab:Section({ Title = "Movimentação", TextXAlignment = "Left" })
+MovSec:Toggle({
+    Title = "Auto Sexta",
+    Desc = "Ao arremessar, a bola vai direto para o aro selecionado",
+    Value = Config.autoSexta,
     Callback = function(v)
-        Config.delay = v
+        autoSexta = v
+        Config.autoSexta = v
         SaveConfig()
+    end
+})
+MovSec:Toggle({
+    Title = "🟢Away/Home🔴",
+    Desc = "Selecione sua Equipe... (Home ou Away)",
+    Value = (Config.timeSelecionado == "Away"),
+    Callback = function(v)
+        -- Se v for true, seleciona Away; se false, Home
+        timeSelecionado = v and "Away" or "Home"
+        Config.timeSelecionado = timeSelecionado
+        SaveConfig()
+        -- Atualiza o texto do toggle (não é possível diretamente, mas podemos usar um dropdown ou manter assim)
+        -- Como é um toggle, o usuário saberá que está ativo para Away.
     end
 })
 
@@ -330,34 +403,31 @@ VisaoSec:Slider({
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
-    Desc = "Aumenta o Collider da bola (1-30)",
+    Desc = "Aumenta a hitbox da bola (Collider)",
     Value = Config.hitboxAtivo,
     Callback = function(v)
+        hitboxAtivo = v
         Config.hitboxAtivo = v
         SaveConfig()
-        if not v then
-            if espSphere then
-                espSphere:Destroy()
-                espSphere = nil
-            end
-        end
     end
 })
 HitboxSec:Slider({
     Title = "Tamanho",
-    Desc = "Tamanho do Collider (1-30)",
+    Desc = "Tamanho da hitbox (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.hitboxTamanho },
     Callback = function(v)
+        hitboxTamanho = v
         Config.hitboxTamanho = v
         SaveConfig()
     end
 })
 HitboxSec:Toggle({
     Title = "ESP Hitbox",
-    Desc = "Mostra uma esfera verde ao redor da hitbox",
+    Desc = "Mostra a hitbox visualmente (círculo verde)",
     Value = Config.espHitbox,
     Callback = function(v)
+        espHitbox = v
         Config.espHitbox = v
         SaveConfig()
         if not v and espSphere then
@@ -367,7 +437,7 @@ HitboxSec:Toggle({
     end
 })
 
--- Salvar
+-- Botão Salvar
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -385,7 +455,7 @@ SaveSec:Button({
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Basketball Zero",
-        Text = "Carregado com Auto Save!",
+        Text = "Carregado com sucesso!",
         Duration = 3
     })
 end)
