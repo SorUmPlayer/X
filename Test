@@ -1,13 +1,12 @@
 --[[
-    ⚽ Street Soccer – Script otimizado (execução garantida)
+    ⚽ Street Soccer – Script com detecção robusta da bola
 ]]
 
 (function()
-    -- Verificação de ambiente
-    if not game then 
-        warn("Ambiente Roblox não detectado.")
-        return 
-    end
+    -- =============================================
+    -- VERIFICAÇÕES INICIAIS
+    -- =============================================
+    if not game then return end
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -17,26 +16,19 @@
     local HttpService = game:GetService("HttpService")
 
     local player = Players.LocalPlayer
-    if not player then
-        warn("Jogador local não encontrado.")
-        return
-    end
+    if not player then return end
 
     local camera = Workspace.CurrentCamera
-    if not camera then
-        warn("Câmera não encontrada.")
-        return
-    end
+    if not camera then return end
 
     -- =============================================
-    -- SISTEMA DE AUTO SAVE (COM VERIFICAÇÃO)
+    -- AUTO SAVE SIMPLIFICADO
     -- =============================================
     local CONFIG_FILE = "StreetSoccer_AutoSave.json"
     local HAS_FILE_SYSTEM = pcall(function() return isfile and writefile and readfile end) and HttpService ~= nil
-    local saveEnabled = HAS_FILE_SYSTEM and type(HttpService.JSONEncode) == "function"
 
     local function LoadConfig()
-        if not saveEnabled then return {} end
+        if not HAS_FILE_SYSTEM then return {} end
         if isfile(CONFIG_FILE) then
             local success, data = pcall(function()
                 return HttpService:JSONDecode(readfile(CONFIG_FILE))
@@ -49,7 +41,7 @@
     end
 
     local function SaveConfigToFile(configTable)
-        if not saveEnabled then return end
+        if not HAS_FILE_SYSTEM then return end
         local success, json = pcall(function()
             return HttpService:JSONEncode(configTable)
         end)
@@ -80,7 +72,7 @@
     end
 
     task.spawn(function()
-        while saveEnabled do
+        while HAS_FILE_SYSTEM do
             task.wait(5)
             SaveConfig()
         end
@@ -106,7 +98,7 @@
     end
 
     -- =============================================
-    -- WINDUI
+    -- WINDUI (com fallback)
     -- =============================================
     local WindUI
     local loaded, _ = pcall(function()
@@ -118,7 +110,7 @@
         end)
     end
     if not WindUI then
-        warn("Não foi possível carregar o WindUI.")
+        warn("Street Soccer: WindUI não carregou.")
         return
     end
 
@@ -137,10 +129,37 @@
     })
 
     -- =============================================
-    -- DETECÇÃO DA BOLA
+    -- DETECÇÃO DA BOLA (FALLBACKS)
     -- =============================================
     local function getBall()
-        return Workspace:FindFirstChild("ball")
+        -- Tenta vários caminhos possíveis
+        local ball = Workspace:FindFirstChild("ball")
+        if ball then return ball end
+
+        ball = Workspace:FindFirstChild("Ball")
+        if ball then return ball end
+
+        -- Procura em qualquer lugar com nome contendo "ball"
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name:lower():match("ball") then
+                return obj
+            end
+        end
+
+        -- Procura em modelos comuns
+        local terrain = Workspace:FindFirstChild("Terrain")
+        if terrain then
+            ball = terrain:FindFirstChild("Ball") or terrain:FindFirstChild("ball")
+            if ball then return ball end
+        end
+
+        local field = Workspace:FindFirstChild("Field") or Workspace:FindFirstChild("field")
+        if field then
+            ball = field:FindFirstChild("Ball") or field:FindFirstChild("ball")
+            if ball then return ball end
+        end
+
+        return nil
     end
 
     local function euTenhoBola()
@@ -152,6 +171,28 @@
         if not hrp then return false
         return (hrp.Position - ball.Position).Magnitude < 3
     end
+
+    -- Notificação se a bola não for encontrada
+    task.spawn(function()
+        task.wait(2)
+        if not getBall() then
+            pcall(function()
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Street Soccer",
+                    Text = "⚠️ Bola não encontrada! Verifique se o jogo é Street Soccer.",
+                    Duration = 5
+                })
+            end)
+        else
+            pcall(function()
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Street Soccer",
+                    Text = "✅ Bola encontrada! Script carregado.",
+                    Duration = 3
+                })
+            end)
+        end
+    end)
 
     -- =============================================
     -- VARIÁVEIS
@@ -855,4 +896,4 @@
         })
     end)
 
-end)() -- Fim da função autoexecutável
+end)()
