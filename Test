@@ -1,7 +1,6 @@
 --[[
-    Basketball Zero – Anti-Cheat Bypass + Anti-Ban
-    Baseado em técnicas de bypass documentadas
-    AVISO: Use por sua conta e risco. Nenhum método é 100% garantido.
+    Basketball Zero – Modo Furtivo (Anti-Ban + Detecção)
+    Técnicas suaves para evitar banimento
 ]]
 
 local Players = game:GetService("Players")
@@ -16,237 +15,33 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- =============================================
--- ANTI-CHEAT BYPASS (Universal Anti-Cheat Bypass)
--- Baseado em: https://github.com/Securedlinks/Bypass.com
+-- ANTI-BAN / ANTI-DETECTOR (Básico)
 -- =============================================
-local bypass = {
-    enabled = false,
-    debug = false,
-    originalFunctions = {},
-    hookedMetamethods = {},
-}
-
--- 1. PROPERTY SPOOFING – Previne detecção de propriedades modificadas[reference:7]
-local function spoofProperty(instance, property, originalValue, fakeValue)
-    if not instance then return end
-    local old = instance[property]
-    instance[property] = fakeValue
-    bypass.originalFunctions[instance] = bypass.originalFunctions[instance] or {}
-    bypass.originalFunctions[instance][property] = old
-    return old
-end
-
--- 2. REMOTE EVENT BLOCKING – Bloqueia eventos remotos suspeitos[reference:8]
-local function blockRemoteEvent(eventName)
+local function antiBan()
     pcall(function()
-        local event = ReplicatedStorage:FindFirstChild(eventName)
-        if event and event:IsA("RemoteEvent") then
-            local oldFire = event.FireServer
-            event.FireServer = function(...)
-                if bypass.debug then
-                    warn("[Bypass] Bloqueado: " .. eventName)
-                end
-                return
-            end
-            bypass.originalFunctions[event] = {FireServer = oldFire}
-        end
-    end)
-end
-
--- 3. DEBUG FUNCTION HOOKING – Esconde scripts da detecção[reference:9]
-local function hookDebugFunctions()
-    pcall(function()
-        local oldGetInfo = debug.getinfo
-        debug.getinfo = function(...)
-            local args = {...}
-            if type(args[1]) == "function" then
-                local info = oldGetInfo(...)
-                if info and info.source and string.find(info.source, "Basketball") then
-                    info.source = "[C]"
-                end
-                return info
-            end
-            return oldGetInfo(...)
-        end
-        bypass.originalFunctions.debug = {getinfo = oldGetInfo}
-    end)
-end
-
--- 4. ANTI-CHEAT CONNECTION DISABLING[reference:10]
-local function disableAntiCheatConnections()
-    pcall(function()
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                local connections = getconnections and getconnections(obj.OnServerEvent)
-                if connections then
-                    for _, conn in ipairs(connections) do
-                        if conn and conn.Disconnect then
-                            conn:Disconnect()
-                        end
-                    end
+        local log = getrenv()._G.Log or game:GetService("LogService")
+        if log then
+            for _, func in ipairs({"Log", "Report", "Crash", "Telemetry"}) do
+                if log[func] then
+                    log[func] = function() end
                 end
             end
         end
     end)
-end
-
--- 5. GUI DETECTION PREVENTION[reference:11]
-local function hideGUIFromDetection()
     pcall(function()
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                -- Torna invisível para scans
-                gui.Enabled = true
-                gui.DisplayOrder = -1
-            end
+        local scriptContext = game:GetService("ScriptContext")
+        if scriptContext then
+            scriptContext.Error:Connect(function() end)
+            scriptContext.Warning:Connect(function() end)
         end
     end)
 end
-
--- 6. ANTI-CHEAT FUNCTION HOOKING[reference:12]
-local function hookAntiCheatFunctions()
-    pcall(function()
-        -- Procura funções comuns de anti-cheat
-        local gc = getgc and getgc(true) or {}
-        for _, func in ipairs(gc) do
-            if type(func) == "function" then
-                local info = debug.getinfo(func)
-                if info and info.name then
-                    local name = info.name:lower()
-                    if name:match("anticheat") or name:match("antiban") or 
-                       name:match("detect") or name:match("cheat") or
-                       name:match("iac") or name:match("respond") then
-                        -- Neutraliza a função
-                        local env = getfenv(func)
-                        if env then
-                            env[info.name] = function() return true end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-
--- 7. IAC (IndexAntiCheat) Bypass[reference:13]
-local function bypassIAC()
-    pcall(function()
-        -- Bloqueia o remote event iac-respond
-        blockRemoteEvent("iac-respond")
-        blockRemoteEvent("IAC-respond")
-        blockRemoteEvent("AntiCheat")
-        blockRemoteEvent("AntiCheat_respond")
-    end)
-end
-
--- 8. ADONIS ANTI-CHEAT BYPASS[reference:14]
-local function bypassAdonis()
-    pcall(function()
-        -- Hooks funções de detecção do Adonis
-        local oldDetected = hookfunction and hookfunction(Detected, function() end)
-        local oldKill = hookfunction and hookfunction(Kill, function() end)
-        if oldDetected then
-            bypass.originalFunctions.Detected = oldDetected
-        end
-        if oldKill then
-            bypass.originalFunctions.Kill = oldKill
-        end
-    end)
-end
-
--- 9. METAMETHOD HOOKING[reference:15]
-local function hookMetamethods()
-    pcall(function()
-        if hookmetamethod then
-            local oldIndex = hookmetamethod(game, "__index", function(self, key)
-                if key == "AssemblyLinearVelocity" or key == "Position" or key == "CFrame" then
-                    -- Retorna valores normais para evitar detecção
-                    return oldIndex(self, key)
-                end
-                return oldIndex(self, key)
-            end)
-            bypass.hookedMetamethods.game = oldIndex
-        end
-    end)
-end
-
--- 10. SAFE INPUT SIMULATION[reference:16]
-local function safeSimulateInput(key, down)
-    pcall(function()
-        if VirtualInputManager then
-            VirtualInputManager:SendKeyEvent(down, key, false, nil)
-        end
-    end)
-end
+antiBan()
 
 -- =============================================
--- ATIVAR BYPASS
+-- AUTO SAVE
 -- =============================================
-local function enableBypass()
-    if bypass.enabled then return end
-    bypass.enabled = true
-
-    if bypass.debug then
-        print("[Bypass] Ativando Anti-Cheat Bypass...")
-    end
-
-    -- Aplica todas as técnicas de bypass
-    spoofProperty(player, "WalkSpeed", 16, 16)
-    spoofProperty(player, "JumpPower", 50, 50)
-    
-    hookDebugFunctions()
-    disableAntiCheatConnections()
-    hideGUIFromDetection()
-    hookAntiCheatFunctions()
-    bypassIAC()
-    bypassAdonis()
-    hookMetamethods()
-    
-    -- Bloqueia eventos remotos comuns
-    blockRemoteEvent("Report")
-    blockRemoteEvent("Log")
-    blockRemoteEvent("Telemetry")
-    blockRemoteEvent("Crash")
-    blockRemoteEvent("Ban")
-    
-    if bypass.debug then
-        print("[Bypass] Anti-Cheat Bypass ativado!")
-    end
-end
-
--- =============================================
--- DESATIVAR BYPASS
--- =============================================
-local function disableBypass()
-    if not bypass.enabled then return end
-    bypass.enabled = false
-
-    -- Restaura funções originais
-    for obj, funcs in pairs(bypass.originalFunctions) do
-        for key, val in pairs(funcs) do
-            pcall(function()
-                obj[key] = val
-            end)
-        end
-    end
-    
-    -- Limpa hooks
-    if bypass.hookedMetamethods.game then
-        pcall(function()
-            hookmetamethod(game, "__index", bypass.hookedMetamethods.game)
-        end)
-    end
-
-    if bypass.debug then
-        print("[Bypass] Anti-Cheat Bypass desativado.")
-    end
-end
-
--- =============================================
--- SISTEMA DE AUTO SAVE
--- =============================================
-local CONFIG_FILE = "BasketballZero_Bypass.json"
-
+local CONFIG_FILE = "BasketballZero_Stealth.json"
 local function LoadConfig()
     if not isfile then return {} end
     if isfile(CONFIG_FILE) then
@@ -271,8 +66,6 @@ local function SaveConfigToFile(configTable)
 end
 
 local Config = {
-    bypassAtivo = false,
-    debugMode = false,
     controleAtivo = false,
     velocidadeBola = 65,
     autoSexta = false,
@@ -298,7 +91,7 @@ task.spawn(function()
 end)
 
 -- =============================================
--- FUNÇÃO SEGURA DE PARENT
+-- SEGURANÇA DE PARENT
 -- =============================================
 local function safeParent(gui)
     local ok = pcall(function()
@@ -342,7 +135,7 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
--- REFERÊNCIAS DA BOLA
+-- REFERÊNCIAS
 -- =============================================
 local function getBall()
     local basketball = Workspace:FindFirstChild("Basketball")
@@ -374,8 +167,6 @@ end
 -- =============================================
 -- VARIÁVEIS
 -- =============================================
-local bypassAtivo = Config.bypassAtivo
-local debugMode = Config.debugMode
 local controleAtivo = Config.controleAtivo
 local velocidadeBola = Config.velocidadeBola
 local autoSexta = Config.autoSexta
@@ -389,8 +180,12 @@ local controlScreenGui = nil
 local toggleButton = nil
 local espSphere = nil
 
+-- Corpos para controle suave
+local bodyVelocity = nil
+local bodyPosition = nil
+
 -- =============================================
--- CONTROLE DE BOLA
+-- CONTROLE DE BOLA (SUAVE)
 -- =============================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -409,15 +204,32 @@ local function toggleControl()
             toggleButton.Text = "Control BALL [ON]"
         end
         if controlConnection then controlConnection:Disconnect() end
+
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
-            if ball then
-                camera.CameraSubject = ball
-                local lookVector = camera.CFrame.LookVector
-                ball.AssemblyLinearVelocity = lookVector * velocidadeBola
-            else
+            if not ball then return end
+
+            -- Se o jogador estiver com a bola, não controla (evita conflito)
+            local char = player.Character
+            if char and char:FindFirstChild("AnimBall") then
                 resetCamera()
+                return
             end
+
+            -- Usa BodyVelocity para controle suave
+            if not bodyVelocity then
+                bodyVelocity = Instance.new("BodyVelocity")
+                bodyVelocity.MaxForce = Vector3.new(1000, 1000, 1000)
+                bodyVelocity.Parent = ball
+            else
+                bodyVelocity.Parent = ball
+            end
+
+            local lookVector = camera.CFrame.LookVector
+            local velocidade = lookVector * velocidadeBola
+            bodyVelocity.Velocity = velocidade
+
+            -- Não força a câmera (apenas controla a bola)
         end)
     else
         if toggleButton then
@@ -427,6 +239,10 @@ local function toggleControl()
         if controlConnection then
             controlConnection:Disconnect()
             controlConnection = nil
+        end
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
         end
         resetCamera()
     end
@@ -470,7 +286,7 @@ local function removerBotaoFlutuante()
 end
 
 -- =============================================
--- AUTO SEXTA
+-- AUTO SEXTA (SUAVE)
 -- =============================================
 local function aplicarAutoSexta()
     if not autoSexta then return end
@@ -481,27 +297,60 @@ local function aplicarAutoSexta()
     local aro = getAro(timeSelecionado)
     if not aro then return end
 
+    -- Verifica se a bola foi arremessada (velocidade alta)
     local vel = ball.AssemblyLinearVelocity
     if vel.Magnitude < 5 then return end
 
-    local targetPos = aro.Position
-    local dir = (targetPos - ball.Position).Unit
+    -- Guia a bola suavemente para o aro usando BodyPosition
+    if not bodyPosition then
+        bodyPosition = Instance.new("BodyPosition")
+        bodyPosition.MaxForce = Vector3.new(500, 500, 500)
+        bodyPosition.D = 100
+        bodyPosition.P = 1000
+        bodyPosition.Parent = ball
+    else
+        bodyPosition.Parent = ball
+    end
 
-    task.wait(0.02)
-    local forca = dir * 80
-    ball.AssemblyLinearVelocity = forca
+    bodyPosition.Position = aro.Position
+
+    -- Destrói o BodyPosition após a bola chegar perto do aro
+    task.spawn(function()
+        task.wait(0.5)
+        if bodyPosition and (ball.Position - aro.Position).Magnitude < 5 then
+            bodyPosition:Destroy()
+            bodyPosition = nil
+        end
+    end)
 end
 
 -- =============================================
--- HITBOX
+-- HITBOX (COM DELAY)
 -- =============================================
 local function aplicarHitbox()
     local collider = getCollider()
     if not collider then return end
 
     if hitboxAtivo then
-        collider.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-        collider.Transparency = 0.5
+        local tamanho = hitboxTamanho
+        -- Aplica com um pequeno delay aleatório para evitar detecção
+        task.spawn(function()
+            task.wait(math.random(10, 50) / 100) -- 0.1 a 0.5 segundos
+            if collider and hitboxAtivo then
+                collider.Size = Vector3.new(tamanho, tamanho, tamanho)
+                collider.Transparency = 0.5
+            end
+        end)
+        -- Restaura periodicamente para evitar detecção de tamanho constante
+        task.spawn(function()
+            task.wait(2)
+            if collider and hitboxAtivo then
+                -- Mantém o tamanho, mas pode alternar levemente
+                local variacao = math.random(-2, 2)
+                local novo = math.clamp(tamanho + variacao, 1, 30)
+                collider.Size = Vector3.new(novo, novo, novo)
+            end
+        end)
     else
         collider.Size = Vector3.new(1.4, 1.4, 1.4)
         collider.Transparency = 0
@@ -577,10 +426,7 @@ setupChatCommand()
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
-    -- Reforça o bypass periodicamente
-    if bypassAtivo then
-        pcall(enableBypass)
-    end
+    pcall(antiBan) -- reforça anti-ban
 
     aplicarHitbox()
     atualizarESP()
@@ -592,47 +438,11 @@ end)
 -- =============================================
 local MainTab = Window:Tab({ Title = "Basketball", Icon = "home" })
 
--- Seção Anti-Cheat Bypass
-local BypassSec = MainTab:Section({ Title = "🛡️ Anti-Cheat Bypass", TextXAlignment = "Left" })
-
-BypassSec:Toggle({
-    Title = "Ativar Bypass",
-    Desc = "Ativa todas as técnicas de anti-detecção",
-    Value = Config.bypassAtivo,
-    Callback = function(v)
-        bypassAtivo = v
-        Config.bypassAtivo = v
-        SaveConfig()
-        if v then
-            enableBypass()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Bypass",
-                Text = "Anti-Cheat Bypass ativado!",
-                Duration = 2
-            })
-        else
-            disableBypass()
-        end
-    end
-})
-
-BypassSec:Toggle({
-    Title = "Modo Debug",
-    Desc = "Mostra logs do bypass no console",
-    Value = Config.debugMode,
-    Callback = function(v)
-        debugMode = v
-        Config.debugMode = v
-        bypass.debug = v
-        SaveConfig()
-    end
-})
-
 -- Controle de Bola
 local ControlSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControlSec:Toggle({
     Title = "Control",
-    Desc = "Botão flutuante para controlar a bola",
+    Desc = "Botão flutuante para controlar a bola (modo suave)",
     Value = Config.controleAtivo,
     Callback = function(v)
         Config.controleAtivo = v
@@ -649,12 +459,16 @@ ControlSec:Toggle({
 local MovSec = MainTab:Section({ Title = "Movimentação", TextXAlignment = "Left" })
 MovSec:Toggle({
     Title = "Auto Sexta",
-    Desc = "Ao arremessar, a bola vai direto para o aro selecionado",
+    Desc = "Guia a bola suavemente para o aro selecionado",
     Value = Config.autoSexta,
     Callback = function(v)
         autoSexta = v
         Config.autoSexta = v
         SaveConfig()
+        if not v and bodyPosition then
+            bodyPosition:Destroy()
+            bodyPosition = nil
+        end
     end
 })
 MovSec:Toggle({
@@ -706,7 +520,7 @@ HitboxSec:Toggle({
     end
 })
 
--- Botão Salvar
+-- Salvar
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -724,7 +538,7 @@ SaveSec:Button({
 pcall(function()
     StarterGui:SetCore("SendNotification",{
         Title = "Basketball Zero",
-        Text = "Carregado com Anti-Cheat Bypass!",
+        Text = "Carregado em Modo Furtivo!",
         Duration = 3
     })
 end)
