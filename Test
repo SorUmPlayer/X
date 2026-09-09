@@ -1,5 +1,5 @@
 --[[
-    Street Soccer – Script Ultra-Compatível
+    Street Soccer – Script Ultra-Compatível (corrigido)
 ]]
 
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- =============================================
--- AUTO SAVE COM FALLBACK (se falhar, não trava)
+-- AUTO SAVE
 -- =============================================
 local CONFIG_FILE = "StreetSoccer_AutoSave.json"
 local Config = {
@@ -31,14 +31,13 @@ local Config = {
 }
 
 local function LoadConfig()
-    if not isfile then return Config end
+    if not isfile then return end
     local success, data = pcall(function()
         return HttpService:JSONDecode(readfile(CONFIG_FILE))
     end)
     if success and type(data) == "table" then
         for k, v in pairs(data) do Config[k] = v end
     end
-    return Config
 end
 
 local function SaveConfigToFile(configTable)
@@ -55,16 +54,52 @@ local function SaveConfig()
     SaveConfigToFile(Config)
 end
 
--- Carrega configurações
 pcall(LoadConfig)
 
--- Auto-save periódico (5 segundos)
 task.spawn(function()
     while true do
         task.wait(5)
         pcall(SaveConfig)
     end
 end)
+
+-- =============================================
+-- CARREGAR WINDUI (com verificação)
+-- =============================================
+local WindUI
+local loadSuccess, loadErr = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+end)
+
+if not loadSuccess or not WindUI then
+    pcall(function()
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end)
+end
+
+if not WindUI then
+    StarterGui:SetCore("SendNotification", {
+        Title = "Erro",
+        Text = "Falha ao carregar WindUI. Verifique sua conexão.",
+        Duration = 5
+    })
+    error("WindUI não carregado. O script será interrompido.")
+    return
+end
+
+local Window = WindUI:CreateWindow({
+    Title = "⚽ Street Soccer",
+    Icon = "rbxassetid://10723343321",
+    Author = "Sor_Gostoso",
+    Folder = "StreetSoccer",
+    Size = UDim2.fromOffset(500, 650),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+})
 
 -- =============================================
 -- FUNÇÃO SEGURA DE PARENT
@@ -86,44 +121,7 @@ local function safeParent(gui)
 end
 
 -- =============================================
--- CARREGAR WINDUI
--- =============================================
-local WindUI
-local loadSuccess, loadErr = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-if not loadSuccess or not WindUI then
-    -- Fallback: tenta o link alternativo
-    pcall(function()
-        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-    end)
-end
-
-if not WindUI then
-    StarterGui:SetCore("SendNotification", {
-        Title = "Erro",
-        Text = "Não foi possível carregar WindUI. Verifique sua conexão.",
-        Duration = 5
-    })
-    return
-end
-
-local Window = WindUI:CreateWindow({
-    Title = "⚽ Street Soccer",
-    Icon = "rbxassetid://10723343321",
-    Author = "Sor_Gostoso",
-    Folder = "StreetSoccer",
-    Size = UDim2.fromOffset(500, 650),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
-
--- =============================================
--- DETECÇÃO DA BOLA (com fallback)
+-- DETECÇÃO DA BOLA
 -- =============================================
 local function getBall()
     return Workspace:FindFirstChild("ball")
@@ -583,7 +581,7 @@ end
 local function infiniteStamina()
     task.spawn(function()
         while true do
-            -- Tenta modificar o valor da stamina via PlayerStats
+            -- PlayerStats
             local stats = player:FindFirstChild("PlayerStats")
             if stats then
                 local stamina = stats:FindFirstChild("Stamina")
@@ -591,7 +589,7 @@ local function infiniteStamina()
                     stamina.Value = 100
                 end
             end
-            -- Tenta modificar a UI (caso exista)
+            -- UI
             local gui = player.PlayerGui:FindFirstChild("Stamina")
             if gui then
                 local frame = gui:FindFirstChild("Frame")
@@ -657,7 +655,7 @@ end)
 -- =============================================
 local MainTab = Window:Tab({ Title = "Street Soccer", Icon = "home" })
 
--- Categoria Aimbot
+-- Aimbot
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
     Title = "Aimbot Câmera",
@@ -706,7 +704,7 @@ AimbotSec:Slider({
     end
 })
 
--- Categoria Visão de Jogo
+-- Visão de Jogo
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Advinha a bola",
@@ -737,7 +735,7 @@ VisaoSec:Toggle({
     end
 })
 
--- Categoria Controle de Bola
+-- Controle de Bola
 local ControleSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControleSec:Toggle({
     Title = "Controle de Bola",
@@ -769,7 +767,7 @@ ControleSec:Input({
     end
 })
 
--- Categoria Hitbox
+-- Hitbox
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
@@ -818,7 +816,7 @@ HitboxSec:Toggle({
     end
 })
 
--- Categoria Config
+-- Config
 local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
 ConfigSec:Button({
     Title = "Infinite Stamina",
@@ -833,7 +831,7 @@ ConfigSec:Button({
     end
 })
 
--- Botão Salvar
+-- Salvar
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -848,9 +846,7 @@ SaveSec:Button({
     end
 })
 
--- =============================================
--- NOTIFICAÇÃO DE INÍCIO
--- =============================================
+-- Notificação de início
 pcall(function()
     StarterGui:SetCore("SendNotification",{
         Title = "Street Soccer",
