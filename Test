@@ -1,103 +1,103 @@
 --[[
-    ⚽ Street Soccer – Versão simplificada
+    Street Soccer – Script completo (corrigido)
 ]]
 
-print("Street Soccer: Iniciando...")
-
--- =============================================
--- VERIFICAÇÕES INICIAIS
--- =============================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
-if not player then 
-    warn("Street Soccer: LocalPlayer não encontrado")
-    return 
-end
-
 local camera = Workspace.CurrentCamera
-if not camera then 
-    warn("Street Soccer: Câmera não encontrada")
-    return 
-end
-
-print("Street Soccer: Player e câmera ok")
 
 -- =============================================
--- DETECÇÃO DA BOLA (FALLBACKS)
+-- AUTO SAVE
 -- =============================================
-local function getBall()
-    -- Tenta vários caminhos possíveis
-    local ball = Workspace:FindFirstChild("ball")
-    if ball then return ball end
+local CONFIG_FILE = "StreetSoccer_AutoSave.json"
 
-    ball = Workspace:FindFirstChild("Ball")
-    if ball then return ball end
-
-    -- Procura em qualquer lugar com nome contendo "ball"
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:lower():match("ball") then
-            return obj
+local function LoadConfig()
+    if not isfile then return {} end
+    if isfile(CONFIG_FILE) then
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(CONFIG_FILE))
+        end)
+        if success and type(data) == "table" then
+            return data
         end
     end
-
-    -- Procura em modelos comuns
-    local terrain = Workspace:FindFirstChild("Terrain")
-    if terrain then
-        ball = terrain:FindFirstChild("Ball") or terrain:FindFirstChild("ball")
-        if ball then return ball end
-    end
-
-    local field = Workspace:FindFirstChild("Field") or Workspace:FindFirstChild("field")
-    if field then
-        ball = field:FindFirstChild("Ball") or field:FindFirstChild("ball")
-        if ball then return ball end
-    end
-
-    return nil
+    return {}
 end
 
-local function euTenhoBola()
-    local ball = getBall()
-    if not ball then return false end
-    local char = player.Character
-    if not char then return false
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false
-    return (hrp.Position - ball.Position).Magnitude < 3
+local function SaveConfigToFile(configTable)
+    if not writefile then return end
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(configTable)
+    end)
+    if success then
+        pcall(function() writefile(CONFIG_FILE, json) end)
+    end
 end
 
--- Verifica se a bola foi encontrada
-local ballFound = getBall()
-if ballFound then
-    print("Street Soccer: Bola encontrada:", ballFound.Name)
-else
-    print("Street Soccer: Bola NÃO encontrada!")
-    warn("Street Soccer: Bola NÃO encontrada! Verifique se o jogo é Street Soccer.")
+local Config = {
+    aimbotCamera = false,
+    botaoCamera = false,
+    aimbotDelay = 0,
+    advinhaBola = false,
+    advinhaChute = false,
+    controleBola = false,
+    velocidadeBola = 65,
+    hitboxAtivo = false,
+    hitboxTamanho = 10,
+    espHitbox = false,
+}
+local savedConfig = LoadConfig()
+for k, v in pairs(savedConfig) do
+    Config[k] = v
+end
+
+local function SaveConfig()
+    SaveConfigToFile(Config)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        SaveConfig()
+    end
+end)
+
+-- =============================================
+-- SEGURANÇA DE PARENT
+-- =============================================
+local function safeParent(gui)
+    local ok = pcall(function()
+        if gethui then
+            gui.Parent = gethui()
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(gui)
+            gui.Parent = CoreGui
+        else
+            gui.Parent = CoreGui
+        end
+    end)
+    if not ok then
+        gui.Parent = player:WaitForChild("PlayerGui")
+    end
 end
 
 -- =============================================
--- CARREGAR WINDUI
+-- WINDUI
 -- =============================================
 local WindUI
-local success, err = pcall(function()
+local loaded, _ = pcall(function()
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
-if not success or not WindUI then
-    pcall(function()
-        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-    end)
+if not loaded or not WindUI then
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 end
-if not WindUI then
-    warn("Street Soccer: WindUI não carregou.")
-    return
-end
-
-print("Street Soccer: WindUI carregado")
 
 local Window = WindUI:CreateWindow({
     Title = "⚽ Street Soccer",
@@ -114,30 +114,47 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
+-- DETECÇÃO DA BOLA
+-- =============================================
+local function getBall()
+    return Workspace:FindFirstChild("ball")
+end
+
+local function euTenhoBola()
+    local ball = getBall()
+    if not ball then return false end
+    local char = player.Character
+    if not char then return false
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false
+    return (hrp.Position - ball.Position).Magnitude < 3
+end
+
+-- =============================================
 -- VARIÁVEIS
 -- =============================================
-local aimbotCamera = false
-local aimbotDelay = 0
+local aimbotCamera = Config.aimbotCamera
+local aimbotDelay = Config.aimbotDelay
 local aimbotBlocked = false
 local aimbotBlockedUntil = 0
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
 
-local visaoBolaEnabled = false
-local visaoChuteEnabled = false
+local visaoBolaEnabled = Config.advinhaBola
+local visaoChuteEnabled = Config.advinhaChute
 local linhaTrajetoria = nil
 local linhaOlhar = nil
 local circuloImpacto = nil
 
-local controleBola = false
-local velocidadeBola = 65
+local controleBola = Config.controleBola
+local velocidadeBola = Config.velocidadeBola
 local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
 local isControlActive = false
 
-local hitboxAtivo = false
-local hitboxTamanho = 10
-local espHitbox = false
+local hitboxAtivo = Config.hitboxAtivo
+local hitboxTamanho = Config.hitboxTamanho
+local espHitbox = Config.espHitbox
 local espSphere = nil
 
 local cameraButtonActive = false
@@ -187,6 +204,7 @@ end
 -- =============================================
 -- VISÃO DE JOGO
 -- =============================================
+-- 1. Advinha a bola (linha amarela)
 local function atualizarAdvinhaBola()
     if not visaoBolaEnabled then
         if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
@@ -248,7 +266,7 @@ local function atualizarAdvinhaBola()
         linhaTrajetoria.Transparency = 0.2
         linhaTrajetoria.Color = Color3.fromRGB(255, 255, 0)
         linhaTrajetoria.Material = Enum.Material.Neon
-        linhaTrajetoria.Parent = workspace
+        linhaTrajetoria.Parent = Workspace
     end
 
     if distancia > 0.1 then
@@ -270,7 +288,7 @@ local function atualizarAdvinhaBola()
             circuloImpacto.Material = Enum.Material.Neon
             circuloImpacto.Shape = Enum.PartType.Cylinder
             circuloImpacto.Size = Vector3.new(4, 0.1, 4)
-            circuloImpacto.Parent = workspace
+            circuloImpacto.Parent = Workspace
         end
         circuloImpacto.Position = fim
         local tamanho = math.clamp(vel.Magnitude / 8, 3, 8)
@@ -281,14 +299,18 @@ local function atualizarAdvinhaBola()
     end
 end
 
+-- 2. Advinhe Chute (linha verde – olhar do jogador com a bola)
 local function getJogadorComBola()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player then
             local char = plr.Character
             if char then
                 local ball = getBall()
-                if ball and (char:FindFirstChild("HumanoidRootPart").Position - ball.Position).Magnitude < 3 then
-                    return plr
+                if ball then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp and (hrp.Position - ball.Position).Magnitude < 3 then
+                        return plr
+                    end
                 end
             end
         end
@@ -351,7 +373,7 @@ local function atualizarAdvinheChute()
         linhaOlhar.Color = Color3.fromRGB(0, 255, 0)
         linhaOlhar.Material = Enum.Material.Neon
         linhaOlhar.Size = Vector3.new(1.0, 1.0, 100)
-        linhaOlhar.Parent = workspace
+        linhaOlhar.Parent = Workspace
     end
 
     local meio = (posInicio + posFim) / 2
@@ -411,19 +433,7 @@ local function criarBotaoFlutuante()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ControlBallGui"
     screenGui.ResetOnSpawn = false
-    local ok = pcall(function()
-        if gethui then
-            screenGui.Parent = gethui()
-        elseif syn and syn.protect_gui then
-            syn.protect_gui(screenGui)
-            screenGui.Parent = CoreGui
-        else
-            screenGui.Parent = CoreGui
-        end
-    end)
-    if not ok then
-        screenGui.Parent = player:WaitForChild("PlayerGui")
-    end
+    safeParent(screenGui)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -473,6 +483,8 @@ local function toggleCameraButton()
         end
         aimbotCamera = false
     end
+    Config.aimbotCamera = aimbotCamera
+    SaveConfig()
 end
 
 local function criarBotaoCameraFlutuante()
@@ -480,19 +492,7 @@ local function criarBotaoCameraFlutuante()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "CameraAimbotGui"
     screenGui.ResetOnSpawn = false
-    local ok = pcall(function()
-        if gethui then
-            screenGui.Parent = gethui()
-        elseif syn and syn.protect_gui then
-            syn.protect_gui(screenGui)
-            screenGui.Parent = CoreGui
-        else
-            screenGui.Parent = CoreGui
-        end
-    end)
-    if not ok then
-        screenGui.Parent = player:WaitForChild("PlayerGui")
-    end
+    safeParent(screenGui)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -535,10 +535,9 @@ local function aplicarHitbox()
         ball.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
         ball.Transparency = 1
     else
-        if not hitboxAtivo or euTenhoBola() then
-            ball.Size = Vector3.new(1.4, 1.4, 1.4)
-            ball.Transparency = 0
-        end
+        -- Restaura tamanho original se não estiver ativo ou estiver com a bola
+        ball.Size = Vector3.new(1.4, 1.4, 1.4)
+        ball.Transparency = 0
     end
 end
 
@@ -577,6 +576,7 @@ end
 local function infiniteStamina()
     task.spawn(function()
         while true do
+            -- Tenta modificar o valor da stamina via PlayerStats
             local stats = player:FindFirstChild("PlayerStats")
             if stats then
                 local stamina = stats:FindFirstChild("Stamina")
@@ -584,6 +584,7 @@ local function infiniteStamina()
                     stamina.Value = 100
                 end
             end
+            -- Tenta modificar a UI (caso exista)
             local gui = player.PlayerGui:FindFirstChild("Stamina")
             if gui then
                 local frame = gui:FindFirstChild("Frame")
@@ -594,7 +595,7 @@ local function infiniteStamina()
                     end
                 end
             end
-            task.wait()
+            task.wait(0.5)
         end
     end)
 end
@@ -610,6 +611,8 @@ local function onChatMessage(msg)
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
                 velocidadeBola = val
+                Config.velocidadeBola = val
+                SaveConfig()
                 player:Chat("Velocidade da bola ajustada para " .. val)
             else
                 player:Chat("Use um número entre 1 e 200.")
@@ -647,20 +650,36 @@ end)
 -- =============================================
 local MainTab = Window:Tab({ Title = "Street Soccer", Icon = "home" })
 
+-- Categoria Aimbot
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
     Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
-    Value = aimbotCamera,
+    Value = Config.aimbotCamera,
     Callback = function(v)
         aimbotCamera = v
+        Config.aimbotCamera = v
+        SaveConfig()
+        if cameraToggleButton then
+            if v then
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+                cameraToggleButton.Text = "Aimbot Cam [ON]"
+                cameraButtonActive = true
+            else
+                cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+                cameraToggleButton.Text = "Aimbot Cam [OFF]"
+                cameraButtonActive = false
+            end
+        end
     end
 })
 AimbotSec:Toggle({
     Title = "Botão Voador (Câmera)",
     Desc = "Botão flutuante para ligar/desligar a câmera",
-    Value = false,
+    Value = Config.botaoCamera,
     Callback = function(v)
+        Config.botaoCamera = v
+        SaveConfig()
         if v then
             criarBotaoCameraFlutuante()
         else
@@ -672,19 +691,24 @@ AimbotSec:Slider({
     Title = "Delay",
     Desc = "Atraso após perder a bola (0-5s)",
     Step = 1,
-    Value = { Min = 0, Max = 10, Default = 0 },
+    Value = { Min = 0, Max = 10, Default = Config.aimbotDelay },
     Callback = function(v)
         aimbotDelay = aimbotDelayValues[v] or 0
+        Config.aimbotDelay = v
+        SaveConfig()
     end
 })
 
+-- Categoria Visão de Jogo
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Advinha a bola",
     Desc = "Linha amarela mostrando a trajetória da bola",
-    Value = visaoBolaEnabled,
+    Value = Config.advinhaBola,
     Callback = function(v)
         visaoBolaEnabled = v
+        Config.advinhaBola = v
+        SaveConfig()
         if not v then
             if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
             if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
@@ -694,9 +718,11 @@ VisaoSec:Toggle({
 VisaoSec:Toggle({
     Title = "Advinhe Chute",
     Desc = "Linha verde mostrando para onde o jogador com a bola está olhando",
-    Value = visaoChuteEnabled,
+    Value = Config.advinhaChute,
     Callback = function(v)
         visaoChuteEnabled = v
+        Config.advinhaChute = v
+        SaveConfig()
         if not v and linhaOlhar then
             linhaOlhar:Destroy()
             linhaOlhar = nil
@@ -704,13 +730,16 @@ VisaoSec:Toggle({
     end
 })
 
+-- Categoria Controle de Bola
 local ControleSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControleSec:Toggle({
     Title = "Controle de Bola",
     Desc = "Botão flutuante para controlar a bola",
-    Value = controleBola,
+    Value = Config.controleBola,
     Callback = function(v)
         controleBola = v
+        Config.controleBola = v
+        SaveConfig()
         if v then
             criarBotaoFlutuante()
         else
@@ -721,23 +750,28 @@ ControleSec:Toggle({
 ControleSec:Input({
     Title = "Velocidade da Bola",
     Desc = "Força com que a bola é empurrada no controle",
-    Value = "65",
+    Value = tostring(Config.velocidadeBola),
     Placeholder = "Digite a velocidade...",
     Callback = function(txt)
         local val = tonumber(txt)
         if val then
             velocidadeBola = val
+            Config.velocidadeBola = val
+            SaveConfig()
         end
     end
 })
 
+-- Categoria Hitbox
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
     Desc = "Aumenta a hitbox da bola (Reach)",
-    Value = hitboxAtivo,
+    Value = Config.hitboxAtivo,
     Callback = function(v)
         hitboxAtivo = v
+        Config.hitboxAtivo = v
+        SaveConfig()
         if not v then
             local ball = getBall()
             if ball then
@@ -755,17 +789,21 @@ HitboxSec:Slider({
     Title = "Tamanho da Hitbox",
     Desc = "Tamanho da hitbox (0-50)",
     Step = 1,
-    Value = { Min = 0, Max = 50, Default = 10 },
+    Value = { Min = 0, Max = 50, Default = Config.hitboxTamanho },
     Callback = function(v)
         hitboxTamanho = v
+        Config.hitboxTamanho = v
+        SaveConfig()
     end
 })
 HitboxSec:Toggle({
     Title = "ESP Hitbox",
     Desc = "Círculo verde ao redor da hitbox",
-    Value = espHitbox,
+    Value = Config.espHitbox,
     Callback = function(v)
         espHitbox = v
+        Config.espHitbox = v
+        SaveConfig()
         if not v and espSphere then
             espSphere:Destroy()
             espSphere = nil
@@ -773,6 +811,7 @@ HitboxSec:Toggle({
     end
 })
 
+-- Categoria Config
 local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
 ConfigSec:Button({
     Title = "Infinite Stamina",
@@ -782,15 +821,25 @@ ConfigSec:Button({
     end
 })
 
--- =============================================
--- NOTIFICAÇÃO FINAL
--- =============================================
+-- Botão Salvar
+local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
+SaveSec:Button({
+    Title = "💾 Salvar Agora",
+    Desc = "Salva todas as configurações manualmente",
+    Callback = function()
+        SaveConfig()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Street Soccer",
+            Text = "Configurações salvas!",
+            Duration = 2
+        })
+    end
+})
+
 pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
+    StarterGui:SetCore("SendNotification",{
         Title = "Street Soccer",
-        Text = ballFound and "✅ Carregado! Bola encontrada." or "⚠️ Bola NÃO encontrada!",
-        Duration = 4
+        Text = "Carregado com sucesso!",
+        Duration = 3
     })
 end)
-
-print("Street Soccer: Script finalizado.")
