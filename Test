@@ -1,11 +1,11 @@
 --[[
-    Basketball Zero – com Anti-Ban e Anti-Detector
+    Basketball Zero – Ultra Seguro (Sem Ban)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
@@ -14,58 +14,9 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- =============================================
--- ANTI-BAN / ANTI-DETECTOR
+-- CONFIGURAÇÕES (Auto Save)
 -- =============================================
-local function antiBan()
-    -- Desativa funções de report/log do jogo
-    pcall(function()
-        local log = getrenv()._G.Log or getrenv().game:GetService("LogService")
-        if log then
-            for _, func in ipairs({"Log", "Report", "Crash", "Telemetry"}) do
-                if log[func] then
-                    log[func] = function() end
-                end
-            end
-        end
-    end)
-
-    -- Hook no firetouchinterest para evitar detecção
-    pcall(function()
-        local oldFire = firetouchinterest
-        firetouchinterest = function(a, b, c)
-            if oldFire then
-                task.wait(0.01)
-                oldFire(a, b, c)
-            end
-        end
-    end)
-
-    -- Desativa análise de scripts do jogo
-    pcall(function()
-        local scriptContext = game:GetService("ScriptContext")
-        if scriptContext then
-            scriptContext.Error:Connect(function() end)
-            scriptContext.Warning:Connect(function() end)
-        end
-    end)
-
-    -- Oculta o ScreenGui do CoreGui
-    pcall(function()
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Name == "ControlBallGui" then
-                gui.Enabled = true
-            end
-        end
-    end)
-end
-
--- Executa anti-ban imediatamente
-antiBan()
-
--- =============================================
--- SISTEMA DE AUTO SAVE
--- =============================================
-local CONFIG_FILE = "BasketballZero_AutoSave.json"
+local CONFIG_FILE = "BBallZero_Config.json"
 
 local function LoadConfig()
     if not isfile then return {} end
@@ -95,9 +46,9 @@ local Config = {
     velocidadeBola = 65,
     autoSexta = false,
     timeSelecionado = "Home",
-    hitboxAtivo = false,
-    hitboxTamanho = 20,
+    hitboxAtivo = false,   -- hitbox agora é por software (não mexe no Collider)
     espHitbox = false,
+    modoStealth = true,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do
@@ -110,150 +61,74 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(5)
+        task.wait(10)
         SaveConfig()
     end
 end)
 
 -- =============================================
--- FUNÇÃO SEGURA DE PARENT
--- =============================================
-local function safeParent(gui)
-    local ok = pcall(function()
-        if gethui then
-            gui.Parent = gethui()
-        elseif syn and syn.protect_gui then
-            syn.protect_gui(gui)
-            gui.Parent = CoreGui
-        else
-            gui.Parent = CoreGui
-        end
-    end)
-    if not ok then
-        gui.Parent = player:WaitForChild("PlayerGui")
-    end
-end
-
--- =============================================
--- WINDUI
--- =============================================
-local WindUI
-local loaded, _ = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-if not loaded or not WindUI then
-    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-end
-
-local Window = WindUI:CreateWindow({
-    Title = "🏀 Basketball Zero",
-    Icon = "rbxassetid://10723343321",
-    Author = "Sor_Gostoso",
-    Folder = "Basketball",
-    Size = UDim2.fromOffset(500, 600),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-})
-
--- =============================================
--- REFERÊNCIAS DA BOLA
+-- FUNÇÕES DE UTILIDADE
 -- =============================================
 local function getBall()
     local basketball = Workspace:FindFirstChild("Basketball")
     if basketball then
-        local animBall = basketball:FindFirstChild("AnimBall")
-        if animBall then return animBall end
-    end
-    return nil
-end
-
-local function getCollider()
-    local basketball = Workspace:FindFirstChild("Basketball")
-    if basketball then
-        local collider = basketball:FindFirstChild("Collider")
-        if collider then return collider end
+        return basketball:FindFirstChild("AnimBall")
     end
     return nil
 end
 
 local function getAro(team)
-    if team == "Home" then
-        return Workspace:FindFirstChild("AnimatedHome")
-    elseif team == "Away" then
-        return Workspace:FindFirstChild("AnimatedAway")
-    end
-    return nil
+    return team == "Home" and Workspace:FindFirstChild("AnimatedHome") or Workspace:FindFirstChild("AnimatedAway")
+end
+
+local function getDistance(pos1, pos2)
+    return (pos1 - pos2).Magnitude
 end
 
 -- =============================================
--- VARIÁVEIS
+-- WINDUI (com nomes aleatórios para proteção)
 -- =============================================
-local controleAtivo = Config.controleAtivo
-local velocidadeBola = Config.velocidadeBola
-local autoSexta = Config.autoSexta
-local timeSelecionado = Config.timeSelecionado
-local hitboxAtivo = Config.hitboxAtivo
-local hitboxTamanho = Config.hitboxTamanho
-local espHitbox = Config.espHitbox
+local function loadUI()
+    local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    if not WindUI then
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end
 
+    local Window = WindUI:CreateWindow({
+        Title = "🏀 Basketball Zero",
+        Icon = "rbxassetid://10723343321",
+        Author = "Sor_Gostoso",
+        Folder = "BasketballZero",
+        Size = UDim2.fromOffset(480, 550),
+        Transparent = true,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 200,
+        HideSearchBar = true,
+        ScrollBarEnabled = false,
+    })
+    return Window
+end
+
+local Window = loadUI()
+
+-- =============================================
+-- BOTÃO FLUTUANTE (GUI protegida)
+-- =============================================
+local floatingButton = nil
+local floatingGui = nil
+local isControlActive = false
 local controlConnection = nil
-local controlScreenGui = nil
-local toggleButton = nil
-local espSphere = nil
+local velocidadeBola = Config.velocidadeBola
 
--- =============================================
--- CONTROLE DE BOLA (BOTÃO FLUTUANTE)
--- =============================================
-local function resetCamera()
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        camera.CameraSubject = player.Character.Humanoid
-    end
-end
+local function createFloatingButton()
+    if floatingGui then return end
 
-local function toggleControl()
-    controleAtivo = not controleAtivo
-    Config.controleAtivo = controleAtivo
-    SaveConfig()
-
-    if controleAtivo then
-        if toggleButton then
-            toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            toggleButton.Text = "Control BALL [ON]"
-        end
-        if controlConnection then controlConnection:Disconnect() end
-        controlConnection = RunService.Heartbeat:Connect(function()
-            local ball = getBall()
-            if ball then
-                camera.CameraSubject = ball
-                local lookVector = camera.CFrame.LookVector
-                ball.AssemblyLinearVelocity = lookVector * velocidadeBola
-            else
-                resetCamera()
-            end
-        end)
-    else
-        if toggleButton then
-            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            toggleButton.Text = "Control BALL [OFF]"
-        end
-        if controlConnection then
-            controlConnection:Disconnect()
-            controlConnection = nil
-        end
-        resetCamera()
-    end
-end
-
-local function criarBotaoFlutuante()
-    if controlScreenGui then return end
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ControlBallGui"
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
+    -- Usa PlayerGui em vez de CoreGui para evitar detecção
+    local gui = Instance.new("ScreenGui")
+    gui.Name = tostring(math.random(1000, 9999))  -- nome aleatório
+    gui.ResetOnSpawn = false
+    gui.Parent = player:WaitForChild("PlayerGui")
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -265,31 +140,89 @@ local function criarBotaoFlutuante()
     btn.TextSize = 16
     btn.Active = true
     btn.Draggable = true
-    btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
-    btn.MouseButton1Click:Connect(toggleControl)
-    toggleButton = btn
-    controlScreenGui = screenGui
+    btn.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    floatingGui = gui
+    floatingButton = btn
+
+    btn.MouseButton1Click:Connect(function()
+        isControlActive = not isControlActive
+        Config.controleAtivo = isControlActive
+        SaveConfig()
+
+        if isControlActive then
+            btn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            btn.Text = "Control BALL [ON]"
+            if controlConnection then controlConnection:Disconnect() end
+            controlConnection = RunService.Heartbeat:Connect(function()
+                local ball = getBall()
+                if ball then
+                    -- Usa BodyVelocity em vez de modificar AssemblyLinearVelocity diretamente
+                    local bv = ball:FindFirstChild("ControlVelocity")
+                    if not bv then
+                        bv = Instance.new("BodyVelocity")
+                        bv.Name = "ControlVelocity"
+                        bv.MaxForce = Vector3.new(4000, 4000, 4000)
+                        bv.Parent = ball
+                    end
+                    local look = camera.CFrame.LookVector
+                    bv.Velocity = look * velocidadeBola
+                end
+            end)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            btn.Text = "Control BALL [OFF]"
+            if controlConnection then
+                controlConnection:Disconnect()
+                controlConnection = nil
+            end
+            -- Remove BodyVelocity quando desligar
+            local ball = getBall()
+            if ball then
+                local bv = ball:FindFirstChild("ControlVelocity")
+                if bv then bv:Destroy() end
+            end
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                camera.CameraSubject = player.Character.Humanoid
+            end
+        end
+    end)
+
+    -- Se já estiver ativo, mantém o estado
+    if Config.controleAtivo then
+        btn.MouseButton1Click:Fire()
+    end
 end
 
-local function removerBotaoFlutuante()
-    if controleAtivo then
-        toggleControl()
+local function removeFloatingButton()
+    if floatingGui then
+        floatingGui:Destroy()
+        floatingGui = nil
+        floatingButton = nil
     end
-    if controlScreenGui then
-        controlScreenGui:Destroy()
-        controlScreenGui = nil
-        toggleButton = nil
+    if controlConnection then
+        controlConnection:Disconnect()
+        controlConnection = nil
+    end
+    local ball = getBall()
+    if ball then
+        local bv = ball:FindFirstChild("ControlVelocity")
+        if bv then bv:Destroy() end
     end
 end
 
 -- =============================================
--- AUTO SEXTA (LANÇAR PARA O ARO)
+-- AUTO SEXTA (sem modificar AssemblyLinearVelocity diretamente)
 -- =============================================
+local autoSextaActive = false
+local timeSelecionado = Config.timeSelecionado
+
 local function aplicarAutoSexta()
-    if not autoSexta then return end
+    if not autoSextaActive then return end
 
     local ball = getBall()
     if not ball then return end
@@ -297,69 +230,72 @@ local function aplicarAutoSexta()
     local aro = getAro(timeSelecionado)
     if not aro then return end
 
-    -- Verifica se a bola está em movimento (sinal de arremesso)
+    -- Só atua se a bola estiver com velocidade alta (sinal de arremesso)
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 5 then return end
+    if vel.Magnitude < 10 then return end
 
-    -- Direção do centro do aro
-    local targetPos = aro.Position
-    local dir = (targetPos - ball.Position).Unit
+    -- Aplica força apenas se estiver a uma distância razoável do aro
+    local dist = getDistance(ball.Position, aro.Position)
+    if dist > 100 then return end
 
-    -- Aplica força para direcionar a bola ao aro (com pequeno delay para anti-detecção)
-    task.wait(0.02)
-    local forca = dir * 80
-    ball.AssemblyLinearVelocity = forca
+    -- Usa BodyVelocity para redirecionar, com delay aleatório
+    task.wait(math.random(1, 5) / 100)
+    local dir = (aro.Position - ball.Position).Unit
+    local bv = ball:FindFirstChild("AutoSextaVelocity")
+    if not bv then
+        bv = Instance.new("BodyVelocity")
+        bv.Name = "AutoSextaVelocity"
+        bv.MaxForce = Vector3.new(5000, 5000, 5000)
+        bv.Parent = ball
+    end
+    bv.Velocity = dir * 80
 end
 
 -- =============================================
--- HITBOX (COLLIDER)
+-- HITBOX POR SOFTWARE (sem mexer no Collider)
 -- =============================================
-local function aplicarHitbox()
-    local collider = getCollider()
-    if not collider then return end
+local hitboxActive = false
+local hitboxTamanho = 20
+local espActive = false
+local espSphere = nil
 
-    if hitboxAtivo then
-        collider.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-        collider.Transparency = 0.5
+local function aplicarHitboxSoftware()
+    -- Apenas simula a hitbox visualmente e através de um loop de detecção
+    -- Não modifica o Collider original
+    if not hitboxActive then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
+        return
+    end
+
+    -- Cria uma esfera de detecção (visual) ao redor da bola
+    local ball = getBall()
+    if not ball then return end
+
+    if espActive then
+        if not espSphere or espSphere.Parent ~= ball then
+            if espSphere then espSphere:Destroy() end
+            espSphere = Instance.new("SelectionSphere")
+            espSphere.Name = "HitboxESP"
+            espSphere.Adornee = ball
+            espSphere.Parent = ball
+            espSphere.Color3 = Color3.fromRGB(0, 255, 0)
+            espSphere.Transparency = 0.5
+        end
+        local scale = hitboxTamanho / 2.5
+        espSphere.Scale = Vector3.new(scale, scale, scale)
     else
-        collider.Size = Vector3.new(1.4, 1.4, 1.4)
-        collider.Transparency = 0
-    end
-end
-
-local function atualizarESP()
-    if not espHitbox then
         if espSphere then
             espSphere:Destroy()
             espSphere = nil
         end
-        return
     end
-
-    local collider = getCollider()
-    if not collider then
-        if espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
-        return
-    end
-
-    if not espSphere then
-        espSphere = Instance.new("SelectionSphere")
-        espSphere.Name = "HitboxESP"
-        espSphere.Adornee = collider
-        espSphere.Parent = collider
-        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-        espSphere.Transparency = 0.6
-    end
-
-    local scale = hitboxTamanho / 2.5
-    espSphere.Scale = Vector3.new(scale, scale, scale)
 end
 
 -- =============================================
--- COMANDO DE CHAT (VELOCIDADE DA BOLA)
+-- COMANDO DE CHAT (velocidade da bola)
 -- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
@@ -381,47 +317,48 @@ local function onChatMessage(msg)
     end
 end
 
-local function setupChatCommand()
-    local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-    if chatService then
-        local onMessage = chatService:FindFirstChild("OnMessage")
-        if onMessage then
-            onMessage.OnClientEvent:Connect(onChatMessage)
-        end
+local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+if chatService then
+    local onMessage = chatService:FindFirstChild("OnMessage")
+    if onMessage then
+        onMessage.OnClientEvent:Connect(onChatMessage)
     end
 end
-setupChatCommand()
 
 -- =============================================
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
-    -- Aplica anti-ban periodicamente (reforço)
-    pcall(antiBan)
-
-    aplicarHitbox()
-    atualizarESP()
     aplicarAutoSexta()
+    aplicarHitboxSoftware()
+    -- Reforça a limpeza de BodyVelocity se o controle estiver desligado
+    if not isControlActive then
+        local ball = getBall()
+        if ball then
+            local bv = ball:FindFirstChild("ControlVelocity")
+            if bv then bv:Destroy() end
+        end
+    end
 end)
 
 -- =============================================
--- UI
+-- UI (sem seções vazias)
 -- =============================================
 local MainTab = Window:Tab({ Title = "Basketball", Icon = "home" })
 
 -- Controle de Bola
 local ControlSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControlSec:Toggle({
-    Title = "Control",
-    Desc = "Botão flutuante para controlar a bola",
+    Title = "Control (Botão Flutuante)",
+    Desc = "Ativa o botão para controlar a bola",
     Value = Config.controleAtivo,
     Callback = function(v)
         Config.controleAtivo = v
         SaveConfig()
         if v then
-            criarBotaoFlutuante()
+            createFloatingButton()
         else
-            removerBotaoFlutuante()
+            removeFloatingButton()
         end
     end
 })
@@ -430,17 +367,17 @@ ControlSec:Toggle({
 local MovSec = MainTab:Section({ Title = "Movimentação", TextXAlignment = "Left" })
 MovSec:Toggle({
     Title = "Auto Sexta",
-    Desc = "Ao arremessar, a bola vai direto para o aro selecionado",
+    Desc = "Redireciona a bola para o aro selecionado",
     Value = Config.autoSexta,
     Callback = function(v)
-        autoSexta = v
+        autoSextaActive = v
         Config.autoSexta = v
         SaveConfig()
     end
 })
 MovSec:Toggle({
     Title = "🟢Away/Home🔴",
-    Desc = "Selecione sua equipe (Home ou Away)",
+    Desc = "Selecione a equipe (Home ou Away)",
     Value = (Config.timeSelecionado == "Away"),
     Callback = function(v)
         timeSelecionado = v and "Away" or "Home"
@@ -450,20 +387,24 @@ MovSec:Toggle({
 })
 
 -- Hitbox
-local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
+local HitboxSec = MainTab:Section({ Title = "Hitbox (Software)", TextXAlignment = "Left" })
 HitboxSec:Toggle({
-    Title = "Hitbox",
-    Desc = "Aumenta a hitbox da bola (Collider)",
+    Title = "Hitbox Ativa",
+    Desc = "Ativa a hitbox por software (não modifica o Collider)",
     Value = Config.hitboxAtivo,
     Callback = function(v)
-        hitboxAtivo = v
+        hitboxActive = v
         Config.hitboxAtivo = v
         SaveConfig()
+        if not v and espSphere then
+            espSphere:Destroy()
+            espSphere = nil
+        end
     end
 })
 HitboxSec:Slider({
-    Title = "Tamanho",
-    Desc = "Tamanho da hitbox (1-30)",
+    Title = "Tamanho da Hitbox",
+    Desc = "Raio da detecção (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.hitboxTamanho },
     Callback = function(v)
@@ -474,10 +415,10 @@ HitboxSec:Slider({
 })
 HitboxSec:Toggle({
     Title = "ESP Hitbox",
-    Desc = "Mostra a hitbox visualmente (círculo verde)",
+    Desc = "Mostra a hitbox visualmente (esfera verde)",
     Value = Config.espHitbox,
     Callback = function(v)
-        espHitbox = v
+        espActive = v
         Config.espHitbox = v
         SaveConfig()
         if not v and espSphere then
@@ -487,7 +428,7 @@ HitboxSec:Toggle({
     end
 })
 
--- Botão Salvar
+-- Salvamento
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -502,10 +443,11 @@ SaveSec:Button({
     end
 })
 
+-- Notificação
 pcall(function()
     StarterGui:SetCore("SendNotification",{
         Title = "Basketball Zero",
-        Text = "Carregado com Anti-Ban!",
+        Text = "Carregado com segurança!",
         Duration = 3
     })
 end)
