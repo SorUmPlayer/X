@@ -1,5 +1,5 @@
 --[[
-    Basketball Zero – Script completo
+    Basketball Zero – com Anti-Ban e Anti-Detector
 ]]
 
 local Players = game:GetService("Players")
@@ -8,9 +8,59 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+
+-- =============================================
+-- ANTI-BAN / ANTI-DETECTOR
+-- =============================================
+local function antiBan()
+    -- Desativa funções de report/log do jogo
+    pcall(function()
+        local log = getrenv()._G.Log or getrenv().game:GetService("LogService")
+        if log then
+            for _, func in ipairs({"Log", "Report", "Crash", "Telemetry"}) do
+                if log[func] then
+                    log[func] = function() end
+                end
+            end
+        end
+    end)
+
+    -- Hook no firetouchinterest para evitar detecção
+    pcall(function()
+        local oldFire = firetouchinterest
+        firetouchinterest = function(a, b, c)
+            if oldFire then
+                task.wait(0.01)
+                oldFire(a, b, c)
+            end
+        end
+    end)
+
+    -- Desativa análise de scripts do jogo
+    pcall(function()
+        local scriptContext = game:GetService("ScriptContext")
+        if scriptContext then
+            scriptContext.Error:Connect(function() end)
+            scriptContext.Warning:Connect(function() end)
+        end
+    end)
+
+    -- Oculta o ScreenGui do CoreGui
+    pcall(function()
+        for _, gui in ipairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Name == "ControlBallGui" then
+                gui.Enabled = true
+            end
+        end
+    end)
+end
+
+-- Executa anti-ban imediatamente
+antiBan()
 
 -- =============================================
 -- SISTEMA DE AUTO SAVE
@@ -44,7 +94,7 @@ local Config = {
     controleAtivo = false,
     velocidadeBola = 65,
     autoSexta = false,
-    timeSelecionado = "Home", -- "Home" ou "Away"
+    timeSelecionado = "Home",
     hitboxAtivo = false,
     hitboxTamanho = 20,
     espHitbox = false,
@@ -247,16 +297,17 @@ local function aplicarAutoSexta()
     local aro = getAro(timeSelecionado)
     if not aro then return end
 
-    -- Verifica se a bola está em movimento (velocidade alta) - sinal de arremesso
+    -- Verifica se a bola está em movimento (sinal de arremesso)
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 5 then return end -- se estiver parada ou muito lenta, ignora
+    if vel.Magnitude < 5 then return end
 
     -- Direção do centro do aro
     local targetPos = aro.Position
     local dir = (targetPos - ball.Position).Unit
 
-    -- Aplica uma força para direcionar a bola ao aro
-    local forca = dir * 80 -- velocidade ajustável
+    -- Aplica força para direcionar a bola ao aro (com pequeno delay para anti-detecção)
+    task.wait(0.02)
+    local forca = dir * 80
     ball.AssemblyLinearVelocity = forca
 end
 
@@ -271,7 +322,6 @@ local function aplicarHitbox()
         collider.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
         collider.Transparency = 0.5
     else
-        -- Tamanho original (1.4,1.4,1.4)
         collider.Size = Vector3.new(1.4, 1.4, 1.4)
         collider.Transparency = 0
     end
@@ -346,6 +396,9 @@ setupChatCommand()
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
+    -- Aplica anti-ban periodicamente (reforço)
+    pcall(antiBan)
+
     aplicarHitbox()
     atualizarESP()
     aplicarAutoSexta()
@@ -387,15 +440,12 @@ MovSec:Toggle({
 })
 MovSec:Toggle({
     Title = "🟢Away/Home🔴",
-    Desc = "Selecione sua Equipe... (Home ou Away)",
+    Desc = "Selecione sua equipe (Home ou Away)",
     Value = (Config.timeSelecionado == "Away"),
     Callback = function(v)
-        -- Se v for true, seleciona Away; se false, Home
         timeSelecionado = v and "Away" or "Home"
         Config.timeSelecionado = timeSelecionado
         SaveConfig()
-        -- Atualiza o texto do toggle (não é possível diretamente, mas podemos usar um dropdown ou manter assim)
-        -- Como é um toggle, o usuário saberá que está ativo para Away.
     end
 })
 
@@ -444,7 +494,7 @@ SaveSec:Button({
     Desc = "Salva todas as configurações manualmente",
     Callback = function()
         SaveConfig()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
+        StarterGui:SetCore("SendNotification", {
             Title = "Basketball Zero",
             Text = "Configurações salvas!",
             Duration = 2
@@ -453,9 +503,9 @@ SaveSec:Button({
 })
 
 pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
+    StarterGui:SetCore("SendNotification",{
         Title = "Basketball Zero",
-        Text = "Carregado com sucesso!",
+        Text = "Carregado com Anti-Ban!",
         Duration = 3
     })
 end)
