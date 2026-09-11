@@ -1,4 +1,4 @@
-print("[Street Soccer] Script iniciado")
+print("[Street Soccer] Iniciando...")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,7 +10,6 @@ local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
-local CameraFolder = camera -- partes visuais client-only
 
 -- =============================================
 -- AUTO SAVE
@@ -24,9 +23,8 @@ local Config = {
     advinhaChute = false,
     controleBola = false,
     velocidadeBola = 65,
-    hitboxAtivo = false,
+    hitboxVisual = false,
     hitboxTamanho = 10,
-    espHitbox = false,
 }
 
 pcall(function()
@@ -107,17 +105,53 @@ local Window = WindUI:CreateWindow({
 -- BOLA
 -- =============================================
 local function getBall()
-    return Workspace:FindFirstChild("ball")
+    local b = Workspace:FindFirstChild("ball")
+    if b then return b end
+    return Workspace:FindFirstChild("Ball")
 end
 
+-- Detecção robusta de posse
 local function euTenhoBola()
     local ball = getBall()
     if not ball then return false end
+
     local char = player.Character
     if not char then return false end
+
+    -- 1) Bola parenteada ao personagem
+    if ball:IsDescendantOf(char) then return true end
+
+    -- 2) Bola perto do HRP (horizontal + vertical)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-    return (hrp.Position - ball.Position).Magnitude < 3
+
+    local diff = hrp.Position - ball.Position
+    local horizontal = math.sqrt(diff.X * diff.X + diff.Z * diff.Z)
+    local vertical = math.abs(diff.Y)
+
+    return horizontal < 4 and vertical < 6
+end
+
+local function alguemTemBola()
+    local ball = getBall()
+    if not ball then return nil end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local char = plr.Character
+        if char then
+            if ball:IsDescendantOf(char) then return plr, char end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local diff = hrp.Position - ball.Position
+                local horizontal = math.sqrt(diff.X * diff.X + diff.Z * diff.Z)
+                local vertical = math.abs(diff.Y)
+                if horizontal < 4 and vertical < 6 then
+                    return plr, char
+                end
+            end
+        end
+    end
+    return nil
 end
 
 -- =============================================
@@ -141,29 +175,16 @@ local controlScreenGui = nil
 local toggleButton = nil
 local isControlActive = false
 
-local hitboxAtivo = Config.hitboxAtivo
+local hitboxVisual = Config.hitboxVisual
 local hitboxTamanho = Config.hitboxTamanho
-local espHitbox = Config.espHitbox
-local espSphere = nil
-local reachHitbox = nil
+local hitboxPart = nil
 
 local cameraButtonActive = false
 local cameraScreenGui = nil
 local cameraToggleButton = nil
 
--- Random part names (anti-detecção)
-local function randName()
-    local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-    local s = ""
-    for i = 1, 8 do
-        local idx = math.random(1, #chars)
-        s = s .. chars:sub(idx, idx)
-    end
-    return s
-end
-
 -- =============================================
--- AIMBOT CÂMERA
+-- AIMBOT CÂMERA (corrigido)
 -- =============================================
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -195,35 +216,30 @@ local function atualizarAimbotCamera()
 
     local posBola = ball.Position
     local posJogador = hrp.Position
-    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    local dir = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
 
-    local camPos = posJogador - direction * 10 + Vector3.new(0, 5, 0)
+    local camPos = posJogador - dir * 10 + Vector3.new(0, 5, 0)
     camera.CFrame = CFrame.new(camPos, posJogador)
 end
 
 -- =============================================
 -- VISÃO DE JOGO – ADVINHA A BOLA (amarela)
 -- =============================================
--- Retorna pontos da trajetória (usado só quando recalculado)
-local function calcularTrajetoria(ball)
-    local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 0.5 then return nil end
-
-    local gravidade = Vector3.new(0, -50, 0)
-    local pos = ball.Position
-    local v = vel
-    local dt = 0.1
-    local chaoY = 0
-    local pontos = {pos}
-
-    for i = 1, 100 do
-        v = v + gravidade * dt
-        pos = pos + v * dt
-        pontos[#pontos + 1] = pos
-        if pos.Y <= chaoY then break end
-    end
-
-    return pontos, v
+local function criarOuReutilizar(parteAtual, cor, nome)
+    if parteAtual and parteAtual.Parent then return parteAtual end
+    if parteAtual then parteAtual:Destroy() end
+    local p = Instance.new("Part")
+    p.Name = nome
+    p.Anchored = true
+    p.CanCollide = false
+    p.CanTouch = false
+    p.CanQuery = false
+    p.CastShadow = false
+    p.Transparency = 0.3
+    p.Color = cor
+    p.Material = Enum.Material.Neon
+    p.Parent = Workspace
+    return p
 end
 
 local function atualizarAdvinhaBola()
@@ -240,102 +256,72 @@ local function atualizarAdvinhaBola()
         return
     end
 
-    local pontos, vFinal = calcularTrajetoria(ball)
-    if not pontos or #pontos < 2 then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
+    local vel = ball.AssemblyLinearVelocity
+    -- Ignora se estiver praticamente parada
+    if vel.Magnitude < 1 then
+        if linhaTrajetoria then linhaTrajetoria.Transparency = 1 end
+        if circuloImpacto then circuloImpacto.Transparency = 1 end
+        return
+    end
+
+    local gravidade = Vector3.new(0, -90, 0)
+    local pos = ball.Position
+    local v = vel
+    local dt = 0.05
+    local chaoY = 0
+
+    local pontos = {pos}
+    for _ = 1, 80 do
+        v = v + gravidade * dt
+        pos = pos + v * dt
+        pontos[#pontos + 1] = pos
+        if pos.Y <= chaoY then break end
+    end
+
+    if #pontos < 2 then
+        if linhaTrajetoria then linhaTrajetoria.Transparency = 1 end
+        if circuloImpacto then circuloImpacto.Transparency = 1 end
         return
     end
 
     local inicio = pontos[1]
     local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, 0, fim.Z)
+    fim = Vector3.new(fim.X, chaoY, fim.Z)
 
+    linhaTrajetoria = criarOuReutilizar(linhaTrajetoria, Color3.fromRGB(255, 255, 0), "TrajectoryLine")
     local meio = (inicio + fim) / 2
-    local distancia = (inicio - fim).Magnitude
-
-    if not linhaTrajetoria or not linhaTrajetoria.Parent then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() end
-        linhaTrajetoria = Instance.new("Part")
-        linhaTrajetoria.Name = randName()
-        linhaTrajetoria.Anchored = true
-        linhaTrajetoria.CanCollide = false
-        linhaTrajetoria.CanTouch = false
-        linhaTrajetoria.CanQuery = false
-        linhaTrajetoria.CastShadow = false
-        linhaTrajetoria.Transparency = 0.3
-        linhaTrajetoria.Color = Color3.fromRGB(255, 255, 0)
-        linhaTrajetoria.Material = Enum.Material.Neon
-        linhaTrajetoria.Parent = CameraFolder -- client-only
-    end
-
-    if distancia > 0.1 then
-        linhaTrajetoria.Size = Vector3.new(0.4, 0.4, distancia)
+    local dist = (inicio - fim).Magnitude
+    if dist > 0.5 then
+        linhaTrajetoria.Size = Vector3.new(0.4, 0.4, dist)
         linhaTrajetoria.CFrame = CFrame.lookAt(meio, fim)
         linhaTrajetoria.Transparency = 0.3
     else
         linhaTrajetoria.Transparency = 1
     end
 
-    if vFinal and vFinal.Y < -0.5 then
-        if not circuloImpacto or not circuloImpacto.Parent then
-            if circuloImpacto then circuloImpacto:Destroy() end
-            circuloImpacto = Instance.new("Part")
-            circuloImpacto.Name = randName()
-            circuloImpacto.Anchored = true
-            circuloImpacto.CanCollide = false
-            circuloImpacto.CanTouch = false
-            circuloImpacto.CanQuery = false
-            circuloImpacto.CastShadow = false
-            circuloImpacto.Transparency = 0.3
-            circuloImpacto.Color = Color3.fromRGB(255, 255, 0)
-            circuloImpacto.Material = Enum.Material.Neon
-            circuloImpacto.Shape = Enum.PartType.Cylinder
-            circuloImpacto.Parent = CameraFolder
-        end
+    if v.Y < -0.5 then
+        circuloImpacto = criarOuReutilizar(circuloImpacto, Color3.fromRGB(255, 255, 0), "ImpactCircle")
+        circuloImpacto.Shape = Enum.PartType.Cylinder
         circuloImpacto.Position = fim
-        local tamanho = math.clamp(ball.AssemblyLinearVelocity.Magnitude / 10, 3, 6)
-        circuloImpacto.Size = Vector3.new(tamanho, 0.1, tamanho)
+        local tam = math.clamp(vel.Magnitude / 10, 3, 6)
+        circuloImpacto.Size = Vector3.new(tam, 0.1, tam)
         circuloImpacto.Transparency = 0.3
     else
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
+        if circuloImpacto then circuloImpacto.Transparency = 1 end
     end
 end
 
 -- =============================================
 -- VISÃO DE JOGO – ADVINHE CHUTE (verde)
 -- =============================================
-local function getJogadorComBola()
-    local ball = getBall()
-    if not ball then return nil end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player then
-            local char = plr.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp and (hrp.Position - ball.Position).Magnitude < 3 then
-                    return plr
-                end
-            end
-        end
-    end
-    return nil
-end
-
 local function atualizarAdvinheChute()
     if not visaoChuteEnabled then
         if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
         return
     end
 
-    local jogador = getJogadorComBola()
-    if not jogador then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
-
-    local char = jogador.Character
-    if not char then
+    local plr, char = alguemTemBola()
+    if not plr or plr == player or not char then
         if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
         return
     end
@@ -353,42 +339,28 @@ local function atualizarAdvinheChute()
         posInicio = posInicio + Vector3.new(0, 1.5, 0)
     end
 
-    local direcao = Vector3.new(1, 0, 0)
+    local dir = Vector3.new(1, 0, 0)
     if head then
-        direcao = head.CFrame.LookVector
+        dir = head.CFrame.LookVector
     elseif hrp then
-        direcao = hrp.CFrame.LookVector
+        dir = hrp.CFrame.LookVector
     end
-    direcao = Vector3.new(direcao.X, 0, direcao.Z)
-    if direcao.Magnitude < 0.001 then
-        direcao = Vector3.new(1, 0, 0)
+    dir = Vector3.new(dir.X, 0, dir.Z)
+    if dir.Magnitude < 0.001 then
+        dir = Vector3.new(1, 0, 0)
     else
-        direcao = direcao.Unit
+        dir = dir.Unit
     end
 
-    local posFim = posInicio + direcao * 80
+    local posFim = posInicio + dir * 80
 
-    if not linhaOlhar or not linhaOlhar.Parent then
-        if linhaOlhar then linhaOlhar:Destroy() end
-        linhaOlhar = Instance.new("Part")
-        linhaOlhar.Name = randName()
-        linhaOlhar.Anchored = true
-        linhaOlhar.CanCollide = false
-        linhaOlhar.CanTouch = false
-        linhaOlhar.CanQuery = false
-        linhaOlhar.CastShadow = false
-        linhaOlhar.Transparency = 0.2
-        linhaOlhar.Color = Color3.fromRGB(0, 255, 0)
-        linhaOlhar.Material = Enum.Material.Neon
-        linhaOlhar.Size = Vector3.new(0.5, 0.5, 80)
-        linhaOlhar.Parent = CameraFolder
-    end
-
+    linhaOlhar = criarOuReutilizar(linhaOlhar, Color3.fromRGB(0, 255, 0), "LookLine")
     local meio = (posInicio + posFim) / 2
-    local distancia = (posInicio - posFim).Magnitude
-    if distancia < 0.1 then distancia = 0.1 end
-    linhaOlhar.Size = Vector3.new(0.5, 0.5, distancia)
+    local dist = (posInicio - posFim).Magnitude
+    if dist < 0.5 then dist = 0.5 end
+    linhaOlhar.Size = Vector3.new(0.5, 0.5, dist)
     linhaOlhar.CFrame = CFrame.lookAt(meio, posFim)
+    linhaOlhar.Transparency = 0.2
 end
 
 -- =============================================
@@ -415,10 +387,9 @@ local function toggleControl()
                     resetCamera()
                 else
                     camera.CameraSubject = ball
-                    local lookVector = camera.CFrame.LookVector
-                    -- Aplicação suave (não força toda hora, reduz detecção)
-                    local target = lookVector * velocidadeBola
-                    ball.AssemblyLinearVelocity = ball.AssemblyLinearVelocity:Lerp(target, 0.5)
+                    local look = camera.CFrame.LookVector
+                    local target = look * velocidadeBola
+                    ball.AssemblyLinearVelocity = ball.AssemblyLinearVelocity:Lerp(target, 0.4)
                 end
             else
                 resetCamera()
@@ -439,10 +410,10 @@ end
 
 local function criarBotaoFlutuante()
     if controlScreenGui then return end
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = randName()
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "StreetSoccer_Control"
+    sg.ResetOnSpawn = false
+    safeParent(sg)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -454,13 +425,13 @@ local function criarBotaoFlutuante()
     btn.TextSize = 16
     btn.Active = true
     btn.Draggable = true
-    btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
+    btn.Parent = sg
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = btn
     btn.MouseButton1Click:Connect(toggleControl)
     toggleButton = btn
-    controlScreenGui = screenGui
+    controlScreenGui = sg
 end
 
 local function removerBotaoFlutuante()
@@ -496,10 +467,10 @@ end
 
 local function criarBotaoCameraFlutuante()
     if cameraScreenGui then return end
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = randName()
-    screenGui.ResetOnSpawn = false
-    safeParent(screenGui)
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "StreetSoccer_Cam"
+    sg.ResetOnSpawn = false
+    safeParent(sg)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 180, 0, 45)
@@ -511,13 +482,13 @@ local function criarBotaoCameraFlutuante()
     btn.TextSize = 16
     btn.Active = true
     btn.Draggable = true
-    btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
+    btn.Parent = sg
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = btn
     btn.MouseButton1Click:Connect(toggleCameraButton)
     cameraToggleButton = btn
-    cameraScreenGui = screenGui
+    cameraScreenGui = sg
 end
 
 local function removerBotaoCameraFlutuante()
@@ -530,69 +501,58 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =============================================
--- HITBOX (REACH LOCAL – NÃO MODIFICA A BOLA SERVER-SIDE)
+-- HITBOX (visual local – só pra ver, não afeta o jogo)
 -- =============================================
-local function aplicarHitbox()
-    -- Não modifica mais a bola real! Ao invés disso, cria uma parte local
-    -- invisível em volta da bola que só o cliente vê.
+local function aplicarHitboxVisual()
     local ball = getBall()
     if not ball then
-        if reachHitbox then reachHitbox:Destroy() reachHitbox = nil end
+        if hitboxPart then hitboxPart:Destroy() hitboxPart = nil end
         return
     end
 
-    if hitboxAtivo and not euTenhoBola() then
-        if not reachHitbox or not reachHitbox.Parent then
-            if reachHitbox then reachHitbox:Destroy() end
-            reachHitbox = Instance.new("Part")
-            reachHitbox.Name = randName()
-            reachHitbox.Anchored = true
-            reachHitbox.CanCollide = false
-            reachHitbox.CanTouch = true
-            reachHitbox.CanQuery = false
-            reachHitbox.CastShadow = false
-            reachHitbox.Transparency = 1
-            reachHitbox.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-            reachHitbox.Parent = CameraFolder
-        end
-        reachHitbox.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-        reachHitbox.CFrame = ball.CFrame
-    else
-        if reachHitbox then reachHitbox:Destroy() reachHitbox = nil end
-    end
-end
-
-local function atualizarESP()
-    if espHitbox and hitboxAtivo and reachHitbox then
-        if not espSphere or not espSphere.Parent then
-            if espSphere then espSphere:Destroy() end
-            espSphere = Instance.new("SelectionSphere")
-            espSphere.Name = randName()
-            espSphere.Adornee = reachHitbox
-            espSphere.Parent = reachHitbox
-            espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-            espSphere.Transparency = 0.6
+    if hitboxVisual and not euTenhoBola() then
+        if not hitboxPart or not hitboxPart.Parent then
+            if hitboxPart then hitboxPart:Destroy() end
+            hitboxPart = Instance.new("SelectionSphere")
+            hitboxPart.Name = "ReachVisual"
+            hitboxPart.Adornee = ball
+            hitboxPart.Parent = ball
+            hitboxPart.Color3 = Color3.fromRGB(0, 255, 0)
+            hitboxPart.Transparency = 0.6
         end
         local scale = hitboxTamanho / 2.5
-        espSphere.Scale = Vector3.new(scale, scale, scale)
+        hitboxPart.Scale = Vector3.new(scale, scale, scale)
     else
-        if espSphere then espSphere:Destroy() espSphere = nil end
+        if hitboxPart then hitboxPart:Destroy() hitboxPart = nil end
     end
 end
 
 -- =============================================
--- INFINITE STAMINA
+-- INFINITE STAMINA (tenta modificar o valor real)
 -- =============================================
 local function infiniteStamina()
     task.spawn(function()
         while true do
-            local stats = player:FindFirstChild("PlayerStats")
-            if stats then
-                local stamina = stats:FindFirstChild("Stamina")
-                if stamina and stamina:IsA("NumberValue") then
-                    stamina.Value = 100
+            -- Tenta valor interno
+            pcall(function()
+                local stats = player:FindFirstChild("PlayerStats")
+                if stats then
+                    local stamina = stats:FindFirstChild("Stamina")
+                    if stamina and stamina:IsA("NumberValue") then
+                        stamina.Value = 100
+                    end
                 end
-            end
+            end)
+            -- Tenta valor em outros locais comuns
+            pcall(function()
+                local char = player.Character
+                if char then
+                    local stamina = char:FindFirstChild("Stamina")
+                    if stamina and stamina:IsA("NumberValue") then
+                        stamina.Value = 100
+                    end
+                end
+            end)
             task.wait(1)
         end
     end)
@@ -607,9 +567,10 @@ pcall(function()
         local onMessage = chatService:FindFirstChild("OnMessage")
         if onMessage then
             onMessage.OnClientEvent:Connect(function(msg)
+                if type(msg) ~= "string" then return end
                 local lower = string.lower(msg)
                 if string.match(lower, "^velocidade da bola") then
-                    local num = string.match(msg, "^velocidade da bola (%d+)")
+                    local num = string.match(msg, "%d+")
                     if num then
                         local val = tonumber(num)
                         if val and val > 0 and val <= 200 then
@@ -625,23 +586,19 @@ pcall(function()
 end)
 
 -- =============================================
--- LOOP OTIMIZADO
+-- LOOP PRINCIPAL OTIMIZADO
 -- =============================================
-local frameCounter = 0
-local trajTimer = 0
-
-RunService.Heartbeat:Connect(function(dt)
-    -- Aimbot câmera + hitbox rodam todo frame (leves)
+local frame = 0
+RunService.Heartbeat:Connect(function()
+    -- Aimbot rodando em todos frames (leve)
     atualizarAimbotCamera()
-    aplicarHitbox()
 
-    frameCounter = frameCounter + 1
-
-    -- A cada 6 frames (~0.1s) roda as coisas pesadas
-    if frameCounter % 6 == 0 then
+    frame = frame + 1
+    if frame % 5 == 0 then
+        -- Coisas pesadas a cada 5 frames (~0.08s)
         atualizarAdvinhaBola()
         atualizarAdvinheChute()
-        atualizarESP()
+        aplicarHitboxVisual()
     end
 end)
 
@@ -697,7 +654,7 @@ AimbotSec:Slider({
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Advinha a bola",
-    Desc = "Linha amarela mostrando a trajetória da bola",
+    Desc = "Linha amarela mostrando a trajetória da bola até o chão",
     Value = Config.advinhaBola,
     Callback = function(v)
         visaoBolaEnabled = v
@@ -711,7 +668,7 @@ VisaoSec:Toggle({
 })
 VisaoSec:Toggle({
     Title = "Advinhe Chute",
-    Desc = "Linha verde mostrando para onde o jogador com a bola está olhando",
+    Desc = "Linha verde mostrando para onde o adversário com a bola está olhando",
     Value = Config.advinhaChute,
     Callback = function(v)
         visaoChuteEnabled = v
@@ -753,21 +710,21 @@ ControleSec:Input({
 local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 HitboxSec:Toggle({
     Title = "Hitbox",
-    Desc = "Aumenta a hitbox da bola (local, invisível ao servidor)",
-    Value = Config.hitboxAtivo,
+    Desc = "Mostra visualmente a hitbox da bola",
+    Value = Config.hitboxVisual,
     Callback = function(v)
-        hitboxAtivo = v
-        Config.hitboxAtivo = v
+        hitboxVisual = v
+        Config.hitboxVisual = v
         saveConfig()
-        if not v then
-            if reachHitbox then reachHitbox:Destroy() reachHitbox = nil end
-            if espSphere then espSphere:Destroy() espSphere = nil end
+        if not v and hitboxPart then
+            hitboxPart:Destroy()
+            hitboxPart = nil
         end
     end
 })
 HitboxSec:Slider({
     Title = "Tamanho da Hitbox",
-    Desc = "Tamanho da hitbox (0-50)",
+    Desc = "Tamanho do círculo visual (0-50)",
     Step = 1,
     Value = { Min = 0, Max = 50, Default = Config.hitboxTamanho },
     Callback = function(v)
@@ -776,29 +733,18 @@ HitboxSec:Slider({
         saveConfig()
     end
 })
-HitboxSec:Toggle({
-    Title = "ESP Hitbox",
-    Desc = "Círculo verde ao redor da hitbox",
-    Value = Config.espHitbox,
-    Callback = function(v)
-        espHitbox = v
-        Config.espHitbox = v
-        saveConfig()
-        if not v and espSphere then espSphere:Destroy() espSphere = nil end
-    end
-})
 
 local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
 ConfigSec:Button({
     Title = "Infinite Stamina",
-    Desc = "Stamina sempre no máximo",
+    Desc = "Stamina sempre no máximo (pode não funcionar se for server-side)",
     Callback = function() infiniteStamina() end
 })
 
 local SaveSec = MainTab:Section({ Title = "Salvar", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
-    Desc = "Salva todas as configurações manualmente",
+    Desc = "Salva todas as configurações",
     Callback = function()
         saveConfig()
         pcall(function()
