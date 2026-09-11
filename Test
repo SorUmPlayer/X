@@ -217,7 +217,7 @@ local function atualizarAimbotCamera()
 end
 
 -- =============================================
--- VISÃO DE JOGO – ADVINHA A BOLA (amarela)
+-- VISÃO DE JOGO – ADVINHA A BOLA
 -- =============================================
 local function criarOuReutilizar(parteAtual, cor, nome)
     if parteAtual and parteAtual.Parent then return parteAtual end
@@ -305,7 +305,7 @@ local function atualizarAdvinhaBola()
 end
 
 -- =============================================
--- VISÃO DE JOGO – ADVINHE CHUTE (verde)
+-- VISÃO DE JOGO – ADVINHE CHUTE
 -- =============================================
 local function atualizarAdvinheChute()
     if not visaoChuteEnabled then
@@ -357,7 +357,7 @@ local function atualizarAdvinheChute()
 end
 
 -- =============================================
--- CONTROLE DE BOLA (SetNetworkOwner)
+-- CONTROLE DE BOLA (VERSÃO MELHORADA)
 -- =============================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -373,6 +373,7 @@ local function toggleControl()
             toggleButton.Text = "Control BALL [ON]"
         end
         if controlConnection then controlConnection:Disconnect() end
+
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if not ball then
@@ -385,16 +386,28 @@ local function toggleControl()
                 return
             end
 
-            -- Toma posse da bola
+            -- 1) Toma posse da bola (permite controle local)
             pcall(function()
                 ball:SetNetworkOwner(player)
             end)
 
+            -- 2) Câmera segue a bola
             camera.CameraSubject = ball
 
+            -- 3) Aplica velocidade na direção da câmera
+            --    (aplica direto, sem lerp, para funcionar de verdade)
             local look = camera.CFrame.LookVector
-            local target = look * velocidadeBola
-            ball.AssemblyLinearVelocity = ball.AssemblyLinearVelocity:Lerp(target, 0.5)
+            local targetVel = look * velocidadeBola
+            pcall(function()
+                ball.AssemblyLinearVelocity = targetVel
+            end)
+
+            -- 4) Empurrão extra caso a bola esteja no chão parada
+            if ball.AssemblyLinearVelocity.Magnitude < 5 then
+                pcall(function()
+                    ball.AssemblyLinearVelocity = targetVel + Vector3.new(0, 15, 0)
+                end)
+            end
         end)
     else
         if toggleButton then
@@ -506,7 +519,7 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =============================================
--- HITBOX REACH (força toque à distância)
+-- HITBOX REACH (USANDO SETNETWORKOWNER + TELEPORTE)
 -- =============================================
 local function aplicarHitboxReach()
     if not hitboxAtivo then
@@ -527,13 +540,30 @@ local function aplicarHitboxReach()
 
     local dist = (hrp.Position - ball.Position).Magnitude
 
+    -- Coleta à distância (usa SetNetworkOwner + firetouchinterest combinados)
     if dist <= hitboxTamanho then
+        -- 1) Toma posse da bola
+        pcall(function()
+            ball:SetNetworkOwner(player)
+        end)
+
+        -- 2) firetouchinterest (para distâncias curtas)
         if firetouchinterest and (tick() - hitboxCooldown > 0.05) then
             hitboxCooldown = tick()
             pcall(function()
                 firetouchinterest(hrp, ball, 0)
-                task.wait(0.01)
+                task.wait()
                 firetouchinterest(hrp, ball, 1)
+            end)
+        end
+
+        -- 3) Se a bola estiver longe (>10 studs), teleporta pra frente do jogador
+        if dist > 10 then
+            pcall(function()
+                local dir = (hrp.Position - ball.Position).Unit
+                local novaPos = hrp.Position - dir * 2 -- posiciona à frente
+                ball.CFrame = CFrame.new(novaPos)
+                ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             end)
         end
     end
@@ -549,34 +579,13 @@ local function aplicarHitboxReach()
             espSphere.Color3 = Color3.fromRGB(0, 255, 0)
             espSphere.Transparency = 0.6
         end
-        local scale = hitboxTamanho / 2.5
+        -- SelectionSphere: Scale = raio desejado
+        -- Se hitboxTamanho é diâmetro, escala = tamanho/2
+        local scale = hitboxTamanho / 2
         espSphere.Scale = Vector3.new(scale, scale, scale)
     else
         if espSphere then espSphere:Destroy() espSphere = nil end
     end
-end
-
--- =============================================
--- INFINITE STAMINA (FireServer no Speed)
--- =============================================
-local function infiniteStamina()
-    task.spawn(function()
-        while true do
-            pcall(function()
-                local staminaGui = player.PlayerGui:FindFirstChild("Stamina")
-                if staminaGui then
-                    local frame = staminaGui:FindFirstChild("Frame")
-                    if frame then
-                        local speedEvent = frame:FindFirstChild("Speed")
-                        if speedEvent then
-                            speedEvent:FireServer(10525299, 9999)
-                        end
-                    end
-                end
-            end)
-            task.wait(0.3)
-        end
-    end)
 end
 
 -- =============================================
@@ -607,7 +616,7 @@ pcall(function()
 end)
 
 -- =============================================
--- LOOP PRINCIPAL OTIMIZADO
+-- LOOP PRINCIPAL
 -- =============================================
 local frame = 0
 RunService.Heartbeat:Connect(function()
@@ -743,9 +752,9 @@ HitboxSec:Toggle({
 })
 HitboxSec:Slider({
     Title = "Tamanho da Hitbox",
-    Desc = "Alcance da coleta (0-50)",
+    Desc = "Alcance da coleta em studs (0-200)",
     Step = 1,
-    Value = { Min = 0, Max = 50, Default = Config.hitboxTamanho },
+    Value = { Min = 0, Max = 200, Default = Config.hitboxTamanho },
     Callback = function(v)
         hitboxTamanho = v
         Config.hitboxTamanho = v
@@ -754,7 +763,7 @@ HitboxSec:Slider({
 })
 HitboxSec:Toggle({
     Title = "ESP Hitbox",
-    Desc = "Círculo verde ao redor da hitbox",
+    Desc = "Círculo verde mostrando o alcance real",
     Value = Config.espHitbox,
     Callback = function(v)
         espHitbox = v
@@ -764,15 +773,6 @@ HitboxSec:Toggle({
             espSphere:Destroy()
             espSphere = nil
         end
-    end
-})
-
-local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
-ConfigSec:Button({
-    Title = "Infinite Stamina",
-    Desc = "Stamina sempre no máximo",
-    Callback = function()
-        infiniteStamina()
     end
 })
 
