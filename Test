@@ -1,5 +1,5 @@
 --[[
-    Street Soccer – Script Ultra-Compatível (corrigido)
+    Blue Lock Rivals – Atualizado
 ]]
 
 local Players = game:GetService("Players")
@@ -9,6 +9,8 @@ local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -16,61 +18,193 @@ local camera = Workspace.CurrentCamera
 -- =============================================
 -- AUTO SAVE
 -- =============================================
-local CONFIG_FILE = "StreetSoccer_AutoSave.json"
+local CONFIG_FILE = "BlueLock_AutoSave.json"
+
 local Config = {
+    velocidadeBola = 65,
+    forcaBolaVelocidade = 100,
+    aimbotDelayValue = 0,
+    hitboxPersonagemTamanho = 5,
+    reachDistancia = 20,
+    curvasIntensidade = 5,
+    -- Hitbox toggles
+    hitboxNormal = false,
+    hitboxPlayerMagnet = false,
+    hitboxReach = false,
+    hitboxPlayerMagnetSize = 10,
+    hitboxReachSize = 20,
+    magnetRange = 30,
+    espHitbox = false,
+    -- Aimbot
+    botaoFlutuante = false,
+    aimbotPersonagem = false,
     aimbotCamera = false,
     botaoCamera = false,
-    aimbotDelay = 0,
-    advinhaBola = false,
+    visaoBola = false,
     advinhaChute = false,
-    controleBola = false,
-    velocidadeBola = 65,
-    hitboxAtivo = false,
-    hitboxTamanho = 10,
-    espHitbox = false,
+    forcaBola = false,
+    curvasAtivo = false,
+    dribleAtivo = false,
+    -- Config
+    fpsPlus = false,
+    graficoLevel = 3,
+    removerLag = false,
 }
 
 local function LoadConfig()
     if not isfile then return end
-    local success, data = pcall(function()
+    local ok, data = pcall(function()
         return HttpService:JSONDecode(readfile(CONFIG_FILE))
     end)
-    if success and type(data) == "table" then
+    if ok and type(data) == "table" then
         for k, v in pairs(data) do Config[k] = v end
     end
 end
 
-local function SaveConfigToFile(configTable)
-    if not writefile then return end
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(configTable)
-    end)
-    if success then
-        pcall(function() writefile(CONFIG_FILE, json) end)
-    end
-end
-
 local function SaveConfig()
-    SaveConfigToFile(Config)
+    if not writefile then return end
+    local ok, json = pcall(function()
+        return HttpService:JSONEncode(Config)
+    end)
+    if ok then pcall(function() writefile(CONFIG_FILE, json) end) end
 end
 
 pcall(LoadConfig)
-
 task.spawn(function()
-    while true do
-        task.wait(5)
-        pcall(SaveConfig)
-    end
+    while true do task.wait(5) pcall(SaveConfig) end
 end)
 
 -- =============================================
--- CARREGAR WINDUI (com verificação)
+-- SEGURANÇA DE PARENT
+-- =============================================
+local function safeParent(gui)
+    local ok = pcall(function()
+        if gethui then gui.Parent = gethui()
+        elseif syn and syn.protect_gui then syn.protect_gui(gui) gui.Parent = CoreGui
+        else gui.Parent = CoreGui end
+    end)
+    if not ok then gui.Parent = player:WaitForChild("PlayerGui") end
+end
+
+-- =============================================
+-- FPS++ / GRÁFICO / ANTI-LAG (configs guardadas para aplicar/restaurar)
+-- =============================================
+local fpsOriginal = {
+    shadows = Lighting.GlobalShadows,
+    fogEnd = Lighting.FogEnd,
+    brightness = Lighting.Brightness,
+    ambient = Lighting.Ambient,
+    outdoorAmbient = Lighting.OutdoorAmbient,
+}
+local removedEffects = {}
+local originalEffects = {}
+
+local function aplicarFPSPlus()
+    if not Config.fpsPlus then return end
+    -- Remove sombras e efeitos
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+        Lighting.Brightness = 1
+        Lighting.Ambient = Color3.fromRGB(80, 80, 80)
+        Lighting.OutdoorAmbient = Color3.fromRGB(80, 80, 80)
+    end)
+    -- Desativa PostEffects
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("Atmosphere") then
+            if not originalEffects[v] then originalEffects[v] = v.Enabled end
+            v.Enabled = false
+        end
+    end
+    -- Remove partículas
+    task.spawn(function()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                if not originalEffects[v] then
+                    originalEffects[v] = v.Enabled
+                    table.insert(removedEffects, v)
+                end
+                v.Enabled = false
+            end
+        end
+    end)
+end
+
+local function restaurarFPSPlus()
+    pcall(function()
+        Lighting.GlobalShadows = fpsOriginal.shadows
+        Lighting.FogEnd = fpsOriginal.fogEnd
+        Lighting.Brightness = fpsOriginal.brightness
+        Lighting.Ambient = fpsOriginal.ambient
+        Lighting.OutdoorAmbient = fpsOriginal.outdoorAmbient
+    end)
+    for v, state in pairs(originalEffects) do
+        pcall(function() v.Enabled = state end)
+    end
+    originalEffects = {}
+    removedEffects = {}
+end
+
+local function aplicarGrafico(nivel)
+    -- 0 = leve, 3 = bonito
+    pcall(function()
+        if nivel == 0 then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 100000
+            Lighting.Brightness = 1
+        elseif nivel == 1 then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level02
+            Lighting.GlobalShadows = false
+        elseif nivel == 2 then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level05
+            Lighting.GlobalShadows = true
+        else
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 5000
+            Lighting.Brightness = 2
+        end
+    end)
+end
+
+local function aplicarRemoverLag()
+    if not Config.removerLag then return end
+    -- Ajusta StreamingEnabled e otimizações de rede
+    pcall(function()
+        settings().Network.IncomingReplicationLag = 0
+    end)
+    -- Reduz qualidade de rede de personagens distantes
+    pcall(function()
+        for _, v in ipairs(Players:GetPlayers()) do
+            if v ~= player and v.Character then
+                local char = v.Character
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        -- Não mexe no Animate
+                        if not part:FindFirstChildOfClass("Motor6D") then
+                            part.CastShadow = false
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+pcall(function()
+    if Config.fpsPlus then aplicarFPSPlus() end
+    aplicarGrafico(Config.graficoLevel)
+    if Config.removerLag then aplicarRemoverLag() end
+end)
+
+-- =============================================
+-- WINDUI
 -- =============================================
 local WindUI
-local loadSuccess, loadErr = pcall(function()
+local loadSuccess = pcall(function()
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
-
 if not loadSuccess or not WindUI then
     pcall(function()
         WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -78,21 +212,16 @@ if not loadSuccess or not WindUI then
 end
 
 if not WindUI then
-    StarterGui:SetCore("SendNotification", {
-        Title = "Erro",
-        Text = "Falha ao carregar WindUI. Verifique sua conexão.",
-        Duration = 5
-    })
-    error("WindUI não carregado. O script será interrompido.")
+    error("WindUI não carregado.")
     return
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Street Soccer",
+    Title = "⚽ Blue Lock Rivals",
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
-    Folder = "StreetSoccer",
-    Size = UDim2.fromOffset(500, 650),
+    Folder = "BlueLock",
+    Size = UDim2.fromOffset(500, 760),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -102,79 +231,149 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
--- FUNÇÃO SEGURA DE PARENT
--- =============================================
-local function safeParent(gui)
-    local ok = pcall(function()
-        if gethui then
-            gui.Parent = gethui()
-        elseif syn and syn.protect_gui then
-            syn.protect_gui(gui)
-            gui.Parent = CoreGui
-        else
-            gui.Parent = CoreGui
-        end
-    end)
-    if not ok then
-        gui.Parent = player:WaitForChild("PlayerGui")
-    end
-end
-
--- =============================================
 -- DETECÇÃO DA BOLA
 -- =============================================
+local bola = nil
+local hitbox = nil
+local bolaValida = false
+
+local function atualizarReferenciaBola()
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Model") then
+            local football = child:FindFirstChild("Football")
+            if football then
+                bola = football
+                local hb = bola:FindFirstChild("Hitbox")
+                hitbox = (hb and hb:IsA("BasePart")) and hb or bola
+                bolaValida = true
+                return
+            end
+        elseif child.Name == "Football" then
+            bola = child
+            local hb = bola:FindFirstChild("Hitbox")
+            hitbox = (hb and hb:IsA("BasePart")) and hb or bola
+            bolaValida = true
+            return
+        end
+    end
+    bola = nil
+    hitbox = nil
+    bolaValida = false
+end
+
+Workspace.ChildAdded:Connect(atualizarReferenciaBola)
+Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
+atualizarReferenciaBola()
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not bolaValida or not hitbox then atualizarReferenciaBola() end
+    end
+end)
+
 local function getBall()
-    return Workspace:FindFirstChild("ball")
+    if bola and bolaValida then return bola end
+    local football = Workspace:FindFirstChild("Football")
+    if football then
+        local ballAnims = football:FindFirstChild("BallAnims")
+        if ballAnims then
+            if ballAnims:IsA("BasePart") then return ballAnims end
+            return ballAnims:FindFirstChildWhichIsA("BasePart") or ballAnims.PrimaryPart
+        end
+    end
+    return nil
 end
 
 local function euTenhoBola()
-    local ball = getBall()
-    if not ball then return false end
-    local char = player.Character
-    if not char then return false
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false
-    return (hrp.Position - ball.Position).Magnitude < 3
+    local meuModel = Workspace:FindFirstChild(player.Name)
+    if meuModel and meuModel:FindFirstChild("Football") then return true end
+    return false
+end
+
+local function getMyTeam()
+    local values = player:FindFirstChild("Values")
+    if values then
+        local teamVal = values:FindFirstChild("Team")
+        if teamVal then return tostring(teamVal.Value) end
+    end
+    return nil
 end
 
 -- =============================================
 -- VARIÁVEIS
 -- =============================================
+local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
-local aimbotDelay = Config.aimbotDelay
-local aimbotBlocked = false
-local aimbotBlockedUntil = 0
-local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+local mostrarESP = Config.espHitbox
 
-local visaoBolaEnabled = Config.advinhaBola
-local visaoChuteEnabled = Config.advinhaChute
-local linhaTrajetoria = nil
-local linhaOlhar = nil
-local circuloImpacto = nil
+local hitboxNormal = Config.hitboxNormal
+local hitboxPlayerMagnet = Config.hitboxPlayerMagnet
+local hitboxReach = Config.hitboxReach
+local hitboxPlayerMagnetSize = Config.hitboxPlayerMagnetSize
+local hitboxReachSize = Config.hitboxReachSize
+local magnetRange = Config.magnetRange
 
-local controleBola = Config.controleBola
+local forcaBolaEnabled = Config.forcaBola
+local forcaBolaVelocidade = Config.forcaBolaVelocidade
+local tinhaBola = false
+
+local curvasEnabled = Config.curvasAtivo
+local curvasModo = 1
+local curvasIntensidade = Config.curvasIntensidade
+local curvasBotaoGUI = nil
+local curvasBotao = nil
+local curvasTimer = 0
+local curvasIntervalo = 1.0
+local curvasDirecaoAtual = 1
+
+local dribleEnabled = Config.dribleAtivo
+local dribleSphere = nil
+local dribleLastFired = 0
+local dribleCooldown = 0.3
+local dribleAnimId = "18668814876"
+local dribleRadius = 70
+local driblePlayingAnims = {}
+local dribleEvent = nil
+
 local velocidadeBola = Config.velocidadeBola
+local isControlActive = false
 local controlConnection = nil
 local controlScreenGui = nil
 local toggleButton = nil
-local isControlActive = false
-
-local hitboxAtivo = Config.hitboxAtivo
-local hitboxTamanho = Config.hitboxTamanho
-local espHitbox = Config.espHitbox
-local espSphere = nil
 
 local cameraButtonActive = false
 local cameraScreenGui = nil
 local cameraToggleButton = nil
 
+local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
+local aimbotDelayValue = Config.aimbotDelayValue
+local aimbotBlocked = false
+local aimbotBlockedUntil = 0
+
+local visaoBolaEnabled = Config.visaoBola
+local advinhaChuteEnabled = Config.advinhaChute
+local linhaVisao = nil
+local linhaChute = nil
+local circuloChute = nil
+
+local gyro = nil
+local selectedTeam = nil
+local espSphere = nil
+local espReach = nil
+local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
+local hitboxOriginalTransparency = 0
+
+-- Reach hitbox (parte nova)
+local reachPart = nil
+
 -- =============================================
--- AIMBOT CÂMERA
+-- AIMBOT
 -- =============================================
 local function shouldAimbotWork()
     if euTenhoBola() then
         aimbotBlocked = true
-        aimbotBlockedUntil = tick() + aimbotDelay
+        aimbotBlockedUntil = tick() + aimbotDelayValue
         return false
     end
     if aimbotBlocked then
@@ -188,9 +387,28 @@ local function shouldAimbotWork()
     return true
 end
 
-local function atualizarAimbotCamera()
-    if not aimbotCamera then return end
-    if not shouldAimbotWork() then return end
+-- =============================================
+-- HITBOX NORMAL (só aumenta a hitbox da bola)
+-- =============================================
+local function aplicarHitboxNormal()
+    if not hitbox then return end
+    if hitboxReach then return end -- reach tem prioridade
+
+    if hitboxNormal and not euTenhoBola() then
+        hitbox.Size = Vector3.new(hitboxPlayerMagnetSize, hitboxPlayerMagnetSize, hitboxPlayerMagnetSize)
+        hitbox.Transparency = 1
+    elseif not hitboxNormal and not hitboxPlayerMagnet and not hitboxReach then
+        hitbox.Size = hitboxOriginalSize
+        hitbox.Transparency = hitboxOriginalTransparency
+    end
+end
+
+-- =============================================
+-- HITBOX PLAYER + MAGNET (software, touch interest)
+-- =============================================
+local function aplicarPlayerMagnet()
+    if not hitboxPlayerMagnet then return end
+    if euTenhoBola() then return end
 
     local ball = getBall()
     if not ball then return end
@@ -200,202 +418,325 @@ local function atualizarAimbotCamera()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local posBola = ball.Position
-    local posJogador = hrp.Position
-    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    -- Magnet: puxa a bola se estiver perto
+    local dist = (hrp.Position - ball.Position).Magnitude
+    if dist <= magnetRange then
+        local dir = (hrp.Position - ball.Position).Unit
+        ball.AssemblyLinearVelocity = ball.AssemblyLinearVelocity + dir * 15
+    end
 
-    local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
-    camera.CFrame = CFrame.new(camPos, hrp.Position)
+    -- Player hitbox: touch interest quando muito perto (mesmo com velocidade alta)
+    if dist <= hitboxPlayerMagnetSize then
+        if firetouchinterest then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        firetouchinterest(part, ball, 0)
+                        firetouchinterest(part, ball, 1)
+                    end)
+                end
+            end
+        end
+    end
 end
 
 -- =============================================
--- VISÃO DE JOGO
+-- HITBOX REACH (nova parte)
 -- =============================================
-local function atualizarAdvinhaBola()
-    if not visaoBolaEnabled then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
+local function atualizarReach()
+    if not hitboxReach then
+        if reachPart then
+            reachPart:Destroy()
+            reachPart = nil
+        end
         return
     end
 
+    local char = player.Character
+    if not char then
+        if reachPart then reachPart:Destroy() reachPart = nil end
+        return
+    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        if reachPart then reachPart:Destroy() reachPart = nil end
+        return
+    end
+
+    if not reachPart or not reachPart.Parent then
+        reachPart = Instance.new("Part")
+        reachPart.Name = "ReachHitbox"
+        reachPart.Shape = Enum.PartType.Ball
+        reachPart.Size = Vector3.new(hitboxReachSize, hitboxReachSize, hitboxReachSize)
+        reachPart.Transparency = 1
+        reachPart.CanCollide = false
+        reachPart.Massless = true
+        reachPart.Anchored = false
+        reachPart.Parent = Workspace
+    end
+
+    reachPart.Size = Vector3.new(hitboxReachSize, hitboxReachSize, hitboxReachSize)
+    reachPart.CFrame = hrp.CFrame
+
+    -- Touch com a bola para pegar de longe
+    if euTenhoBola() then return end
     local ball = getBall()
-    if not ball then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
-        return
-    end
-
-    local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 0.5 then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
-        return
-    end
-
-    local gravidade = Vector3.new(0, -50, 0)
-    local pos = ball.Position
-    local v = vel
-    local dt = 0.02
-    local maxPassos = 500
-    local chaoY = 0
-
-    local pontos = {}
-    table.insert(pontos, pos)
-
-    for i = 1, maxPassos do
-        v = v + gravidade * dt
-        pos = pos + v * dt
-        table.insert(pontos, pos)
-        if pos.Y <= chaoY then
-            break
+    if ball then
+        local dist = (hrp.Position - ball.Position).Magnitude
+        if dist <= hitboxReachSize then
+            if firetouchinterest then
+                pcall(function()
+                    firetouchinterest(reachPart, ball, 0)
+                    firetouchinterest(reachPart, ball, 1)
+                end)
+            end
         end
-    end
-
-    if #pontos < 2 then
-        if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
-        return
-    end
-
-    local inicio = pontos[1]
-    local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z)
-
-    local meio = (inicio + fim) / 2
-    local distancia = (inicio - fim).Magnitude
-
-    if not linhaTrajetoria then
-        linhaTrajetoria = Instance.new("Part")
-        linhaTrajetoria.Name = "LinhaTrajetoria"
-        linhaTrajetoria.Anchored = true
-        linhaTrajetoria.CanCollide = false
-        linhaTrajetoria.Transparency = 0.2
-        linhaTrajetoria.Color = Color3.fromRGB(255, 255, 0)
-        linhaTrajetoria.Material = Enum.Material.Neon
-        linhaTrajetoria.Parent = Workspace
-    end
-
-    if distancia > 0.1 then
-        linhaTrajetoria.Size = Vector3.new(0.5, 0.5, distancia)
-        linhaTrajetoria.CFrame = CFrame.lookAt(meio, fim)
-        linhaTrajetoria.Transparency = 0.2
-    else
-        linhaTrajetoria.Transparency = 1
-    end
-
-    if v.Y < -0.5 then
-        if not circuloImpacto then
-            circuloImpacto = Instance.new("Part")
-            circuloImpacto.Name = "CirculoImpacto"
-            circuloImpacto.Anchored = true
-            circuloImpacto.CanCollide = false
-            circuloImpacto.Transparency = 0.2
-            circuloImpacto.Color = Color3.fromRGB(255, 255, 0)
-            circuloImpacto.Material = Enum.Material.Neon
-            circuloImpacto.Shape = Enum.PartType.Cylinder
-            circuloImpacto.Size = Vector3.new(4, 0.1, 4)
-            circuloImpacto.Parent = Workspace
-        end
-        circuloImpacto.Position = fim
-        local tamanho = math.clamp(vel.Magnitude / 8, 3, 8)
-        circuloImpacto.Size = Vector3.new(tamanho, 0.1, tamanho)
-        circuloImpacto.Transparency = 0.2
-    else
-        if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
     end
 end
 
-local function getJogadorComBola()
+-- =============================================
+-- ESP (mostra para Player+Magnet e Reach)
+-- =============================================
+local function atualizarESP()
+    -- Player+Magnet ESP
+    if mostrarESP and hitboxPlayerMagnet and hitbox and not euTenhoBola() then
+        if not espSphere then
+            espSphere = Instance.new("SelectionSphere")
+            espSphere.Name = "PlayerMagnetESP"
+            espSphere.Adornee = hitbox
+            espSphere.Parent = hitbox
+            espSphere.Color3 = Color3.fromRGB(0, 255, 0)
+            espSphere.Transparency = 0.6
+        end
+        local scale = hitboxPlayerMagnetSize / 2.5
+        espSphere.Scale = Vector3.new(scale, scale, scale)
+    else
+        if espSphere then espSphere:Destroy() espSphere = nil end
+    end
+
+    -- Reach ESP
+    if mostrarESP and hitboxReach and reachPart then
+        if not espReach then
+            espReach = Instance.new("SelectionSphere")
+            espReach.Name = "ReachESP"
+            espReach.Adornee = reachPart
+            espReach.Parent = reachPart
+            espReach.Color3 = Color3.fromRGB(255, 165, 0)
+            espReach.Transparency = 0.7
+        end
+        local scale = hitboxReachSize / 2.5
+        espReach.Scale = Vector3.new(scale, scale, scale)
+    else
+        if espReach then espReach:Destroy() espReach = nil end
+    end
+end
+
+-- =============================================
+-- FORÇA DA BOLA
+-- =============================================
+local function aplicarForcaBola()
+    if not forcaBolaEnabled then return end
+    if not bola or not bolaValida then return end
+
+    local tenho = euTenhoBola()
+    if tinhaBola and not tenho then
+        local dir = camera.CFrame.LookVector
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.1 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
+        local vel = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
+        bola.AssemblyLinearVelocity = vel
+        -- Garante que o chute saia mesmo com lag
+        task.wait(0.05)
+        pcall(function() bola.AssemblyLinearVelocity = vel end)
+    end
+    tinhaBola = tenho
+end
+
+-- =============================================
+-- CURVAS
+-- =============================================
+local function aplicarCurvas()
+    if not curvasEnabled then return end
+    if not bola or not bolaValida then return end
+    if euTenhoBola() then return end
+
+    local vel = bola.AssemblyLinearVelocity
+    local speed = vel.Magnitude
+    if speed < 40 then return end
+    if bola.Position.Y < 0.5 then return end
+
+    local dir = Vector3.new(vel.X, 0, vel.Z)
+    if dir.Magnitude < 0.01 then return end
+    dir = dir.Unit
+
+    local perp = Vector3.new(-dir.Z, 0, dir.X)
+    local fator = (curvasIntensidade / 10) * 15 + 1.5
+    local lado = 1
+
+    if curvasModo == 1 then lado = 1
+    elseif curvasModo == 2 then lado = -1
+    elseif curvasModo == 3 then
+        local now = tick()
+        if now - curvasTimer > curvasIntervalo then
+            curvasTimer = now
+            curvasDirecaoAtual = (curvasDirecaoAtual == 1) and -1 or 1
+            curvasIntervalo = 0.5 + math.random() * 0.5
+        end
+        lado = curvasDirecaoAtual
+    end
+
+    local forcaLateral = perp * lado * fator
+    bola.AssemblyLinearVelocity = vel + forcaLateral
+end
+
+-- =============================================
+-- DRIBLE
+-- =============================================
+local function setupDrible()
+    if not dribleEvent then
+        pcall(function()
+            local packages = ReplicatedStorage:FindFirstChild("Packages")
+            if packages then
+                local knit = packages:FindFirstChild("Knit")
+                if knit then
+                    local services = knit:FindFirstChild("Services")
+                    if services then
+                        local ballService = services:FindFirstChild("BallService")
+                        if ballService then
+                            local re = ballService:FindFirstChild("RE")
+                            if re then dribleEvent = re:FindFirstChild("Dribble") end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    if not dribleSphere then
+        dribleSphere = Instance.new("Part")
+        dribleSphere.Name = "DetectionSphereVisual"
+        dribleSphere.Shape = Enum.PartType.Ball
+        dribleSphere.Size = Vector3.new(dribleRadius * 2, dribleRadius * 2, dribleRadius * 2)
+        dribleSphere.Material = Enum.Material.ForceField
+        dribleSphere.Color = Color3.fromRGB(255, 0, 128)
+        dribleSphere.Transparency = 0.6
+        dribleSphere.CanCollide = false
+        dribleSphere.Anchored = false
+        dribleSphere.CastShadow = false
+        dribleSphere.Parent = Workspace
+    end
+end
+
+local function trackDribleAnimation(character)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+
+    local function checkTrack(track)
+        if not track or not track.Animation then return end
+        local animId = tostring(track.Animation.AnimationId)
+        if string.find(animId, dribleAnimId) then
+            driblePlayingAnims[character] = true
+            local c1, c2
+            c1 = track.Stopped:Connect(function()
+                driblePlayingAnims[character] = nil
+                if c1 then c1:Disconnect() end
+                if c2 then c2:Disconnect() end
+            end)
+            c2 = track.Ended:Connect(function()
+                driblePlayingAnims[character] = nil
+                if c1 then c1:Disconnect() end
+                if c2 then c2:Disconnect() end
+            end)
+        end
+    end
+
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do checkTrack(track) end
+    animator.AnimationPlayed:Connect(checkTrack)
+end
+
+local function setupDriblePlayerTracking(plr)
+    if plr == player then return end
+    if plr.Character then task.spawn(trackDribleAnimation, plr.Character) end
+    plr.CharacterAdded:Connect(function(char)
+        driblePlayingAnims[char] = nil
+        task.spawn(trackDribleAnimation, char)
+    end)
+end
+
+local function isDribleAnimActive(character)
+    if driblePlayingAnims[character] then return true end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        if track.Animation and string.find(tostring(track.Animation.AnimationId), dribleAnimId) then
+            return true
+        end
+    end
+    return false
+end
+
+local function isLookingAtLocal(targetHrp, localHrp)
+    local directionToLocal = (localHrp.Position - targetHrp.Position).Unit
+    local lookVector = targetHrp.CFrame.LookVector
+    return lookVector:Dot(directionToLocal) >= 0.5
+end
+
+local function aplicarDrible()
+    if not dribleEnabled then
+        if dribleSphere then dribleSphere.Transparency = 1 end
+        return
+    end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if dribleSphere then
+        dribleSphere.Position = hrp.Position
+        dribleSphere.Transparency = 0.6
+        dribleSphere.Parent = Workspace
+    end
+
+    local now = tick()
+    if now - dribleLastFired < dribleCooldown then return end
+
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player then
-            local char = plr.Character
-            if char then
-                local ball = getBall()
-                if ball then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp and (hrp.Position - ball.Position).Magnitude < 3 then
-                        return plr
+        if plr ~= player and plr.Character then
+            local targetChar = plr.Character
+            local targetHrp = targetChar:FindFirstChild("HumanoidRootPart")
+            if targetHrp then
+                local dist = (targetHrp.Position - hrp.Position).Magnitude
+                if dist <= dribleRadius then
+                    if isLookingAtLocal(targetHrp, hrp) then
+                        if isDribleAnimActive(targetChar) then
+                            dribleLastFired = now
+                            if dribleEvent then
+                                dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3)
+                            end
+                            break
+                        end
                     end
                 end
             end
         end
     end
-    return nil
 end
 
-local function atualizarAdvinheChute()
-    if not visaoChuteEnabled then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
-
-    local jogador = getJogadorComBola()
-    if not jogador then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
-
-    local char = jogador.Character
-    if not char then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
-
-    local head = char:FindFirstChild("Head")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local origem = head or hrp
-    if not origem then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
-
-    local posInicio = origem.Position
-    if origem == hrp then
-        posInicio = posInicio + Vector3.new(0, 1.5, 0)
-    end
-
-    local direcao = Vector3.new(1, 0, 0)
-    if head then
-        direcao = head.CFrame.LookVector
-    elseif hrp then
-        direcao = hrp.CFrame.LookVector
-    end
-    direcao = Vector3.new(direcao.X, 0, direcao.Z)
-    if direcao.Magnitude < 0.001 then
-        direcao = Vector3.new(1, 0, 0)
-    else
-        direcao = direcao.Unit
-    end
-
-    local posFim = posInicio + direcao * 100
-
-    if not linhaOlhar then
-        linhaOlhar = Instance.new("Part")
-        linhaOlhar.Name = "LinhaOlhar"
-        linhaOlhar.Anchored = true
-        linhaOlhar.CanCollide = false
-        linhaOlhar.Transparency = 0.1
-        linhaOlhar.Color = Color3.fromRGB(0, 255, 0)
-        linhaOlhar.Material = Enum.Material.Neon
-        linhaOlhar.Size = Vector3.new(1.0, 1.0, 100)
-        linhaOlhar.Parent = Workspace
-    end
-
-    local meio = (posInicio + posFim) / 2
-    local distancia = (posInicio - posFim).Magnitude
-    if distancia < 0.1 then distancia = 0.1 end
-    linhaOlhar.Size = Vector3.new(1.0, 1.0, distancia)
-    linhaOlhar.CFrame = CFrame.lookAt(meio, posFim)
-    linhaOlhar.Transparency = 0.1
-end
+for _, plr in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(plr) end
+Players.PlayerAdded:Connect(setupDriblePlayerTracking)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr.Character then driblePlayingAnims[plr.Character] = nil end
+end)
 
 -- =============================================
 -- CONTROLE DE BOLA
 -- =============================================
 local function resetCamera()
-    local char = player.Character
-    if char and char:FindFirstChild("Humanoid") then
-        camera.CameraSubject = char.Humanoid
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = player.Character.Humanoid
     end
 end
 
@@ -410,26 +751,19 @@ local function toggleControl()
         controlConnection = RunService.Heartbeat:Connect(function()
             local ball = getBall()
             if ball then
-                if euTenhoBola() then
-                    resetCamera()
+                if euTenhoBola() then resetCamera()
                 else
                     camera.CameraSubject = ball
-                    local lookVector = camera.CFrame.LookVector
-                    ball.AssemblyLinearVelocity = lookVector * velocidadeBola
+                    ball.AssemblyLinearVelocity = camera.CFrame.LookVector * velocidadeBola
                 end
-            else
-                resetCamera()
-            end
+            else resetCamera() end
         end)
     else
         if toggleButton then
             toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             toggleButton.Text = "Control BALL [OFF]"
         end
-        if controlConnection then
-            controlConnection:Disconnect()
-            controlConnection = nil
-        end
+        if controlConnection then controlConnection:Disconnect() controlConnection = nil end
         resetCamera()
     end
 end
@@ -452,23 +786,15 @@ local function criarBotaoFlutuante()
     btn.Active = true
     btn.Draggable = true
     btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
+    local uc = Instance.new("UICorner") uc.CornerRadius = UDim.new(0, 8) uc.Parent = btn
     btn.MouseButton1Click:Connect(toggleControl)
     toggleButton = btn
     controlScreenGui = screenGui
 end
 
 local function removerBotaoFlutuante()
-    if isControlActive then
-        toggleControl()
-    end
-    if controlScreenGui then
-        controlScreenGui:Destroy()
-        controlScreenGui = nil
-        toggleButton = nil
-    end
+    if isControlActive then toggleControl() end
+    if controlScreenGui then controlScreenGui:Destroy() controlScreenGui = nil toggleButton = nil end
 end
 
 -- =============================================
@@ -511,153 +837,378 @@ local function criarBotaoCameraFlutuante()
     btn.Active = true
     btn.Draggable = true
     btn.Parent = screenGui
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, 8)
-    uiCorner.Parent = btn
+    local uc = Instance.new("UICorner") uc.CornerRadius = UDim.new(0, 8) uc.Parent = btn
     btn.MouseButton1Click:Connect(toggleCameraButton)
     cameraToggleButton = btn
     cameraScreenGui = screenGui
 end
 
 local function removerBotaoCameraFlutuante()
-    if cameraButtonActive then
-        toggleCameraButton()
-    end
-    if cameraScreenGui then
-        cameraScreenGui:Destroy()
-        cameraScreenGui = nil
-        cameraToggleButton = nil
-    end
+    if cameraButtonActive then toggleCameraButton() end
+    if cameraScreenGui then cameraScreenGui:Destroy() cameraScreenGui = nil cameraToggleButton = nil end
 end
 
 -- =============================================
--- HITBOX (REACH)
+-- VISÃO DE JOGO
 -- =============================================
-local function aplicarHitbox()
-    local ball = getBall()
-    if not ball then return end
-
-    if hitboxAtivo and not euTenhoBola() then
-        ball.Size = Vector3.new(hitboxTamanho, hitboxTamanho, hitboxTamanho)
-        ball.Transparency = 1
-    else
-        ball.Size = Vector3.new(1.4, 1.4, 1.4)
-        ball.Transparency = 0
-    end
-end
-
-local function atualizarESP()
-    local ball = getBall()
-    if not ball then
-        if espSphere then
-            espSphere:Destroy()
-            espSphere = nil
+local function getInimigoComBola()
+    local myTeam = getMyTeam()
+    if not myTeam then return nil end
+    for _, outro in ipairs(Players:GetPlayers()) do
+        if outro ~= player then
+            local char = outro.Character
+            if char and char:FindFirstChild("Football") then
+                local values = outro:FindFirstChild("Values")
+                if values then
+                    local tv = values:FindFirstChild("Team")
+                    if tv and tostring(tv.Value) ~= myTeam then return outro end
+                end
+            end
         end
+    end
+    return nil
+end
+
+local function atualizarVisaoBola()
+    if not visaoBolaEnabled then
+        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
         return
     end
 
-    if espHitbox and hitboxAtivo and not euTenhoBola() then
-        if not espSphere then
-            espSphere = Instance.new("SelectionSphere")
-            espSphere.Name = "ReachESP"
-            espSphere.Adornee = ball
-            espSphere.Parent = ball
-            espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-            espSphere.Transparency = 0.6
-        end
-        local scale = hitboxTamanho / 2.5
-        espSphere.Scale = Vector3.new(scale, scale, scale)
+    local inimigo = getInimigoComBola()
+    if not inimigo then
+        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
+        return
+    end
+
+    local char = inimigo.Character
+    if not char then
+        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
+        return
+    end
+
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local origem = head or hrp
+    if not origem then
+        if linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
+        return
+    end
+
+    local posInicio = origem.Position
+    if origem == hrp then posInicio = posInicio + Vector3.new(0, 1.5, 0) end
+
+    local direcao = Vector3.new(1, 0, 0)
+    if head then direcao = head.CFrame.LookVector
+    elseif hrp then direcao = hrp.CFrame.LookVector end
+    direcao = Vector3.new(direcao.X, 0, direcao.Z)
+    if direcao.Magnitude < 0.001 then direcao = Vector3.new(1, 0, 0) else direcao = direcao.Unit end
+
+    local posFim = posInicio + direcao * 100
+
+    if not linhaVisao or not linhaVisao.Parent then
+        if linhaVisao then linhaVisao:Destroy() end
+        linhaVisao = Instance.new("Part")
+        linhaVisao.Name = "LinhaVisao"
+        linhaVisao.Anchored = true
+        linhaVisao.CanCollide = false
+        linhaVisao.Transparency = 0.1
+        linhaVisao.Color = Color3.fromRGB(0, 255, 0)
+        linhaVisao.Material = Enum.Material.Neon
+        linhaVisao.Size = Vector3.new(1.0, 1.0, 100)
+        linhaVisao.Parent = Workspace
+    end
+
+    local meio = (posInicio + posFim) / 2
+    local distancia = (posInicio - posFim).Magnitude
+    if distancia < 0.1 then distancia = 0.1 end
+    linhaVisao.Size = Vector3.new(1.0, 1.0, distancia)
+    linhaVisao.CFrame = CFrame.lookAt(meio, posFim)
+    linhaVisao.Transparency = 0.1
+end
+
+local function atualizarAdvinhaChute()
+    if not advinhaChuteEnabled then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
+    if not bola or not bolaValida then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
+    local vel = bola.AssemblyLinearVelocity
+    if vel.Magnitude < 0.5 then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
+    local gravidade = Vector3.new(0, -50, 0)
+    local pos = bola.Position
+    local v = vel
+    local dt = 0.02
+    local maxPassos = 500
+    local chaoY = 0
+
+    local pontos = {}
+    table.insert(pontos, pos)
+    for i = 1, maxPassos do
+        v = v + gravidade * dt
+        pos = pos + v * dt
+        table.insert(pontos, pos)
+        if pos.Y <= chaoY then break end
+    end
+
+    if #pontos < 2 then
+        if linhaChute then linhaChute:Destroy() linhaChute = nil end
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
+        return
+    end
+
+    local inicio = pontos[1]
+    local fim = pontos[#pontos]
+    local meio = (inicio + fim) / 2
+    local distancia = (inicio - fim).Magnitude
+
+    if not linhaChute or not linhaChute.Parent then
+        if linhaChute then linhaChute:Destroy() end
+        linhaChute = Instance.new("Part")
+        linhaChute.Name = "LinhaChute"
+        linhaChute.Anchored = true
+        linhaChute.CanCollide = false
+        linhaChute.Transparency = 0.2
+        linhaChute.Color = Color3.fromRGB(255, 255, 0)
+        linhaChute.Material = Enum.Material.Neon
+        linhaChute.Size = Vector3.new(0.5, 0.5, 25)
+        linhaChute.Parent = Workspace
+    end
+
+    if distancia > 0.1 then
+        linhaChute.Size = Vector3.new(0.5, 0.5, distancia)
+        linhaChute.CFrame = CFrame.lookAt(meio, fim)
+        linhaChute.Transparency = 0.2
     else
-        if espSphere then
-            espSphere:Destroy()
-            espSphere = nil
+        linhaChute.Transparency = 1
+    end
+
+    if v.Y < -0.5 then
+        local posFinal = Vector3.new(fim.X, chaoY, fim.Z)
+        if not circuloChute or not circuloChute.Parent then
+            if circuloChute then circuloChute:Destroy() end
+            circuloChute = Instance.new("Part")
+            circuloChute.Name = "CirculoChute"
+            circuloChute.Anchored = true
+            circuloChute.CanCollide = false
+            circuloChute.Transparency = 0.2
+            circuloChute.Color = Color3.fromRGB(255, 255, 0)
+            circuloChute.Material = Enum.Material.Neon
+            circuloChute.Shape = Enum.PartType.Cylinder
+            circuloChute.Size = Vector3.new(4, 0.1, 4)
+            circuloChute.Parent = Workspace
         end
+        circuloChute.Position = posFinal
+        local t = math.clamp(vel.Magnitude / 8, 3, 8)
+        circuloChute.Size = Vector3.new(t, 0.1, t)
+        circuloChute.Transparency = 0.2
+    else
+        if circuloChute then circuloChute:Destroy() circuloChute = nil end
     end
 end
 
 -- =============================================
--- INFINITE STAMINA
--- =============================================
-local function infiniteStamina()
-    task.spawn(function()
-        while true do
-            -- PlayerStats
-            local stats = player:FindFirstChild("PlayerStats")
-            if stats then
-                local stamina = stats:FindFirstChild("Stamina")
-                if stamina and stamina:IsA("NumberValue") then
-                    stamina.Value = 100
-                end
-            end
-            -- UI
-            local gui = player.PlayerGui:FindFirstChild("Stamina")
-            if gui then
-                local frame = gui:FindFirstChild("Frame")
-                if frame then
-                    local label = frame:FindFirstChild("Stamina")
-                    if label and label:IsA("TextLabel") then
-                        label.Text = "100"
-                    end
-                end
-            end
-            task.wait(0.5)
-        end
-    end)
-end
-
--- =============================================
--- CHAT INPUT
+-- CHAT
 -- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
-    if lower:match("^velocidade da bola") then
-        local num = msg:match("^velocidade da bola (%d+)")
+    if lower:match("^força da bola") then
+        local num = msg:match("^força da bola (%d+)")
         if num then
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
-                velocidadeBola = val
-                Config.velocidadeBola = val
+                forcaBolaVelocidade = val
+                Config.forcaBolaVelocidade = val
                 pcall(SaveConfig)
-                player:Chat("Velocidade da bola ajustada para " .. val)
-            else
-                player:Chat("Use um número entre 1 e 200.")
-            end
-        else
-            player:Chat("Use: Velocidade da bola [número]")
-        end
+                player:Chat("Força da bola: " .. val)
+            else player:Chat("Use 1-200.") end
+        else player:Chat("Use: Força da bola [número]") end
     end
 end
 
-local function setupChatCommand()
+pcall(function()
     local chatService = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
     if chatService then
         local onMessage = chatService:FindFirstChild("OnMessage")
-        if onMessage then
-            onMessage.OnClientEvent:Connect(onChatMessage)
-        end
+        if onMessage then onMessage.OnClientEvent:Connect(onChatMessage) end
+    end
+end)
+
+-- =============================================
+-- AIMBOT UPDATES
+-- =============================================
+local function ativarAimbotPersonagem(estado)
+    aimbotPersonagem = estado
+    Config.aimbotPersonagem = estado
+    pcall(SaveConfig)
+    if not estado and gyro then gyro:Destroy() gyro = nil end
+end
+
+local function atualizarAimbotPersonagem()
+    if not aimbotPersonagem then
+        if gyro then gyro:Destroy() gyro = nil end
+        return
+    end
+    if not shouldAimbotWork() then
+        if gyro then gyro:Destroy() gyro = nil end
+        return
+    end
+    if not hitbox or not bolaValida then
+        if gyro then gyro:Destroy() gyro = nil end
+        return
+    end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    if not gyro then
+        gyro = Instance.new("BodyGyro")
+        gyro.Parent = hrp
+        gyro.D = 1000
+        gyro.P = 10000
+        gyro.MaxTorque = Vector3.new(8000, 8000, 8000)
+    end
+    local posBola = hitbox.Position
+    local posJogador = hrp.Position
+    local direcao = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    gyro.CFrame = CFrame.lookAt(posJogador, posJogador + direcao)
+end
+
+local function atualizarAimbotCamera()
+    if isControlActive then return end
+    if not aimbotCamera then return end
+    if not shouldAimbotWork() then return end
+    if not hitbox or not bolaValida then return end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local posBola = hitbox.Position
+    local posJogador = hrp.Position
+    local direction = (Vector3.new(posBola.X, posJogador.Y, posBola.Z) - posJogador).Unit
+    local camPos = hrp.Position - direction * 10 + Vector3.new(0, 5, 0)
+    camera.CFrame = CFrame.new(camPos, hrp.Position)
+end
+
+-- =============================================
+-- BOTÃO CURVAS
+-- =============================================
+local function atualizarBotaoCurvas()
+    if not curvasBotao then return end
+    if curvasModo == 1 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        curvasBotao.Text = "Curva: Direita ☛"
+    elseif curvasModo == 2 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        curvasBotao.Text = "Curva: Esquerda ☚"
+    else
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        curvasBotao.Text = "Curva: Aleatório 🥴"
     end
 end
-pcall(setupChatCommand)
+
+local function toggleCurvasModo()
+    curvasModo = curvasModo + 1
+    if curvasModo > 3 then curvasModo = 1 end
+    atualizarBotaoCurvas()
+end
+
+local function criarBotaoCurvas()
+    if curvasBotaoGUI then return end
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CurvasGui"
+    screenGui.ResetOnSpawn = false
+    safeParent(screenGui)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 200, 0, 45)
+    btn.Position = UDim2.new(0.5, -100, 0.3, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    btn.Text = "Curva: Direita ☛"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = screenGui
+    local uc = Instance.new("UICorner") uc.CornerRadius = UDim.new(0, 8) uc.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCurvasModo)
+    curvasBotao = btn
+    curvasBotaoGUI = screenGui
+    atualizarBotaoCurvas()
+end
+
+local function removerBotaoCurvas()
+    if curvasBotaoGUI then curvasBotaoGUI:Destroy() curvasBotaoGUI = nil curvasBotao = nil end
+end
 
 -- =============================================
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
-    pcall(atualizarAimbotCamera)
-    pcall(atualizarAdvinhaBola)
-    pcall(atualizarAdvinheChute)
-    pcall(aplicarHitbox)
+    pcall(aplicarHitboxNormal)
+    pcall(aplicarPlayerMagnet)
+    pcall(atualizarReach)
     pcall(atualizarESP)
+    pcall(atualizarAimbotPersonagem)
+    pcall(atualizarAimbotCamera)
+    pcall(atualizarVisaoBola)
+    pcall(atualizarAdvinhaChute)
+    pcall(aplicarForcaBola)
+    pcall(aplicarCurvas)
+    pcall(aplicarDrible)
 end)
 
 -- =============================================
--- UI STREET SOCCER
+-- UI
 -- =============================================
-local MainTab = Window:Tab({ Title = "Street Soccer", Icon = "home" })
+local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
+
+-- Controle de Bola
+local CtrlSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+CtrlSec:Input({
+    Title = "Velocidade da Bola",
+    Desc = "Força com que a bola é empurrada",
+    Value = tostring(Config.velocidadeBola),
+    Placeholder = "Digite a velocidade...",
+    Callback = function(txt)
+        local val = tonumber(txt)
+        if val then velocidadeBola = val Config.velocidadeBola = val pcall(SaveConfig) end
+    end
+})
+CtrlSec:Toggle({
+    Title = "Botão Flutuante",
+    Desc = "Cria um botão para controlar a bola",
+    Value = Config.botaoFlutuante,
+    Callback = function(v)
+        Config.botaoFlutuante = v
+        pcall(SaveConfig)
+        if v then criarBotaoFlutuante() else removerBotaoFlutuante() end
+    end
+})
 
 -- Aimbot
-local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-AimbotSec:Toggle({
+local AimSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
+AimSec:Toggle({
+    Title = "Aimbot Personagem",
+    Desc = "Corpo vira para a bola",
+    Value = Config.aimbotPersonagem,
+    Callback = function(v) ativarAimbotPersonagem(v) end
+})
+AimSec:Toggle({
     Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
     Value = Config.aimbotCamera,
@@ -678,181 +1229,309 @@ AimbotSec:Toggle({
         end
     end
 })
-AimbotSec:Toggle({
+AimSec:Toggle({
     Title = "Botão Voador (Câmera)",
     Desc = "Botão flutuante para ligar/desligar a câmera",
     Value = Config.botaoCamera,
     Callback = function(v)
         Config.botaoCamera = v
         pcall(SaveConfig)
-        if v then
-            criarBotaoCameraFlutuante()
-        else
-            removerBotaoCameraFlutuante()
-        end
+        if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
     end
 })
-AimbotSec:Slider({
-    Title = "Delay",
-    Desc = "Atraso após perder a bola (0-5s)",
+AimSec:Slider({
+    Title = "Tempo do Aimbot",
+    Desc = "Atraso após perder a bola",
     Step = 1,
-    Value = { Min = 0, Max = 10, Default = Config.aimbotDelay },
+    Value = { Min = 0, Max = 10, Default = Config.aimbotDelayValue },
     Callback = function(v)
-        aimbotDelay = aimbotDelayValues[v] or 0
-        Config.aimbotDelay = v
+        aimbotDelayValue = aimbotDelayValues[v] or 0
+        Config.aimbotDelayValue = v
         pcall(SaveConfig)
     end
 })
 
 -- Visão de Jogo
-local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
-VisaoSec:Toggle({
-    Title = "Advinha a bola",
-    Desc = "Linha amarela mostrando a trajetória da bola",
-    Value = Config.advinhaBola,
+local VisSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
+VisSec:Toggle({
+    Title = "Visão da bola",
+    Desc = "Linha verde saindo da cabeça do inimigo com a bola",
+    Value = Config.visaoBola,
     Callback = function(v)
         visaoBolaEnabled = v
-        Config.advinhaBola = v
+        Config.visaoBola = v
         pcall(SaveConfig)
-        if not v then
-            if linhaTrajetoria then linhaTrajetoria:Destroy() linhaTrajetoria = nil end
-            if circuloImpacto then circuloImpacto:Destroy() circuloImpacto = nil end
-        end
+        if not v and linhaVisao then linhaVisao:Destroy() linhaVisao = nil end
     end
 })
-VisaoSec:Toggle({
-    Title = "Advinhe Chute",
-    Desc = "Linha verde mostrando para onde o jogador com a bola está olhando",
+VisSec:Toggle({
+    Title = "Advinha Chute",
+    Desc = "Mostra a trajetória da bola e o ponto de queda",
     Value = Config.advinhaChute,
     Callback = function(v)
-        visaoChuteEnabled = v
+        advinhaChuteEnabled = v
         Config.advinhaChute = v
         pcall(SaveConfig)
-        if not v and linhaOlhar then
-            linhaOlhar:Destroy()
-            linhaOlhar = nil
+        if not v then
+            if linhaChute then linhaChute:Destroy() linhaChute = nil end
+            if circuloChute then circuloChute:Destroy() circuloChute = nil end
         end
     end
 })
 
--- Controle de Bola
-local ControleSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
-ControleSec:Toggle({
-    Title = "Controle de Bola",
-    Desc = "Botão flutuante para controlar a bola",
-    Value = Config.controleBola,
+-- Hitbox (3 tipos)
+local HitSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
+HitSec:Toggle({
+    Title = "Hitbox Normal",
+    Desc = "Aumenta a hitbox da bola (simples)",
+    Value = Config.hitboxNormal,
     Callback = function(v)
-        controleBola = v
-        Config.controleBola = v
-        pcall(SaveConfig)
-        if v then
-            criarBotaoFlutuante()
-        else
-            removerBotaoFlutuante()
-        end
-    end
-})
-ControleSec:Input({
-    Title = "Velocidade da Bola",
-    Desc = "Força com que a bola é empurrada no controle",
-    Value = tostring(Config.velocidadeBola),
-    Placeholder = "Digite a velocidade...",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val then
-            velocidadeBola = val
-            Config.velocidadeBola = val
-            pcall(SaveConfig)
-        end
-    end
-})
-
--- Hitbox
-local HitboxSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
-HitboxSec:Toggle({
-    Title = "Hitbox",
-    Desc = "Aumenta a hitbox da bola (Reach)",
-    Value = Config.hitboxAtivo,
-    Callback = function(v)
-        hitboxAtivo = v
-        Config.hitboxAtivo = v
+        hitboxNormal = v
+        Config.hitboxNormal = v
         pcall(SaveConfig)
         if not v then
-            local ball = getBall()
-            if ball then
-                ball.Size = Vector3.new(1.4, 1.4, 1.4)
-                ball.Transparency = 0
-            end
-            if espSphere then
-                espSphere:Destroy()
-                espSphere = nil
-            end
+            local hb = hitbox
+            if hb then hb.Size = hitboxOriginalSize hb.Transparency = hitboxOriginalTransparency end
         end
     end
 })
-HitboxSec:Slider({
-    Title = "Tamanho da Hitbox",
-    Desc = "Tamanho da hitbox (0-50)",
+HitSec:Slider({
+    Title = "Tamanho Normal",
+    Desc = "Tamanho da hitbox normal (1-30)",
     Step = 1,
-    Value = { Min = 0, Max = 50, Default = Config.hitboxTamanho },
+    Value = { Min = 1, Max = 30, Default = Config.hitboxPlayerMagnetSize },
     Callback = function(v)
-        hitboxTamanho = v
-        Config.hitboxTamanho = v
+        hitboxPlayerMagnetSize = v
+        Config.hitboxPlayerMagnetSize = v
         pcall(SaveConfig)
     end
 })
-HitboxSec:Toggle({
+HitSec:Toggle({
+    Title = "Hitbox Player + Magnet",
+    Desc = "Aumenta a hitbox do player e puxa a bola",
+    Value = Config.hitboxPlayerMagnet,
+    Callback = function(v)
+        hitboxPlayerMagnet = v
+        Config.hitboxPlayerMagnet = v
+        pcall(SaveConfig)
+    end
+})
+HitSec:Slider({
+    Title = "Alcance do Magnet",
+    Desc = "Distância para puxar a bola (5-50)",
+    Step = 1,
+    Value = { Min = 5, Max = 50, Default = Config.magnetRange },
+    Callback = function(v)
+        magnetRange = v
+        Config.magnetRange = v
+        pcall(SaveConfig)
+    end
+})
+HitSec:Toggle({
+    Title = "Hitbox Reach",
+    Desc = "Cria uma hitbox extra ao redor do personagem",
+    Value = Config.hitboxReach,
+    Callback = function(v)
+        hitboxReach = v
+        Config.hitboxReach = v
+        pcall(SaveConfig)
+        if not v and reachPart then reachPart:Destroy() reachPart = nil end
+    end
+})
+HitSec:Slider({
+    Title = "Tamanho Reach",
+    Desc = "Tamanho da hitbox Reach (1-50)",
+    Step = 1,
+    Value = { Min = 1, Max = 50, Default = Config.hitboxReachSize },
+    Callback = function(v)
+        hitboxReachSize = v
+        Config.hitboxReachSize = v
+        pcall(SaveConfig)
+    end
+})
+HitSec:Toggle({
     Title = "ESP Hitbox",
-    Desc = "Círculo verde ao redor da hitbox",
+    Desc = "Mostra o círculo verde (Player+Magnet e Reach)",
     Value = Config.espHitbox,
     Callback = function(v)
-        espHitbox = v
+        mostrarESP = v
         Config.espHitbox = v
         pcall(SaveConfig)
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
+        if not v then
+            if espSphere then espSphere:Destroy() espSphere = nil end
+            if espReach then espReach:Destroy() espReach = nil end
         end
+    end
+})
+
+-- Extras
+local ExtSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
+ExtSec:Toggle({
+    Title = "Força da Bola",
+    Desc = "Chute sempre com potência máxima",
+    Value = Config.forcaBola,
+    Callback = function(v)
+        forcaBolaEnabled = v
+        Config.forcaBola = v
+        pcall(SaveConfig)
+    end
+})
+ExtSec:Slider({
+    Title = "Força Máxima",
+    Desc = "Velocidade do chute (10-200)",
+    Step = 1,
+    Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
+    Callback = function(v)
+        forcaBolaVelocidade = v
+        Config.forcaBolaVelocidade = v
+        pcall(SaveConfig)
+    end
+})
+ExtSec:Button({
+    Title = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
+    Callback = function()
+        task.spawn(function()
+            while true do
+                if player:FindFirstChild("PlayerStats") and player.PlayerStats:FindFirstChild("Stamina") then
+                    player.PlayerStats.Stamina.Value = 100
+                end
+                task.wait()
+            end
+        end)
+    end
+})
+ExtSec:Dropdown({
+    Title = "Time",
+    Desc = "Selecione para fazer gol",
+    Options = {"Home", "Away"},
+    Callback = function(opt) selectedTeam = opt end
+})
+ExtSec:Button({
+    Title = "Fazer Gol",
+    Desc = "Marca um gol automaticamente",
+    Callback = function()
+        if not selectedTeam then return end
+        local char = player.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        local posOriginal = hrp.Position
+        local posGol = selectedTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
+        hrp.CFrame = CFrame.new(posGol)
+        task.wait(0.2)
+        local args = { [1] = 110, [4] = posGol }
+        local bs = ReplicatedStorage:FindFirstChild("Packages")
+        if bs then bs = bs:FindFirstChild("Knit") end
+        if bs then bs = bs:FindFirstChild("Services") end
+        if bs then bs = bs:FindFirstChild("BallService") end
+        if bs then
+            local re = bs:FindFirstChild("RE")
+            if re then
+                local shoot = re:FindFirstChild("Shoot")
+                if shoot then shoot:FireServer(unpack(args)) end
+            end
+        end
+        task.wait(0.2)
+        hrp.CFrame = CFrame.new(posOriginal)
+    end
+})
+
+-- Curvas
+local CurSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
+CurSec:Toggle({
+    Title = "Bola com curvas",
+    Desc = "Ativa curvas na bola",
+    Value = Config.curvasAtivo,
+    Callback = function(v)
+        curvasEnabled = v
+        Config.curvasAtivo = v
+        pcall(SaveConfig)
+        if v then criarBotaoCurvas() else removerBotaoCurvas() end
+    end
+})
+CurSec:Slider({
+    Title = "Intensidade da Curva",
+    Desc = "1-5 fraco | 6-8 médio | 9-10 forte",
+    Step = 1,
+    Value = { Min = 1, Max = 10, Default = Config.curvasIntensidade },
+    Callback = function(v)
+        curvasIntensidade = v
+        Config.curvasIntensidade = v
+        pcall(SaveConfig)
+    end
+})
+
+-- Drible
+local DrbSec = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
+DrbSec:Toggle({
+    Title = "Drible",
+    Desc = "Círculo rosa de detecção (raio 70)",
+    Value = Config.dribleAtivo,
+    Callback = function(v)
+        dribleEnabled = v
+        Config.dribleAtivo = v
+        pcall(SaveConfig)
+        if v then setupDrible()
+        else if dribleSphere then dribleSphere.Transparency = 1 end end
     end
 })
 
 -- Config
-local ConfigSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
-ConfigSec:Button({
-    Title = "Infinite Stamina",
-    Desc = "Stamina sempre no máximo",
-    Callback = function()
-        infiniteStamina()
-        StarterGui:SetCore("SendNotification", {
-            Title = "Stamina",
-            Text = "Stamina infinita ativada!",
-            Duration = 2
-        })
+local CfgSec = MainTab:Section({ Title = "Config", TextXAlignment = "Left" })
+CfgSec:Toggle({
+    Title = "FPS++",
+    Desc = "Remove efeitos, sombras e partículas",
+    Value = Config.fpsPlus,
+    Callback = function(v)
+        Config.fpsPlus = v
+        pcall(SaveConfig)
+        if v then pcall(aplicarFPSPlus) else pcall(restaurarFPSPlus) end
+    end
+})
+CfgSec:Slider({
+    Title = "Gráfico",
+    Desc = "0 = leve/feio | 3 = bonito/pesado",
+    Step = 1,
+    Value = { Min = 0, Max = 3, Default = Config.graficoLevel },
+    Callback = function(v)
+        Config.graficoLevel = v
+        pcall(SaveConfig)
+        pcall(aplicarGrafico, v)
+    end
+})
+CfgSec:Toggle({
+    Title = "Remover Lag Ping 10-",
+    Desc = "Otimizações para reduzir lag",
+    Value = Config.removerLag,
+    Callback = function(v)
+        Config.removerLag = v
+        pcall(SaveConfig)
+        if v then pcall(aplicarRemoverLag) end
     end
 })
 
 -- Salvar
-local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
+local SaveSec = MainTab:Section({ Title = "Salvar", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
-    Desc = "Salva todas as configurações manualmente",
+    Desc = "Salva todas as configurações",
     Callback = function()
         pcall(SaveConfig)
         StarterGui:SetCore("SendNotification", {
-            Title = "Street Soccer",
+            Title = "Blue Lock",
             Text = "Configurações salvas!",
             Duration = 2
         })
     end
 })
 
--- Notificação de início
 pcall(function()
     StarterGui:SetCore("SendNotification",{
-        Title = "Street Soccer",
-        Text = "Carregado com sucesso!",
+        Title = "Blue Lock Rivals",
+        Text = "Atualizado com sucesso!",
         Duration = 3
     })
 end)
 
-print("[Street Soccer] Script carregado com sucesso!")
+print("[Blue Lock Rivals] Script atualizado carregado!")
