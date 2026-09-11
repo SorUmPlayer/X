@@ -22,9 +22,9 @@ local Config = {
     advinhaBola = false,
     advinhaChute = false,
     controleBola = false,
-    velocidadeBola = 65,
+    velocidadeBola = 80,
     hitboxAtivo = false,
-    hitboxTamanho = 15,
+    hitboxTamanho = 20,
     espHitbox = false,
 }
 
@@ -103,12 +103,19 @@ local Window = WindUI:CreateWindow({
 })
 
 -- =============================================
--- BOLA
+-- DETECÇÃO DE BOLA (melhorada)
 -- =============================================
 local function getBall()
-    local b = Workspace:FindFirstChild("ball")
-    if b then return b end
-    return Workspace:FindFirstChild("Ball")
+    -- Tenta nome exato
+    local b = Workspace:FindFirstChild("ball") or Workspace:FindFirstChild("Ball")
+    if b and b:IsA("BasePart") then return b end
+    -- Fallback: procura qualquer parte com nome "ball" ou "Ball"
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and string.lower(obj.Name) == "ball" then
+            return obj
+        end
+    end
+    return nil
 end
 
 local function euTenhoBola()
@@ -162,20 +169,20 @@ local circuloImpacto = nil
 local linhaOlhar = nil
 
 local velocidadeBola = Config.velocidadeBola
-local controlConnection = nil
-local controlScreenGui = nil
-local toggleButton = nil
 local isControlActive = false
+local controlConnection = nil
 
 local hitboxAtivo = Config.hitboxAtivo
 local hitboxTamanho = Config.hitboxTamanho
 local espHitbox = Config.espHitbox
+local reachPart = nil
 local espSphere = nil
-local hitboxCooldown = 0
 
 local cameraButtonActive = false
 local cameraScreenGui = nil
 local cameraToggleButton = nil
+local controlScreenGui = nil
+local toggleButton = nil
 
 -- =============================================
 -- AIMBOT CÂMERA
@@ -217,11 +224,9 @@ local function atualizarAimbotCamera()
 end
 
 -- =============================================
--- VISÃO DE JOGO – ADVINHA A BOLA
+-- ADVINHA A BOLA
 -- =============================================
-local function criarOuReutilizar(parteAtual, cor, nome)
-    if parteAtual and parteAtual.Parent then return parteAtual end
-    if parteAtual then parteAtual:Destroy() end
+local function criarLinha(nome, cor)
     local p = Instance.new("Part")
     p.Name = nome
     p.Anchored = true
@@ -232,7 +237,7 @@ local function criarOuReutilizar(parteAtual, cor, nome)
     p.Transparency = 0.3
     p.Color = cor
     p.Material = Enum.Material.Neon
-    p.Parent = Workspace
+    p.Parent = Camera -- client-only, não replica
     return p
 end
 
@@ -261,27 +266,26 @@ local function atualizarAdvinhaBola()
     local pos = ball.Position
     local v = vel
     local dt = 0.05
-    local chaoY = 0
 
     local pontos = {pos}
     for _ = 1, 80 do
         v = v + gravidade * dt
         pos = pos + v * dt
         pontos[#pontos + 1] = pos
-        if pos.Y <= chaoY then break end
+        if pos.Y <= 0 then break end
     end
 
-    if #pontos < 2 then
-        if linhaTrajetoria then linhaTrajetoria.Transparency = 1 end
-        if circuloImpacto then circuloImpacto.Transparency = 1 end
-        return
-    end
+    if #pontos < 2 then return end
 
     local inicio = pontos[1]
     local fim = pontos[#pontos]
-    fim = Vector3.new(fim.X, chaoY, fim.Z)
+    fim = Vector3.new(fim.X, 0, fim.Z)
 
-    linhaTrajetoria = criarOuReutilizar(linhaTrajetoria, Color3.fromRGB(255, 255, 0), "TrajectoryLine")
+    if not linhaTrajetoria or not linhaTrajetoria.Parent then
+        if linhaTrajetoria then linhaTrajetoria:Destroy() end
+        linhaTrajetoria = criarLinha("Traj", Color3.fromRGB(255, 255, 0))
+    end
+
     local meio = (inicio + fim) / 2
     local dist = (inicio - fim).Magnitude
     if dist > 0.5 then
@@ -293,8 +297,11 @@ local function atualizarAdvinhaBola()
     end
 
     if v.Y < -0.5 then
-        circuloImpacto = criarOuReutilizar(circuloImpacto, Color3.fromRGB(255, 255, 0), "ImpactCircle")
-        circuloImpacto.Shape = Enum.PartType.Cylinder
+        if not circuloImpacto or not circuloImpacto.Parent then
+            if circuloImpacto then circuloImpacto:Destroy() end
+            circuloImpacto = criarLinha("Impact", Color3.fromRGB(255, 255, 0))
+            circuloImpacto.Shape = Enum.PartType.Cylinder
+        end
         circuloImpacto.Position = fim
         local tam = math.clamp(vel.Magnitude / 10, 3, 6)
         circuloImpacto.Size = Vector3.new(tam, 0.1, tam)
@@ -305,7 +312,7 @@ local function atualizarAdvinhaBola()
 end
 
 -- =============================================
--- VISÃO DE JOGO – ADVINHE CHUTE
+-- ADVINHE CHUTE
 -- =============================================
 local function atualizarAdvinheChute()
     if not visaoChuteEnabled then
@@ -322,10 +329,7 @@ local function atualizarAdvinheChute()
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local origem = head or hrp
-    if not origem then
-        if linhaOlhar then linhaOlhar:Destroy() linhaOlhar = nil end
-        return
-    end
+    if not origem then return end
 
     local posInicio = origem.Position
     if origem == hrp then
@@ -347,7 +351,11 @@ local function atualizarAdvinheChute()
 
     local posFim = posInicio + dir * 80
 
-    linhaOlhar = criarOuReutilizar(linhaOlhar, Color3.fromRGB(0, 255, 0), "LookLine")
+    if not linhaOlhar or not linhaOlhar.Parent then
+        if linhaOlhar then linhaOlhar:Destroy() end
+        linhaOlhar = criarLinha("Look", Color3.fromRGB(0, 255, 0))
+    end
+
     local meio = (posInicio + posFim) / 2
     local dist = (posInicio - posFim).Magnitude
     if dist < 0.5 then dist = 0.5 end
@@ -357,13 +365,15 @@ local function atualizarAdvinheChute()
 end
 
 -- =============================================
--- CONTROLE DE BOLA (VERSÃO MELHORADA)
+-- CONTROLE DE BOLA (usando Stepped + velocidade direta)
 -- =============================================
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
     end
 end
+
+local steppedConn = nil
 
 local function toggleControl()
     isControlActive = not isControlActive
@@ -372,42 +382,32 @@ local function toggleControl()
             toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
             toggleButton.Text = "Control BALL [ON]"
         end
+
         if controlConnection then controlConnection:Disconnect() end
 
-        controlConnection = RunService.Heartbeat:Connect(function()
+        -- Usa Stepped (antes da física) para aplicar velocidade
+        controlConnection = RunService.Stepped:Connect(function()
+            if not isControlActive then return end
+
             local ball = getBall()
             if not ball then
                 resetCamera()
                 return
             end
 
-            if euTenhoBola() then
-                resetCamera()
-                return
-            end
-
-            -- 1) Toma posse da bola (permite controle local)
+            -- Tenta tomar posse da física
             pcall(function()
-                ball:SetNetworkOwner(player)
+                if ball:CanSetNetworkOwnership() then
+                    ball:SetNetworkOwner(player)
+                end
             end)
 
-            -- 2) Câmera segue a bola
+            -- Câmera segue a bola
             camera.CameraSubject = ball
 
-            -- 3) Aplica velocidade na direção da câmera
-            --    (aplica direto, sem lerp, para funcionar de verdade)
+            -- Aplica velocidade na direção do olhar (inclui Y)
             local look = camera.CFrame.LookVector
-            local targetVel = look * velocidadeBola
-            pcall(function()
-                ball.AssemblyLinearVelocity = targetVel
-            end)
-
-            -- 4) Empurrão extra caso a bola esteja no chão parada
-            if ball.AssemblyLinearVelocity.Magnitude < 5 then
-                pcall(function()
-                    ball.AssemblyLinearVelocity = targetVel + Vector3.new(0, 15, 0)
-                end)
-            end
+            ball.AssemblyLinearVelocity = look * velocidadeBola
         end)
     else
         if toggleButton then
@@ -519,17 +519,40 @@ local function removerBotaoCameraFlutuante()
 end
 
 -- =============================================
--- HITBOX REACH (USANDO SETNETWORKOWNER + TELEPORTE)
+-- HITBOX REACH (parte invisível ao redor do player)
 -- =============================================
+local touchConn = nil
+
+local function garantirReachPart()
+    if reachPart and reachPart.Parent then return reachPart end
+    if reachPart then reachPart:Destroy() end
+    reachPart = Instance.new("Part")
+    reachPart.Name = "ReachHitbox"
+    reachPart.Size = Vector3.new(2, 2, 2)
+    reachPart.Anchored = false
+    reachPart.CanCollide = false
+    reachPart.CanTouch = true
+    reachPart.CanQuery = false
+    reachPart.CastShadow = false
+    reachPart.Transparency = 1
+    reachPart.Massless = true
+    reachPart.Parent = player.Character
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        reachPart.CFrame = player.Character.HumanoidRootPart.CFrame
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = reachPart
+        weld.Part1 = player.Character.HumanoidRootPart
+        weld.Parent = reachPart
+    end
+    return reachPart
+end
+
 local function aplicarHitboxReach()
     if not hitboxAtivo then
-        if espSphere then espSphere:Destroy() espSphere = nil end
-        return
-    end
-
-    local ball = getBall()
-    if not ball or euTenhoBola() then
-        if espSphere then espSphere:Destroy() espSphere = nil end
+        if reachPart then
+            reachPart:Destroy()
+            reachPart = nil
+        end
         return
     end
 
@@ -538,54 +561,62 @@ local function aplicarHitboxReach()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    local rp = garantirReachPart()
+    if not rp then return end
+
+    -- Ajusta o tamanho da parte ao tamanho do alcance
+    rp.Size = Vector3.new(hitboxTamanho * 2, hitboxTamanho * 2, hitboxTamanho * 2)
+
+    -- Verifica se a bola está dentro do alcance
+    local ball = getBall()
+    if not ball then return end
+
     local dist = (hrp.Position - ball.Position).Magnitude
-
-    -- Coleta à distância (usa SetNetworkOwner + firetouchinterest combinados)
     if dist <= hitboxTamanho then
-        -- 1) Toma posse da bola
-        pcall(function()
-            ball:SetNetworkOwner(player)
-        end)
-
-        -- 2) firetouchinterest (para distâncias curtas)
-        if firetouchinterest and (tick() - hitboxCooldown > 0.05) then
-            hitboxCooldown = tick()
+        if firetouchinterest then
             pcall(function()
-                firetouchinterest(hrp, ball, 0)
+                firetouchinterest(rp, ball, 0)
                 task.wait()
-                firetouchinterest(hrp, ball, 1)
-            end)
-        end
-
-        -- 3) Se a bola estiver longe (>10 studs), teleporta pra frente do jogador
-        if dist > 10 then
-            pcall(function()
-                local dir = (hrp.Position - ball.Position).Unit
-                local novaPos = hrp.Position - dir * 2 -- posiciona à frente
-                ball.CFrame = CFrame.new(novaPos)
-                ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                firetouchinterest(rp, ball, 1)
             end)
         end
     end
+end
 
-    -- ESP visual
-    if espHitbox then
-        if not espSphere or not espSphere.Parent then
-            if espSphere then espSphere:Destroy() end
-            espSphere = Instance.new("SelectionSphere")
-            espSphere.Name = "ReachESP"
-            espSphere.Adornee = ball
-            espSphere.Parent = ball
-            espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-            espSphere.Transparency = 0.6
+-- =============================================
+-- ESP HITBOX (esfera real visível)
+-- =============================================
+local function atualizarESPVisual()
+    if not espHitbox or not hitboxAtivo then
+        if espSphere then
+            espSphere:Destroy()
+            espSphere = nil
         end
-        -- SelectionSphere: Scale = raio desejado
-        -- Se hitboxTamanho é diâmetro, escala = tamanho/2
-        local scale = hitboxTamanho / 2
-        espSphere.Scale = Vector3.new(scale, scale, scale)
-    else
-        if espSphere then espSphere:Destroy() espSphere = nil end
+        return
     end
+
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if not espSphere or not espSphere.Parent then
+        if espSphere then espSphere:Destroy() end
+        espSphere = Instance.new("Part")
+        espSphere.Name = "HitboxESP"
+        espSphere.Shape = Enum.PartType.Ball
+        espSphere.Anchored = true
+        espSphere.CanCollide = false
+        espSphere.CanTouch = false
+        espSphere.CanQuery = false
+        espSphere.CastShadow = false
+        espSphere.Material = Enum.Material.ForceField
+        espSphere.Color = Color3.fromRGB(0, 255, 0)
+        espSphere.Transparency = 0.7
+        espSphere.Parent = Camera
+    end
+
+    -- Diâmetro = hitboxTamanho * 2
+    espSphere.Size = Vector3.new(hitboxTamanho * 2, hitboxTamanho * 2, hitboxTamanho * 2)
+    espSphere.Position = hrp.Position
 end
 
 -- =============================================
@@ -623,10 +654,22 @@ RunService.Heartbeat:Connect(function()
     atualizarAimbotCamera()
 
     frame = frame + 1
+    if frame % 2 == 0 then
+        aplicarHitboxReach()
+    end
     if frame % 5 == 0 then
         atualizarAdvinhaBola()
         atualizarAdvinheChute()
-        aplicarHitboxReach()
+        atualizarESPVisual()
+    end
+end)
+
+-- Reaplica o reach part quando o character muda
+player.CharacterAdded:Connect(function()
+    task.wait(1)
+    if hitboxAtivo then
+        reachPart = nil
+        garantirReachPart()
     end
 end)
 
@@ -682,7 +725,7 @@ AimbotSec:Slider({
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Advinha a bola",
-    Desc = "Linha amarela mostrando a trajetória da bola até o chão",
+    Desc = "Linha amarela mostrando a trajetória da bola",
     Value = Config.advinhaBola,
     Callback = function(v)
         visaoBolaEnabled = v
@@ -696,7 +739,7 @@ VisaoSec:Toggle({
 })
 VisaoSec:Toggle({
     Title = "Advinhe Chute",
-    Desc = "Linha verde mostrando para onde o adversário com a bola está olhando",
+    Desc = "Linha verde mostrando para onde o adversário está olhando",
     Value = Config.advinhaChute,
     Callback = function(v)
         visaoChuteEnabled = v
@@ -712,7 +755,7 @@ VisaoSec:Toggle({
 local ControleSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 ControleSec:Toggle({
     Title = "Controle de Bola",
-    Desc = "Botão flutuante para controlar a bola",
+    Desc = "Bola voa na direção que você olha",
     Value = Config.controleBola,
     Callback = function(v)
         Config.controleBola = v
@@ -722,7 +765,7 @@ ControleSec:Toggle({
 })
 ControleSec:Input({
     Title = "Velocidade da Bola",
-    Desc = "Força com que a bola é empurrada no controle",
+    Desc = "Força com que a bola é empurrada",
     Value = tostring(Config.velocidadeBola),
     Placeholder = "Digite a velocidade...",
     Callback = function(txt)
@@ -744,17 +787,17 @@ HitboxSec:Toggle({
         hitboxAtivo = v
         Config.hitboxAtivo = v
         saveConfig()
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
+        if not v then
+            if reachPart then reachPart:Destroy() reachPart = nil end
+            if espSphere then espSphere:Destroy() espSphere = nil end
         end
     end
 })
 HitboxSec:Slider({
     Title = "Tamanho da Hitbox",
-    Desc = "Alcance da coleta em studs (0-200)",
+    Desc = "Alcance da coleta (0-150)",
     Step = 1,
-    Value = { Min = 0, Max = 200, Default = Config.hitboxTamanho },
+    Value = { Min = 0, Max = 150, Default = Config.hitboxTamanho },
     Callback = function(v)
         hitboxTamanho = v
         Config.hitboxTamanho = v
@@ -763,7 +806,7 @@ HitboxSec:Slider({
 })
 HitboxSec:Toggle({
     Title = "ESP Hitbox",
-    Desc = "Círculo verde mostrando o alcance real",
+    Desc = "Esfera verde mostrando o alcance real",
     Value = Config.espHitbox,
     Callback = function(v)
         espHitbox = v
