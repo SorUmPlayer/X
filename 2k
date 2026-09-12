@@ -1,5 +1,6 @@
 --[[
     ⚽ Blue Lock Rivals – REACH + Desempenho + Correções
+    WindUI: ukinabr (mesma do Project Sor / OminiX)
 ]]
 
 local Players = game:GetService("Players")
@@ -14,6 +15,8 @@ local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+
+print("[Blue Lock] Script iniciado")
 
 -- =============================================
 -- AUTO SAVE
@@ -81,42 +84,65 @@ local function safeParent(gui)
         elseif syn and syn.protect_gui then syn.protect_gui(gui); gui.Parent = CoreGui
         else gui.Parent = CoreGui end
     end)
-    if not ok then gui.Parent = player:WaitForChild("PlayerGui") end
+    if not ok then
+        pcall(function() gui.Parent = player:WaitForChild("PlayerGui") end)
+    end
 end
 
 -- =============================================
--- WINDUI (ukinabr)
+-- WINDUI (ukinabr – mesma do OminiX)
 -- =============================================
-local WindUI
-local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
-local success, result = pcall(function()
-    return loadstring(game:HttpGet(url))()
-end)
-if success and result then
-    WindUI = result
-else
-    local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-    success, result = pcall(function()
-        return loadstring(game:HttpGet(fallbackUrl))()
+local WindUI = nil
+
+print("[Blue Lock] Carregando WindUI...")
+
+local function loadWindUI()
+    -- Tentativa 1: URL ukinabr (mesma do OminiX)
+    local url1 = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(url1))()
     end)
-    if success and result then
-        WindUI = result
-    else
+    if ok and res then
+        print("[Blue Lock] WindUI carregada (ukinabr)")
+        return res
+    end
+
+    -- Tentativa 2: Footagesus releases
+    local url2 = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+    ok, res = pcall(function()
+        return loadstring(game:HttpGet(url2))()
+    end)
+    if ok and res then
+        print("[Blue Lock] WindUI carregada (Footagesus fallback)")
+        return res
+    end
+
+    return nil
+end
+
+WindUI = loadWindUI()
+
+if not WindUI then
+    pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = "Erro",
             Text = "Não foi possível carregar a WindUI.",
             Duration = 5
         })
-        return
-    end
+    end)
+    print("[Blue Lock] ERRO: WindUI não carregou")
+    return
 end
 
+-- =============================================
+-- CRIAÇÃO DA JANELA
+-- =============================================
 local Window = WindUI:CreateWindow({
     Title = "⚽ Blue Lock Rivals",
     Icon = "rbxassetid://135710581431595",
     Author = "Sor_Gostoso",
     Folder = "BlueLock",
-    Size = UDim2.fromOffset(500, 780),
+    Size = UDim2.fromOffset(500, 700),
     Transparent = false,
     Theme = "Dark",
     Resizable = true,
@@ -130,6 +156,8 @@ local Window = WindUI:CreateWindow({
         Callback = function() print("clicked") end,
     },
 })
+
+print("[Blue Lock] Janela criada com sucesso")
 
 -- =============================================
 -- DETECÇÃO DA BOLA
@@ -253,7 +281,7 @@ local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
 -- =============================================
--- FUNÇÕES (mantidas)
+-- FUNÇÕES
 -- =============================================
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -347,6 +375,7 @@ local function aplicarCurvas()
     bola.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
+-- Drible
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -687,9 +716,7 @@ local function atualizarAdvinhaChute()
     end
 end
 
--- =============================================
--- CHAT
--- =============================================
+-- Chat
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -713,9 +740,7 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
--- =============================================
--- AIMBOT
--- =============================================
+-- Aimbot
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     Config.aimbotPersonagem = estado
@@ -781,9 +806,7 @@ local function atualizarESP()
     espSphere.Scale = Vector3.new(scale, scale, scale)
 end
 
--- =============================================
--- BOTÃO CURVAS
--- =============================================
+-- Botão Curvas
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -825,9 +848,7 @@ local function removerBotaoCurvas()
     if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
 end
 
--- =============================================
--- CORREÇÕES DE GAMEPLAY
--- =============================================
+-- Anti-Tackle
 task.spawn(function()
     while true do
         task.wait(0.05)
@@ -891,9 +912,7 @@ task.spawn(function()
     end
 end)
 
--- =============================================
--- PERFORMANCE
--- =============================================
+-- Performance
 local statsLabel = nil
 local statsGui = nil
 
@@ -1012,9 +1031,7 @@ local function aplicarPingMenos(estado)
     end
 end
 
--- =============================================
--- LOOP PRINCIPAL
--- =============================================
+-- Loop principal
 RunService.Heartbeat:Connect(function()
     aplicarReachBola()
     atualizarAimbotPersonagem()
@@ -1035,12 +1052,16 @@ task.spawn(function()
 end)
 
 -- =============================================
--- UI (sintaxe corrigida)
+-- UI (com prints de debug)
 -- =============================================
+print("[Blue Lock] Criando UI...")
+
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "rbxassetid://135710581431595" })
+print("[Blue Lock] Tab principal criada")
 
 -- ===== Controle de Bola =====
 MainTab:Section({ Title = "Controle de Bola" })
+
 MainTab:Input({
     Title = "Velocidade da Bola",
     Desc = "Força com que a bola é empurrada no controle",
@@ -1051,6 +1072,8 @@ MainTab:Input({
         if val then velocidadeBola = val; Config.velocidadeBola = val; SaveConfig() end
     end
 })
+print("[Blue Lock] Input Velocidade OK")
+
 MainTab:Toggle({
     Title = "Botão Flutuante",
     Desc = "Cria um botão arrastável para controlar a bola",
@@ -1060,15 +1083,18 @@ MainTab:Toggle({
         if v then criarBotaoFlutuante() else removerBotaoFlutuante() end
     end
 })
+print("[Blue Lock] Toggle Botão Flutuante OK")
 
 -- ===== Aimbot =====
 MainTab:Section({ Title = "Aimbot" })
+
 MainTab:Toggle({
     Title = "Aimbot Personagem",
     Desc = "Corpo vira para a bola",
     Value = Config.aimbotPersonagem,
     Callback = function(v) ativarAimbotPersonagem(v) end
 })
+
 MainTab:Toggle({
     Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
@@ -1088,6 +1114,7 @@ MainTab:Toggle({
         end
     end
 })
+
 MainTab:Toggle({
     Title = "Botão Voador (Câmera)",
     Desc = "Botão flutuante para ligar/desligar a câmera",
@@ -1097,6 +1124,7 @@ MainTab:Toggle({
         if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
     end
 })
+
 MainTab:Slider({
     Title = "Tempo do Aimbot",
     Desc = "Atraso após perder a bola (0-10)",
@@ -1107,9 +1135,11 @@ MainTab:Slider({
         Config.aimbotDelayValue = v; SaveConfig()
     end
 })
+print("[Blue Lock] Aimbot widgets OK")
 
 -- ===== Visão de Jogo =====
 MainTab:Section({ Title = "Visão de Jogo" })
+
 MainTab:Toggle({
     Title = "Visão da bola",
     Desc = "Linha verde saindo da cabeça do inimigo com a bola",
@@ -1119,6 +1149,7 @@ MainTab:Toggle({
         if not v and linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
     end
 })
+
 MainTab:Toggle({
     Title = "Advinha Chute",
     Desc = "Mostra a trajetória da bola e o ponto de queda",
@@ -1134,6 +1165,7 @@ MainTab:Toggle({
 
 -- ===== REACH =====
 MainTab:Section({ Title = "REACH" })
+
 MainTab:Toggle({
     Title = "REACH Personagem",
     Desc = "Coleta a bola de longe",
@@ -1142,6 +1174,7 @@ MainTab:Toggle({
         reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig()
     end
 })
+
 MainTab:Slider({
     Title = "Alcance do REACH",
     Desc = "Raio de detecção do REACH (1-30)",
@@ -1151,12 +1184,14 @@ MainTab:Slider({
         reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig()
     end
 })
+
 MainTab:Toggle({
     Title = "REACH da Bola",
     Desc = "Aumenta a hitbox da bola (invisível)",
     Value = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
 })
+
 MainTab:Slider({
     Title = "Tamanho da Hitbox da Bola",
     Desc = "Tamanho da hitbox da bola (1-30)",
@@ -1167,6 +1202,7 @@ MainTab:Slider({
         if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
     end
 })
+
 MainTab:Toggle({
     Title = "Mostrar Área ESP",
     Desc = "Círculo verde ao redor da hitbox da bola",
@@ -1176,15 +1212,18 @@ MainTab:Toggle({
         if not v and espSphere then espSphere:Destroy(); espSphere = nil end
     end
 })
+print("[Blue Lock] REACH widgets OK")
 
 -- ===== Extras =====
 MainTab:Section({ Title = "Extras" })
+
 MainTab:Toggle({
     Title = "Força da Bola",
     Desc = "Chute sempre com potência máxima",
     Value = Config.forcaBola,
     Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end
 })
+
 MainTab:Slider({
     Title = "Força Máxima",
     Desc = "Velocidade do chute (10-200)",
@@ -1192,6 +1231,7 @@ MainTab:Slider({
     Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
+
 MainTab:Button({
     Title = "Stamina Infinita",
     Desc = "Stamina sempre no máximo",
@@ -1207,25 +1247,30 @@ MainTab:Button({
     end
 })
 
--- ✅ DROPDOWN CORRIGIDO
-MainTab:Dropdown({
+-- ✅ DROPDOWN - sintaxe correta da WindUI ukinabr
+local dropdownTime = MainTab:Dropdown({
     Title = "Time",
     Desc = "Selecione para fazer gol",
-    Values = {"Home", "Away"},   -- ✅ CORRETO: "Values" (plural)
-    Value = "Home",               -- ✅ CORRETO: "Value" (singular)
+    Values = {"Home", "Away"},
+    Value = "Home",
     Callback = function(opt)
         selectedTeam = opt
         Config.timeSelecionado = opt
         SaveConfig()
-        print("[Dropdown] Time selecionado:", opt)
+        print("[Blue Lock] Dropdown Time =", opt)
     end
 })
+print("[Blue Lock] Dropdown Time OK - valor padrão: Home")
 
 MainTab:Button({
     Title = "Fazer Gol",
     Desc = "Marca um gol automaticamente",
     Callback = function()
-        if not selectedTeam then return end
+        if not selectedTeam then
+            print("[Blue Lock] Time não selecionado!")
+            return
+        end
+        print("[Blue Lock] Tentando fazer gol no time: " .. selectedTeam)
         local char = player.Character
         if not char then return end
         local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1256,6 +1301,7 @@ MainTab:Button({
 
 -- ===== Curvas =====
 MainTab:Section({ Title = "Curvas" })
+
 MainTab:Toggle({
     Title = "Bola com curvas",
     Desc = "Ativa curvas na bola",
@@ -1265,6 +1311,7 @@ MainTab:Toggle({
         if v then criarBotaoCurvas() else removerBotaoCurvas() end
     end
 })
+
 MainTab:Slider({
     Title = "Intensidade da Curva",
     Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
@@ -1275,6 +1322,7 @@ MainTab:Slider({
 
 -- ===== Drible =====
 MainTab:Section({ Title = "Drible" })
+
 MainTab:Toggle({
     Title = "Drible",
     Desc = "Círculo rosa de detecção (raio 70)",
@@ -1285,6 +1333,7 @@ MainTab:Toggle({
         else if dribleSphere then dribleSphere.Transparency = 1 end end
     end
 })
+print("[Blue Lock] Extras + Curvas + Drible widgets OK")
 
 -- =============================================
 -- ABA DESEMPENHO
@@ -1292,6 +1341,7 @@ MainTab:Toggle({
 local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "rbxassetid://135710581431595" })
 
 PerfTab:Section({ Title = "Performance" })
+
 PerfTab:Toggle({
     Title = "Mostrar Ping e FPS",
     Desc = "Exibe FPS e Ping no canto inferior direito (vermelho)",
@@ -1301,6 +1351,7 @@ PerfTab:Toggle({
         if v then criarStatsGui() else destruirStatsGui() end
     end
 })
+
 PerfTab:Toggle({
     Title = "Modo FPS++",
     Desc = "Remove sombras, efeitos, partículas e vibrações",
@@ -1310,6 +1361,7 @@ PerfTab:Toggle({
         if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
     end
 })
+
 PerfTab:Slider({
     Title = "Nível FPS++",
     Desc = "0 = Desligado | 1 = Sombras | 2 = Partículas | 3 = Tudo",
@@ -1320,6 +1372,7 @@ PerfTab:Slider({
         if Config.fpsModeAtivo then aplicarFpsMode(v) end
     end
 })
+
 PerfTab:Toggle({
     Title = "Ping -10",
     Desc = "Reduz qualidade gráfica para diminuir latência visual",
@@ -1348,6 +1401,8 @@ MainTab:Button({
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
+
+print("[Blue Lock] Script carregado com sucesso!")
 
 pcall(function()
     StarterGui:SetCore("SendNotification",{
