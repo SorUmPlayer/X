@@ -1,6 +1,5 @@
 --[[
     ⚽ Blue Lock Rivals – REACH + Desempenho + Correções
-    WindUI: ukinabr (mesma do Project Sor / OminiX)
 ]]
 
 local Players = game:GetService("Players")
@@ -63,6 +62,7 @@ local Config = {
     fpsModeAtivo = false,
     fpsModeLevel = 0,
     pingMenos = false,
+    timeSelecionado = "Home",
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -73,7 +73,7 @@ task.spawn(function()
 end)
 
 -- =============================================
--- SAFE PARENT
+-- FUNÇÃO SEGURA DE PARENT
 -- =============================================
 local function safeParent(gui)
     local ok = pcall(function()
@@ -85,7 +85,7 @@ local function safeParent(gui)
 end
 
 -- =============================================
--- WINDUI (ukinabr – mesma do Project Sor)
+-- WINDUI (ukinabr)
 -- =============================================
 local WindUI
 local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
@@ -116,7 +116,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://135710581431595",
     Author = "Sor_Gostoso",
     Folder = "BlueLock",
-    Size = UDim2.fromOffset(500, 600),
+    Size = UDim2.fromOffset(500, 780),
     Transparent = false,
     Theme = "Dark",
     Resizable = true,
@@ -130,8 +130,6 @@ local Window = WindUI:CreateWindow({
         Callback = function() print("clicked") end,
     },
 })
-
-Window:SetIconSize(60)
 
 -- =============================================
 -- DETECÇÃO DA BOLA
@@ -249,13 +247,13 @@ local advinhaChuteEnabled = Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
 
 local gyro = nil
-local selectedTeam = "Home"
+local selectedTeam = Config.timeSelecionado
 local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
 -- =============================================
--- SHOULD AIMBOT WORK
+-- FUNÇÕES (mantidas)
 -- =============================================
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -270,14 +268,10 @@ local function shouldAimbotWork()
     return true
 end
 
--- =============================================
--- REACH DA BOLA
--- =============================================
 local function aplicarReachBola()
     if not hitbox then return end
     local tenho = euTenhoBola()
     local tamanhoDesejado, transparenciaDesejada
-
     if tenho or not reachBolaAtivo then
         tamanhoDesejado = hitboxOriginalSize
         transparenciaDesejada = hitboxOriginalTransparency
@@ -285,26 +279,20 @@ local function aplicarReachBola()
         tamanhoDesejado = Vector3.new(reachBolaDistancia, reachBolaDistancia, reachBolaDistancia)
         transparenciaDesejada = 1
     end
-
     if hitbox.Size ~= tamanhoDesejado or hitbox.Transparency ~= transparenciaDesejada then
         hitbox.Size = tamanhoDesejado
         hitbox.Transparency = transparenciaDesejada
     end
 end
 
--- =============================================
--- REACH DO PERSONAGEM
--- =============================================
 local function aplicarReachPersonagem()
     if not reachPersonagemAtivo then return end
     if euTenhoBola() then return end
     if not hitbox or not bolaValida then return end
-
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
     local dist = (hrp.Position - hitbox.Position).Magnitude
     if dist <= reachPersonagemTamanho then
         if firetouchinterest then
@@ -317,13 +305,9 @@ local function aplicarReachPersonagem()
     end
 end
 
--- =============================================
--- FORÇA DA BOLA
--- =============================================
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
     if not bola or not bolaValida then return end
-
     local tenho = euTenhoBola()
     if tinhaBola and not tenho then
         local dir = camera.CFrame.LookVector
@@ -335,23 +319,17 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
--- =============================================
--- CURVAS
--- =============================================
 local function aplicarCurvas()
     if not curvasEnabled then return end
     if not bola or not bolaValida then return end
     if euTenhoBola() then return end
-
     local vel = bola.AssemblyLinearVelocity
     local speed = vel.Magnitude
     if speed < 40 then return end
     if bola.Position.Y < 0.5 then return end
-
     local dir = Vector3.new(vel.X, 0, vel.Z)
     if dir.Magnitude < 0.01 then return end
     dir = dir.Unit
-
     local perp = Vector3.new(-dir.Z, 0, dir.X)
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
@@ -369,9 +347,6 @@ local function aplicarCurvas()
     bola.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
--- =============================================
--- DRIBLE
--- =============================================
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -540,9 +515,6 @@ local function removerBotaoFlutuante()
     if controlScreenGui then controlScreenGui:Destroy(); controlScreenGui = nil; toggleButton = nil end
 end
 
--- =============================================
--- BOTÃO VOADOR DA CÂMERA
--- =============================================
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     if cameraButtonActive then
@@ -716,7 +688,7 @@ local function atualizarAdvinhaChute()
 end
 
 -- =============================================
--- CHAT: Força da Bola
+-- CHAT
 -- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
@@ -854,7 +826,7 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- ANTI-TACKLE
+-- CORREÇÕES DE GAMEPLAY
 -- =============================================
 task.spawn(function()
     while true do
@@ -887,7 +859,6 @@ local function antiTackle()
     if not char then return end
     local myHrp = char:FindFirstChild("HumanoidRootPart")
     if not myHrp then return end
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local enemyHrp = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -988,14 +959,12 @@ end
 local function aplicarFpsMode(level)
     if level == 0 then restaurarSettings(); return end
     salvarSettingsOriginais()
-
     if level >= 1 then
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 100000
         pcall(function() sethiddenproperty(Lighting, "Technology", 2) end)
         pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
     end
-
     if level >= 2 then
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke")
@@ -1012,11 +981,8 @@ local function aplicarFpsMode(level)
         Lighting.Ambient = Color3.fromRGB(128, 128, 128)
         Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
     end
-
     if level >= 3 then
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
         pcall(function()
             for _, obj in ipairs(Lighting:GetChildren()) do
                 if obj:IsA("Atmosphere") or obj:IsA("BloomEffect") or obj:IsA("BlurEffect")
@@ -1069,13 +1035,13 @@ task.spawn(function()
 end)
 
 -- =============================================
--- UI (WINDUI – PADRÃO PROJECT SOR)
+-- UI (sintaxe corrigida)
 -- =============================================
-local TabMain = Window:Tab({ Title = "Blue Lock", Icon = "rbxassetid://135710581431595" })
+local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "rbxassetid://135710581431595" })
 
 -- ===== Controle de Bola =====
-TabMain:Section({ Title = "Controle de Bola" })
-TabMain:Input({
+MainTab:Section({ Title = "Controle de Bola" })
+MainTab:Input({
     Title = "Velocidade da Bola",
     Desc = "Força com que a bola é empurrada no controle",
     Value = tostring(Config.velocidadeBola),
@@ -1085,7 +1051,7 @@ TabMain:Input({
         if val then velocidadeBola = val; Config.velocidadeBola = val; SaveConfig() end
     end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "Botão Flutuante",
     Desc = "Cria um botão arrastável para controlar a bola",
     Value = Config.botaoFlutuante,
@@ -1096,14 +1062,14 @@ TabMain:Toggle({
 })
 
 -- ===== Aimbot =====
-TabMain:Section({ Title = "Aimbot" })
-TabMain:Toggle({
+MainTab:Section({ Title = "Aimbot" })
+MainTab:Toggle({
     Title = "Aimbot Personagem",
     Desc = "Corpo vira para a bola",
     Value = Config.aimbotPersonagem,
     Callback = function(v) ativarAimbotPersonagem(v) end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "Aimbot Câmera",
     Desc = "Câmera atrás do personagem olhando para a bola",
     Value = Config.aimbotCamera,
@@ -1122,7 +1088,7 @@ TabMain:Toggle({
         end
     end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "Botão Voador (Câmera)",
     Desc = "Botão flutuante para ligar/desligar a câmera",
     Value = Config.botaoCamera,
@@ -1131,7 +1097,7 @@ TabMain:Toggle({
         if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
     end
 })
-TabMain:Slider({
+MainTab:Slider({
     Title = "Tempo do Aimbot",
     Desc = "Atraso após perder a bola (0-10)",
     Step = 1,
@@ -1143,8 +1109,8 @@ TabMain:Slider({
 })
 
 -- ===== Visão de Jogo =====
-TabMain:Section({ Title = "Visão de Jogo" })
-TabMain:Toggle({
+MainTab:Section({ Title = "Visão de Jogo" })
+MainTab:Toggle({
     Title = "Visão da bola",
     Desc = "Linha verde saindo da cabeça do inimigo com a bola",
     Value = Config.visaoBola,
@@ -1153,7 +1119,7 @@ TabMain:Toggle({
         if not v and linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
     end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "Advinha Chute",
     Desc = "Mostra a trajetória da bola e o ponto de queda",
     Value = Config.advinhaChute,
@@ -1167,16 +1133,16 @@ TabMain:Toggle({
 })
 
 -- ===== REACH =====
-TabMain:Section({ Title = "REACH" })
-TabMain:Toggle({
+MainTab:Section({ Title = "REACH" })
+MainTab:Toggle({
     Title = "REACH Personagem",
-    Desc = "Coleta a bola de longe com toques agressivos (anti-latência)",
+    Desc = "Coleta a bola de longe",
     Value = Config.reachPersonagem,
     Callback = function(v)
         reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig()
     end
 })
-TabMain:Slider({
+MainTab:Slider({
     Title = "Alcance do REACH",
     Desc = "Raio de detecção do REACH (1-30)",
     Step = 1,
@@ -1185,13 +1151,13 @@ TabMain:Slider({
         reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig()
     end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "REACH da Bola",
     Desc = "Aumenta a hitbox da bola (invisível)",
     Value = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
 })
-TabMain:Slider({
+MainTab:Slider({
     Title = "Tamanho da Hitbox da Bola",
     Desc = "Tamanho da hitbox da bola (1-30)",
     Step = 1,
@@ -1201,7 +1167,7 @@ TabMain:Slider({
         if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
     end
 })
-TabMain:Toggle({
+MainTab:Toggle({
     Title = "Mostrar Área ESP",
     Desc = "Círculo verde ao redor da hitbox da bola",
     Value = Config.mostrarESP,
@@ -1212,21 +1178,21 @@ TabMain:Toggle({
 })
 
 -- ===== Extras =====
-TabMain:Section({ Title = "Extras" })
-TabMain:Toggle({
+MainTab:Section({ Title = "Extras" })
+MainTab:Toggle({
     Title = "Força da Bola",
     Desc = "Chute sempre com potência máxima",
     Value = Config.forcaBola,
     Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end
 })
-TabMain:Slider({
+MainTab:Slider({
     Title = "Força Máxima",
     Desc = "Velocidade do chute (10-200)",
     Step = 1,
     Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
-TabMain:Button({
+MainTab:Button({
     Title = "Stamina Infinita",
     Desc = "Stamina sempre no máximo",
     Callback = function()
@@ -1240,14 +1206,22 @@ TabMain:Button({
         end)
     end
 })
-TabMain:Dropdown({
+
+-- ✅ DROPDOWN CORRIGIDO
+MainTab:Dropdown({
     Title = "Time",
     Desc = "Selecione para fazer gol",
-    Values = {"Home", "Away"},
-    Value = "Home",
-    Callback = function(opt) selectedTeam = opt end
+    Values = {"Home", "Away"},   -- ✅ CORRETO: "Values" (plural)
+    Value = "Home",               -- ✅ CORRETO: "Value" (singular)
+    Callback = function(opt)
+        selectedTeam = opt
+        Config.timeSelecionado = opt
+        SaveConfig()
+        print("[Dropdown] Time selecionado:", opt)
+    end
 })
-TabMain:Button({
+
+MainTab:Button({
     Title = "Fazer Gol",
     Desc = "Marca um gol automaticamente",
     Callback = function()
@@ -1281,17 +1255,17 @@ TabMain:Button({
 })
 
 -- ===== Curvas =====
-TabMain:Section({ Title = "Curvas" })
-TabMain:Toggle({
+MainTab:Section({ Title = "Curvas" })
+MainTab:Toggle({
     Title = "Bola com curvas",
-    Desc = "Ativa curvas na bola (botão flutuante aparece)",
+    Desc = "Ativa curvas na bola",
     Value = Config.curvasAtivo,
     Callback = function(v)
         curvasEnabled = v; Config.curvasAtivo = v; SaveConfig()
         if v then criarBotaoCurvas() else removerBotaoCurvas() end
     end
 })
-TabMain:Slider({
+MainTab:Slider({
     Title = "Intensidade da Curva",
     Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
     Step = 1,
@@ -1300,8 +1274,8 @@ TabMain:Slider({
 })
 
 -- ===== Drible =====
-TabMain:Section({ Title = "Drible" })
-TabMain:Toggle({
+MainTab:Section({ Title = "Drible" })
+MainTab:Toggle({
     Title = "Drible",
     Desc = "Círculo rosa de detecção (raio 70)",
     Value = Config.dribleAtivo,
@@ -1312,9 +1286,52 @@ TabMain:Toggle({
     end
 })
 
--- ===== Salvar =====
-TabMain:Section({ Title = "Salvar Configurações" })
-TabMain:Button({
+-- =============================================
+-- ABA DESEMPENHO
+-- =============================================
+local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "rbxassetid://135710581431595" })
+
+PerfTab:Section({ Title = "Performance" })
+PerfTab:Toggle({
+    Title = "Mostrar Ping e FPS",
+    Desc = "Exibe FPS e Ping no canto inferior direito (vermelho)",
+    Value = Config.statsToggle,
+    Callback = function(v)
+        Config.statsToggle = v; SaveConfig()
+        if v then criarStatsGui() else destruirStatsGui() end
+    end
+})
+PerfTab:Toggle({
+    Title = "Modo FPS++",
+    Desc = "Remove sombras, efeitos, partículas e vibrações",
+    Value = Config.fpsModeAtivo,
+    Callback = function(v)
+        Config.fpsModeAtivo = v; SaveConfig()
+        if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
+    end
+})
+PerfTab:Slider({
+    Title = "Nível FPS++",
+    Desc = "0 = Desligado | 1 = Sombras | 2 = Partículas | 3 = Tudo",
+    Step = 1,
+    Value = { Min = 0, Max = 3, Default = Config.fpsModeLevel },
+    Callback = function(v)
+        Config.fpsModeLevel = v; SaveConfig()
+        if Config.fpsModeAtivo then aplicarFpsMode(v) end
+    end
+})
+PerfTab:Toggle({
+    Title = "Ping -10",
+    Desc = "Reduz qualidade gráfica para diminuir latência visual",
+    Value = Config.pingMenos,
+    Callback = function(v) aplicarPingMenos(v) end
+})
+
+-- =============================================
+-- SALVAR
+-- =============================================
+MainTab:Section({ Title = "Salvar Configurações" })
+MainTab:Button({
     Title = "💾 Salvar Agora",
     Desc = "Salva todas as configurações manualmente",
     Callback = function()
@@ -1327,60 +1344,15 @@ TabMain:Button({
     end
 })
 
--- =============================================
--- ABA DESEMPENHO
--- =============================================
-local TabPerf = Window:Tab({ Title = "Desempenho", Icon = "rbxassetid://135710581431595" })
-
-TabPerf:Section({ Title = "Performance" })
-TabPerf:Toggle({
-    Title = "Mostrar Ping e FPS",
-    Desc = "Exibe FPS e Ping no canto inferior direito (vermelho)",
-    Value = Config.statsToggle,
-    Callback = function(v)
-        Config.statsToggle = v; SaveConfig()
-        if v then criarStatsGui() else destruirStatsGui() end
-    end
-})
-TabPerf:Toggle({
-    Title = "Modo FPS++",
-    Desc = "Remove sombras, efeitos, partículas e vibrações",
-    Value = Config.fpsModeAtivo,
-    Callback = function(v)
-        Config.fpsModeAtivo = v; SaveConfig()
-        if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
-    end
-})
-TabPerf:Slider({
-    Title = "Nível FPS++",
-    Desc = "0 = Desligado | 1 = Sombras | 2 = Partículas | 3 = Tudo",
-    Step = 1,
-    Value = { Min = 0, Max = 3, Default = Config.fpsModeLevel },
-    Callback = function(v)
-        Config.fpsModeLevel = v; SaveConfig()
-        if Config.fpsModeAtivo then aplicarFpsMode(v) end
-    end
-})
-TabPerf:Toggle({
-    Title = "Ping -10",
-    Desc = "Reduz qualidade gráfica para diminuir latência visual",
-    Value = Config.pingMenos,
-    Callback = function(v) aplicarPingMenos(v) end
-})
-
--- Aplica estados salvos ao iniciar
+-- Aplica estados salvos
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
-if Config.botaoFlutuante then criarBotaoFlutuante() end
-if Config.botaoCamera then criarBotaoCameraFlutuante() end
-if Config.curvasAtivo then criarBotaoCurvas() end
-if Config.dribleAtivo then setupDrible() end
 
 pcall(function()
     StarterGui:SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Carregado com REACH + Desempenho!",
+        Text = "Carregado!",
         Duration = 3
     })
 end)
