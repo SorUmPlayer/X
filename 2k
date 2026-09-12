@@ -90,14 +90,13 @@ local function safeParent(gui)
 end
 
 -- =============================================
--- WINDUI (ukinabr – mesma do OminiX)
+-- WINDUI
 -- =============================================
 local WindUI = nil
 
 print("[Blue Lock] Carregando WindUI...")
 
 local function loadWindUI()
-    -- Tentativa 1: URL ukinabr (mesma do OminiX)
     local url1 = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
     local ok, res = pcall(function()
         return loadstring(game:HttpGet(url1))()
@@ -107,13 +106,12 @@ local function loadWindUI()
         return res
     end
 
-    -- Tentativa 2: Footagesus releases
     local url2 = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
     ok, res = pcall(function()
         return loadstring(game:HttpGet(url2))()
     end)
     if ok and res then
-        print("[Blue Lock] WindUI carregada (Footagesus fallback)")
+        print("[Blue Lock] WindUI carregada (Footagesus)")
         return res
     end
 
@@ -157,7 +155,7 @@ local Window = WindUI:CreateWindow({
     },
 })
 
-print("[Blue Lock] Janela criada com sucesso")
+print("[Blue Lock] Janela criada")
 
 -- =============================================
 -- DETECÇÃO DA BOLA
@@ -275,7 +273,7 @@ local advinhaChuteEnabled = Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
 
 local gyro = nil
-local selectedTeam = Config.timeSelecionado
+local selectedTeam = Config.timeSelecionado or "Home"
 local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
@@ -375,7 +373,6 @@ local function aplicarCurvas()
     bola.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
--- Drible
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -1052,12 +1049,11 @@ task.spawn(function()
 end)
 
 -- =============================================
--- UI (com prints de debug)
+-- UI
 -- =============================================
 print("[Blue Lock] Criando UI...")
 
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "rbxassetid://135710581431595" })
-print("[Blue Lock] Tab principal criada")
 
 -- ===== Controle de Bola =====
 MainTab:Section({ Title = "Controle de Bola" })
@@ -1072,7 +1068,6 @@ MainTab:Input({
         if val then velocidadeBola = val; Config.velocidadeBola = val; SaveConfig() end
     end
 })
-print("[Blue Lock] Input Velocidade OK")
 
 MainTab:Toggle({
     Title = "Botão Flutuante",
@@ -1083,7 +1078,6 @@ MainTab:Toggle({
         if v then criarBotaoFlutuante() else removerBotaoFlutuante() end
     end
 })
-print("[Blue Lock] Toggle Botão Flutuante OK")
 
 -- ===== Aimbot =====
 MainTab:Section({ Title = "Aimbot" })
@@ -1135,7 +1129,6 @@ MainTab:Slider({
         Config.aimbotDelayValue = v; SaveConfig()
     end
 })
-print("[Blue Lock] Aimbot widgets OK")
 
 -- ===== Visão de Jogo =====
 MainTab:Section({ Title = "Visão de Jogo" })
@@ -1212,7 +1205,6 @@ MainTab:Toggle({
         if not v and espSphere then espSphere:Destroy(); espSphere = nil end
     end
 })
-print("[Blue Lock] REACH widgets OK")
 
 -- ===== Extras =====
 MainTab:Section({ Title = "Extras" })
@@ -1247,27 +1239,51 @@ MainTab:Button({
     end
 })
 
--- ✅ DROPDOWN - sintaxe correta da WindUI ukinabr
-local dropdownTime = MainTab:Dropdown({
-    Title = "Time",
-    Desc = "Selecione para fazer gol",
-    Values = {"Home", "Away"},
-    Value = "Home",
-    Callback = function(opt)
-        selectedTeam = opt
-        Config.timeSelecionado = opt
-        SaveConfig()
-        print("[Blue Lock] Dropdown Time =", opt)
-    end
-})
-print("[Blue Lock] Dropdown Time OK - valor padrão: Home")
+-- ===== SELECIONAR TIME (SUBSTITUI DROPDOWN) =====
+MainTab:Section({ Title = "Selecionar Time" })
 
 MainTab:Button({
-    Title = "Fazer Gol",
-    Desc = "Marca um gol automaticamente",
+    Title = "🏠 Home",
+    Desc = "Selecionar time Home para fazer gol",
+    Callback = function()
+        selectedTeam = "Home"
+        Config.timeSelecionado = "Home"
+        SaveConfig()
+        print("[Blue Lock] Time = Home")
+        StarterGui:SetCore("SendNotification", {
+            Title = "Time",
+            Text = "🏠 Home selecionado",
+            Duration = 2
+        })
+    end
+})
+
+MainTab:Button({
+    Title = "✈️ Away",
+    Desc = "Selecionar time Away para fazer gol",
+    Callback = function()
+        selectedTeam = "Away"
+        Config.timeSelecionado = "Away"
+        SaveConfig()
+        print("[Blue Lock] Time = Away")
+        StarterGui:SetCore("SendNotification", {
+            Title = "Time",
+            Text = "✈️ Away selecionado",
+            Duration = 2
+        })
+    end
+})
+
+MainTab:Button({
+    Title = "⚽ Fazer Gol",
+    Desc = "Marca um gol automaticamente no time selecionado",
     Callback = function()
         if not selectedTeam then
-            print("[Blue Lock] Time não selecionado!")
+            StarterGui:SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Selecione um time primeiro!",
+                Duration = 2
+            })
             return
         end
         print("[Blue Lock] Tentando fazer gol no time: " .. selectedTeam)
@@ -1296,6 +1312,11 @@ MainTab:Button({
         end
         task.wait(0.2)
         hrp.CFrame = CFrame.new(posOriginal)
+        StarterGui:SetCore("SendNotification", {
+            Title = "Gol",
+            Text = "Gol marcado no time " .. selectedTeam,
+            Duration = 2
+        })
     end
 })
 
@@ -1333,7 +1354,6 @@ MainTab:Toggle({
         else if dribleSphere then dribleSphere.Transparency = 1 end end
     end
 })
-print("[Blue Lock] Extras + Curvas + Drible widgets OK")
 
 -- =============================================
 -- ABA DESEMPENHO
