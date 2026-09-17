@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Completo (REACH + Desempenho + Player + Lag Ball)
+    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown
 ]]
 
 local Players = game:GetService("Players")
@@ -63,8 +63,7 @@ local Config = {
     pingMenos = false,
     walkSpeedAtivo = false,
     walkSpeedValue = 70,
-    lagBall = false,
-    lagBallForca = 70,
+    noCooldown = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -237,12 +236,106 @@ local walkBoost = Config.walkSpeedAtivo
 local walkSpeedValue = Config.walkSpeedValue
 local walkBodyVelocity = nil
 
--- Lag Ball
-local lagBallEnabled = Config.lagBall
-local lagBallForca = Config.lagBallForca
-local lagBallCongelada = false
-local lagBallDirecao = Vector3.zero
-local lagBallTempo = 0
+-- No Cooldown
+local noCooldownEnabled = Config.noCooldown
+local abilityControllerHooked = false
+
+-- =============================================
+-- NO COOLDOWN
+-- =============================================
+local function resetarCooldownUI()
+    pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        local inGameUI = playerGui:FindFirstChild("InGameUI")
+        if not inGameUI then return end
+        local bottom = inGameUI:FindFirstChild("Bottom")
+        if not bottom then return end
+        local abilities = bottom:FindFirstChild("Abilities")
+        if not abilities then return end
+
+        for _, ability in ipairs(abilities:GetChildren()) do
+            local cd = ability:FindFirstChild("Cooldown")
+            if cd then
+                if cd:IsA("NumberValue") then
+                    cd.Value = 0
+                elseif cd:IsA("Frame") then
+                    cd.Size = UDim2.new(0, 0, 0, 0)
+                end
+            end
+            -- Procura por outros tipos de cooldown
+            for _, child in ipairs(ability:GetDescendants()) do
+                if child:IsA("NumberValue") and child.Name:lower():find("cooldown") then
+                    child.Value = 0
+                elseif child:IsA("Frame") and child.Name:lower():find("cooldown") then
+                    child.Size = UDim2.new(0, 0, 0, 0)
+                end
+            end
+        end
+    end)
+end
+
+local function aplicarNoCooldown(estado)
+    noCooldownEnabled = estado
+    Config.noCooldown = estado
+    SaveConfig()
+
+    if not estado then return end
+
+    -- Hook no AbilityController
+    pcall(function()
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        if not Controllers then return end
+        local AbilityController = Controllers:FindFirstChild("AbilityController")
+        if not AbilityController then return end
+        local module = require(AbilityController)
+        if module and not abilityControllerHooked then
+            local originalCooldown = module.AbilityCooldown
+            if originalCooldown then
+                module.AbilityCooldown = function(self, skillIndex, ...)
+                    return originalCooldown(self, skillIndex, 0, ...)
+                end
+                abilityControllerHooked = true
+            end
+            -- Zera slots principais
+            if module.legacy then
+                for i = 1, 3 do
+                    module.legacy["Ability" .. ({"One", "Two", "Three"})[i]] = 0
+                end
+            end
+        end
+    end)
+
+    -- Hook no Remote do Ability
+    pcall(function()
+        local Packages = ReplicatedStorage:FindFirstChild("Packages")
+        if not Packages then return end
+        local Knit = Packages:FindFirstChild("Knit")
+        if not Knit then return end
+        local Services = Knit:FindFirstChild("Services")
+        if not Services then return end
+        local AbilityService = Services:FindFirstChild("AbilityService")
+        if not AbilityService then return end
+        local RE = AbilityService:FindFirstChild("RE")
+        if not RE then return end
+        local AbilityRemote = RE:FindFirstChild("Ability")
+        if not AbilityRemote then return end
+        AbilityRemote.OnClientEvent:Connect(function()
+            if noCooldownEnabled then
+                task.wait(0.05)
+                resetarCooldownUI()
+            end
+        end)
+    end)
+
+    -- Loop de segurança
+    task.spawn(function()
+        while noCooldownEnabled do
+            task.wait(0.15)
+            resetarCooldownUI()
+        end
+    end)
+end
 
 -- =============================================
 -- SHOULD AIMBOT WORK
@@ -323,51 +416,6 @@ local function aplicarForcaBola()
         bola.AssemblyLinearVelocity = vel
     end
     tinhaBola = tenho
-end
-
--- =============================================
--- LAG BALL
--- =============================================
-local function aplicarLagBall()
-    if not lagBallEnabled then
-        if lagBallCongelada and bola and bolaValida then
-            bola.Anchored = false
-            lagBallCongelada = false
-        end
-        return
-    end
-    if not bola or not bolaValida then return end
-    if euTenhoBola() then
-        if lagBallCongelada then
-            bola.Anchored = false
-            lagBallCongelada = false
-        end
-        return
-    end
-
-    if lagBallCongelada then
-        if tick() - lagBallTempo >= 1 then
-            bola.Anchored = false
-            local dir = lagBallDirecao
-            if dir.Magnitude < 0.1 then
-                dir = camera.CFrame.LookVector
-                dir = Vector3.new(dir.X, 0, dir.Z).Unit
-            end
-            bola.AssemblyLinearVelocity = dir * lagBallForca
-            lagBallCongelada = false
-        end
-        return
-    end
-
-    local vel = bola.AssemblyLinearVelocity
-    local speed = vel.Magnitude
-    if speed > 3 and speed <= 30 and bola.Position.Y > 3 then
-        lagBallDirecao = vel.Unit
-        bola.Anchored = true
-        bola.AssemblyLinearVelocity = Vector3.zero
-        lagBallCongelada = true
-        lagBallTempo = tick()
-    end
 end
 
 -- =============================================
@@ -889,7 +937,7 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- WALKSPEED (PLAYER)
+-- WALKSPEED
 -- =============================================
 local function ativarWalkSpeed(estado)
     walkBoost = estado
@@ -1107,7 +1155,6 @@ end
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
-    aplicarLagBall()
     aplicarReachBola()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
@@ -1296,32 +1343,10 @@ ExtrasSec:Slider({
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
 ExtrasSec:Toggle({
-    Title = "Lag Ball",
-    Desc = "A bola para no ar e depois dispara com a força desejada",
-    Value = Config.lagBall,
-    Callback = function(v)
-        lagBallEnabled = v
-        Config.lagBall = v
-        SaveConfig()
-        if not v and lagBallCongelada and bola and bolaValida then
-            bola.Anchored = false
-            lagBallCongelada = false
-        end
-    end
-})
-ExtrasSec:Input({
-    Title = "Velocidade da Força",
-    Desc = "Força com que a bola vai disparar (padrão 70)",
-    Value = tostring(Config.lagBallForca),
-    Placeholder = "Digite a força...",
-    Callback = function(txt)
-        local val = tonumber(txt)
-        if val and val > 0 and val <= 500 then
-            lagBallForca = val
-            Config.lagBallForca = val
-            SaveConfig()
-        end
-    end
+    Title = "No Cooldown",
+    Desc = "Habilidades recarregam instantaneamente após uso",
+    Value = Config.noCooldown,
+    Callback = function(v) aplicarNoCooldown(v) end
 })
 ExtrasSec:Button({
     Title = "Stamina Infinita",
@@ -1501,11 +1526,12 @@ if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
+if Config.noCooldown then task.wait(2); aplicarNoCooldown(true) end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Lag Ball adicionado!",
+        Text = "No Cooldown adicionado!",
         Duration = 3
     })
 end)
