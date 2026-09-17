@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – REACH + Desempenho + Player (Speed) + Correções
+    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed
 ]]
 
 local Players = game:GetService("Players")
@@ -61,7 +61,8 @@ local Config = {
     fpsModeAtivo = false,
     fpsModeLevel = 0,
     pingMenos = false,
-    playerSpeed = 40, -- valor recomendado
+    speedAtivo = false,
+    speedValor = 40,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -99,7 +100,7 @@ local Window = WindUI:CreateWindow({
     Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso",
     Folder = "BlueLock",
-    Size = UDim2.fromOffset(500, 800),
+    Size = UDim2.fromOffset(500, 780),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -229,36 +230,8 @@ local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
-local playerSpeed = Config.playerSpeed
-
--- =============================================
--- PLAYER SPEED (nova aba)
--- =============================================
-local function aplicarSpeed()
-    local char = player.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.WalkSpeed = playerSpeed
-    end
-end
-
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    aplicarSpeed()
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if playerSpeed ~= 16 and player.Character then
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.WalkSpeed ~= playerSpeed then
-                hum.WalkSpeed = playerSpeed
-            end
-        end
-    end
-end)
+local speedAtivo = Config.speedAtivo
+local speedValor = Config.speedValor
 
 -- =============================================
 -- SHOULD AIMBOT WORK
@@ -860,7 +833,7 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- CORREÇÕES (Anti-tackle + coleta agressiva)
+-- CORREÇÕES DE GAMEPLAY
 -- =============================================
 task.spawn(function()
     while true do
@@ -878,9 +851,9 @@ local function isTackleAnim(character)
     local animator = humanoid:FindFirstChild("Animator") or humanoid
     for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
         if track.Animation then
-            local id = tostring(track.Animation.AnimationId):lower()
+            local id = tostring(track.Animation.AnimationId)
             for _, pattern in ipairs(tackleAnimIds) do
-                if string.find(id, pattern) then return true end
+                if string.find(id:lower(), pattern) then return true end
             end
         end
     end
@@ -893,6 +866,7 @@ local function antiTackle()
     if not char then return end
     local myHrp = char:FindFirstChild("HumanoidRootPart")
     if not myHrp then return end
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local enemyHrp = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -993,25 +967,35 @@ end
 local function aplicarFpsMode(level)
     if level == 0 then restaurarSettings(); return end
     salvarSettingsOriginais()
+
     if level >= 1 then
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 100000
         pcall(function() sethiddenproperty(Lighting, "Technology", 2) end)
+        pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
     end
+
     if level >= 2 then
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke")
-                or obj:IsA("Fire") or obj:IsA("Sparkles") or obj:IsA("Beam")
-                or obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-                if obj.Enabled then obj.Enabled = false; table.insert(fpsModeParticles, obj) end
+                or obj:IsA("Fire") or obj:IsA("Sparkles") or obj:IsA("Explosion")
+                or obj:IsA("Beam") or obj:IsA("PointLight") or obj:IsA("SpotLight")
+                or obj:IsA("SurfaceLight") then
+                if obj.Enabled then
+                    obj.Enabled = false
+                    table.insert(fpsModeParticles, obj)
+                end
             end
         end
         Lighting.Brightness = 0
         Lighting.Ambient = Color3.fromRGB(128, 128, 128)
         Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
     end
+
     if level >= 3 then
-        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
         pcall(function()
             for _, obj in ipairs(Lighting:GetChildren()) do
                 if obj:IsA("Atmosphere") or obj:IsA("BloomEffect") or obj:IsA("BlurEffect")
@@ -1025,7 +1009,9 @@ local function aplicarFpsMode(level)
     end
 end
 
+local pingMenosAtivo = false
 local function aplicarPingMenos(estado)
+    pingMenosAtivo = estado
     Config.pingMenos = estado
     SaveConfig()
     if estado then
@@ -1039,6 +1025,25 @@ local function aplicarPingMenos(estado)
     else
         pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
     end
+end
+
+-- =============================================
+-- SPEED (Player)
+-- =============================================
+local speedConnection = nil
+
+local function aplicarSpeed()
+    if speedConnection then speedConnection:Disconnect(); speedConnection = nil end
+    if not speedAtivo then return end
+
+    speedConnection = RunService.Heartbeat:Connect(function()
+        local char = player.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = speedValor
+        end
+    end)
 end
 
 -- =============================================
@@ -1167,14 +1172,18 @@ ReachSec:Toggle({
     Title = "REACH Personagem",
     Desc = "Coleta a bola de longe com toques agressivos (anti-latência)",
     Value = Config.reachPersonagem,
-    Callback = function(v) reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig() end
+    Callback = function(v)
+        reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig()
+    end
 })
 ReachSec:Slider({
     Title = "Alcance do REACH",
-    Desc = "Raio de detecção (1-30)",
+    Desc = "Raio de detecção do REACH do personagem (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.reachPersonagemTamanho },
-    Callback = function(v) reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig() end
+    Callback = function(v)
+        reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig()
+    end
 })
 ReachSec:Toggle({
     Title = "REACH da Bola",
@@ -1308,29 +1317,28 @@ DribleSec:Toggle({
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 
-PlayerSec:Slider({
-    Title = "Speed",
-    Desc = "Recomendado 40 de Velocidade!!",
-    Step = 1,
-    Value = { Min = 20, Max = 250, Default = Config.playerSpeed },
+PlayerSec:Toggle({
+    Title = "Ativar Speed",
+    Desc = "Ativa a velocidade de movimento personalizada",
+    Value = Config.speedAtivo,
     Callback = function(v)
-        playerSpeed = v
-        Config.playerSpeed = v
+        speedAtivo = v
+        Config.speedAtivo = v
         SaveConfig()
         aplicarSpeed()
     end
 })
 
-PlayerTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" }):Button({
-    Title = "💾 Salvar Agora",
-    Desc = "Salva todas as configurações manualmente",
-    Callback = function()
+PlayerSec:Slider({
+    Title = "Speed",
+    Desc = "Recomendado 40 de Velocidade!!",
+    Step = 1,
+    Value = { Min = 20, Max = 250, Default = Config.speedValor },
+    Callback = function(v)
+        speedValor = v
+        Config.speedValor = v
         SaveConfig()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Player",
-            Text = "Configurações salvas!",
-            Duration = 2
-        })
+        aplicarSpeed()
     end
 })
 
@@ -1349,6 +1357,7 @@ PerfSec:Toggle({
         if v then criarStatsGui() else destruirStatsGui() end
     end
 })
+
 PerfSec:Toggle({
     Title = "Modo FPS++",
     Desc = "Remove sombras, efeitos, partículas e vibrações",
@@ -1358,6 +1367,7 @@ PerfSec:Toggle({
         if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
     end
 })
+
 PerfSec:Slider({
     Title = "Nível FPS++",
     Desc = "0 = Desligado | 1 = Sombras | 2 = Partículas | 3 = Tudo",
@@ -1368,9 +1378,10 @@ PerfSec:Slider({
         if Config.fpsModeAtivo then aplicarFpsMode(v) end
     end
 })
+
 PerfSec:Toggle({
     Title = "Ping -10",
-    Desc = "Reduz qualidade gráfica para diminuir latência visual",
+    Desc = "Reduz qualidade gráfica para diminuir latência visual (menos pacotes)",
     Value = Config.pingMenos,
     Callback = function(v) aplicarPingMenos(v) end
 })
@@ -1396,12 +1407,12 @@ SaveSec:Button({
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
-task.spawn(function() task.wait(1); aplicarSpeed() end)
+if Config.speedAtivo then aplicarSpeed() end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Nova aba Player + Speed adicionada!",
+        Text = "Nova aba Player adicionada!",
         Duration = 3
     })
 end)
