@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed
+    ⚽ Blue Lock Rivals – Completo (REACH + Desempenho + Player + Lag Ball)
 ]]
 
 local Players = game:GetService("Players")
@@ -63,6 +63,8 @@ local Config = {
     pingMenos = false,
     walkSpeedAtivo = false,
     walkSpeedValue = 70,
+    lagBall = false,
+    lagBallForca = 70,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -235,6 +237,13 @@ local walkBoost = Config.walkSpeedAtivo
 local walkSpeedValue = Config.walkSpeedValue
 local walkBodyVelocity = nil
 
+-- Lag Ball
+local lagBallEnabled = Config.lagBall
+local lagBallForca = Config.lagBallForca
+local lagBallCongelada = false
+local lagBallDirecao = Vector3.zero
+local lagBallTempo = 0
+
 -- =============================================
 -- SHOULD AIMBOT WORK
 -- =============================================
@@ -314,6 +323,51 @@ local function aplicarForcaBola()
         bola.AssemblyLinearVelocity = vel
     end
     tinhaBola = tenho
+end
+
+-- =============================================
+-- LAG BALL
+-- =============================================
+local function aplicarLagBall()
+    if not lagBallEnabled then
+        if lagBallCongelada and bola and bolaValida then
+            bola.Anchored = false
+            lagBallCongelada = false
+        end
+        return
+    end
+    if not bola or not bolaValida then return end
+    if euTenhoBola() then
+        if lagBallCongelada then
+            bola.Anchored = false
+            lagBallCongelada = false
+        end
+        return
+    end
+
+    if lagBallCongelada then
+        if tick() - lagBallTempo >= 1 then
+            bola.Anchored = false
+            local dir = lagBallDirecao
+            if dir.Magnitude < 0.1 then
+                dir = camera.CFrame.LookVector
+                dir = Vector3.new(dir.X, 0, dir.Z).Unit
+            end
+            bola.AssemblyLinearVelocity = dir * lagBallForca
+            lagBallCongelada = false
+        end
+        return
+    end
+
+    local vel = bola.AssemblyLinearVelocity
+    local speed = vel.Magnitude
+    if speed > 3 and speed <= 30 and bola.Position.Y > 3 then
+        lagBallDirecao = vel.Unit
+        bola.Anchored = true
+        bola.AssemblyLinearVelocity = Vector3.zero
+        lagBallCongelada = true
+        lagBallTempo = tick()
+    end
 end
 
 -- =============================================
@@ -858,7 +912,6 @@ local function ativarWalkSpeed(estado)
     end
 end
 
--- Reaplica ao respawnar
 player.CharacterAdded:Connect(function(char)
     task.wait(1)
     if walkBoost then ativarWalkSpeed(true) end
@@ -1054,6 +1107,7 @@ end
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
+    aplicarLagBall()
     aplicarReachBola()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
@@ -1065,7 +1119,6 @@ RunService.Heartbeat:Connect(function()
     aplicarDrible()
 end)
 
--- WalkSpeed loop
 RunService.RenderStepped:Connect(function()
     if walkBoost and walkBodyVelocity and player.Character then
         local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -1242,6 +1295,34 @@ ExtrasSec:Slider({
     Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
+ExtrasSec:Toggle({
+    Title = "Lag Ball",
+    Desc = "A bola para no ar e depois dispara com a força desejada",
+    Value = Config.lagBall,
+    Callback = function(v)
+        lagBallEnabled = v
+        Config.lagBall = v
+        SaveConfig()
+        if not v and lagBallCongelada and bola and bolaValida then
+            bola.Anchored = false
+            lagBallCongelada = false
+        end
+    end
+})
+ExtrasSec:Input({
+    Title = "Velocidade da Força",
+    Desc = "Força com que a bola vai disparar (padrão 70)",
+    Value = tostring(Config.lagBallForca),
+    Placeholder = "Digite a força...",
+    Callback = function(txt)
+        local val = tonumber(txt)
+        if val and val > 0 and val <= 500 then
+            lagBallForca = val
+            Config.lagBallForca = val
+            SaveConfig()
+        end
+    end
+})
 ExtrasSec:Button({
     Title = "Stamina Infinita",
     Desc = "Stamina sempre no máximo",
@@ -1298,7 +1379,7 @@ ExtrasSec:Button({
 -- Curvas
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 CurvasSec:Toggle({
-    Title = "Bola com curvasvq",
+    Title = "Bola com curvas",
     Desc = "Ativa curvas na bola (botão flutuante aparece)",
     Value = Config.curvasAtivo,
     Callback = function(v)
@@ -1328,7 +1409,7 @@ DribleSec:Toggle({
 })
 
 -- =============================================
--- ABA PLAYER (NOVA)
+-- ABA PLAYER
 -- =============================================
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
@@ -1424,7 +1505,7 @@ if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Nova aba Player adicionada!",
+        Text = "Lag Ball adicionado!",
         Duration = 3
     })
 end)
