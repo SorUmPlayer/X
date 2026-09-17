@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown
+    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown (corrigido)
 ]]
 
 local Players = game:GetService("Players")
@@ -238,8 +238,9 @@ local walkBodyVelocity = nil
 
 -- No Cooldown
 local noCooldownAtivo = Config.noCooldown
-local noCooldownHook = nil
-local abilityEvent = nil
+local noCooldownHooks = {}
+local noCooldownLoopActive = false
+local abilityEventConn = nil
 
 -- =============================================
 -- SHOULD AIMBOT WORK
@@ -841,7 +842,7 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- WALKSPEED (PLAYER)
+-- WALKSPEED
 -- =============================================
 local function ativarWalkSpeed(estado)
     walkBoost = estado
@@ -870,92 +871,148 @@ player.CharacterAdded:Connect(function(char)
 end)
 
 -- =============================================
--- NO COOLDOWN (HOOK NO AbilityController)
+-- NO COOLDOWN – CORRIGIDO (reset para TODAS as habilidades)
 -- =============================================
+local function getAbilityController()
+    local controllers = ReplicatedStorage:FindFirstChild("Controllers")
+    if controllers then return controllers:FindFirstChild("AbilityController") end
+    return nil
+end
+
+-- Zera todas as tabelas/valores de cooldown que encontrar no módulo
+local function zerarCooldownsDoModulo(mod)
+    if type(mod) ~= "table" then return end
+
+    -- Slots legados
+    if mod.legacy then
+        for _, key in ipairs({"AbilityOne", "AbilityTwo", "AbilityThree", "AbilityFour"}) do
+            if mod.legacy[key] ~= nil then mod.legacy[key] = 0 end
+        end
+        -- Também qualquer chave numérica
+        for k, v in pairs(mod.legacy) do
+            if type(v) == "number" and v > 0 then mod.legacy[k] = 0 end
+        end
+    end
+
+    -- Tabela de cooldowns (nome comum em jogos)
+    for _, key in ipairs({"Cooldowns", "cooldowns", "CD", "cd", "Cooldown"}) do
+        if type(mod[key]) == "table" then
+            for k, _ in pairs(mod[key]) do mod[key][k] = 0 end
+        end
+    end
+
+    -- Variáveis numéricas com "cooldown"/"cd" no nome
+    for k, v in pairs(mod) do
+        if type(v) == "number" and type(k) == "string" then
+            local lk = k:lower()
+            if lk:find("cooldown") or lk:find("cd") or lk:find("recharge") or lk:find("reload") then
+                mod[k] = 0
+            end
+        end
+    end
+end
+
+-- Aplica hooks nas funções de cooldown do módulo
+local function aplicarHooksNoModulo(mod)
+    if type(mod) ~= "table" then return end
+
+    -- Funções comuns de cooldown
+    for _, fnName in ipairs({
+        "AbilityCooldown", "SetCooldown", "StartCooldown", "Cooldown",
+        "ApplyCooldown", "StartCooldownTimer", "SetCooldownTimer"
+    }) do
+        local original = mod[fnName]
+        if type(original) == "function" and not noCooldownHooks[fnName] then
+            mod[fnName] = function(self, ...)
+                -- Força o cooldown a 0 sempre
+                local args = {...}
+                -- Tenta passar 0 no primeiro argumento numérico após self
+                if type(args[1]) == "number" then args[1] = 0 end
+                if type(args[2]) == "number" then args[2] = 0 end
+                -- Se for skillIndex + tempo, o tempo é o 2º (após skillIndex)
+                if type(args[1]) == "string" or type(args[1]) == "number" then
+                    if type(args[2]) == "number" then args[2] = 0 end
+                end
+                return original(self, table.unpack(args))
+            end
+            noCooldownHooks[fnName] = { mod = mod, original = original }
+        end
+    end
+end
+
+-- Aplica tudo
+local function aplicarNoCooldown()
+    local ac = getAbilityController()
+    if not ac then return end
+
+    -- Requer o módulo
+    local ok, mod = pcall(require, ac)
+    if not ok or type(mod) ~= "table" then return end
+
+    -- Hook nas funções
+    aplicarHooksNoModulo(mod)
+    -- Zera valores
+    zerarCooldownsDoModulo(mod)
+end
+
+-- Loop contínuo (garante reset mesmo após uso / respawn)
+local function iniciarLoopNoCooldown()
+    if noCooldownLoopActive then return end
+    noCooldownLoopActive = true
+
+    task.spawn(function()
+        while noCooldownAtivo do
+            aplicarNoCooldown()
+            task.wait(0.25)
+        end
+        noCooldownLoopActive = false
+    end)
+end
+
+-- Listener no evento de habilidade
+local function conectarEventoHabilidade()
+    if abilityEventConn then return end
+    local packages = ReplicatedStorage:FindFirstChild("Packages")
+    if not packages then return end
+    local knit = packages:FindFirstChild("Knit")
+    if not knit then return end
+    local services = knit:FindFirstChild("Services")
+    if not services then return end
+    local abilityService = services:FindFirstChild("AbilityService")
+    if not abilityService then return end
+    local re = abilityService:FindFirstChild("RE")
+    if not re then return end
+    local abilityEvent = re:FindFirstChild("Ability")
+    if not abilityEvent then return end
+
+    abilityEventConn = abilityEvent.OnClientEvent:Connect(function(...)
+        if noCooldownAtivo then
+            -- Reaplica imediatamente após uso
+            task.spawn(function()
+                task.wait(0.05)
+                aplicarNoCooldown()
+            end)
+        end
+    end)
+end
+
 local function ativarNoCooldown(estado)
     noCooldownAtivo = estado
     Config.noCooldown = estado
     SaveConfig()
 
     if estado then
-        -- 1. Hook no AbilityController
-        local controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        if controllers then
-            local abilityController = controllers:FindFirstChild("AbilityController")
-            if abilityController then
-                local success, module = pcall(require, abilityController)
-                if success and type(module) == "table" then
-                    -- Hook na função AbilityCooldown
-                    if module.AbilityCooldown then
-                        local originalCooldown = module.AbilityCooldown
-                        module.AbilityCooldown = function(self, skillIndex, ...)
-                            -- Retorna a função original sempre com o tempo zerado (0)
-                            return originalCooldown(self, skillIndex, 0, ...)
-                        end
-                        noCooldownHook = {module = module, original = originalCooldown}
-                    end
-
-                    -- Zerar os slots principais de habilidades (se existirem)
-                    if module.legacy then
-                        for i = 1, 3 do
-                            module.legacy["Ability" .. ({"One", "Two", "Three"})[i]] = 0
-                        end
-                    end
-
-                    -- Zerar quaisquer tabelas de cooldown internas
-                    if module.Cooldowns then
-                        for k, _ in pairs(module.Cooldowns) do
-                            module.Cooldowns[k] = 0
-                        end
-                    end
-                end
-            end
-        end
-
-        -- 2. Listener no evento AbilityService.RE.Ability para detectar uso e reaplicar 0
-        local packages = ReplicatedStorage:FindFirstChild("Packages")
-        if packages then
-            local knit = packages:FindFirstChild("Knit")
-            if knit then
-                local services = knit:FindFirstChild("Services")
-                if services then
-                    local abilityService = services:FindFirstChild("AbilityService")
-                    if abilityService then
-                        local re = abilityService:FindFirstChild("RE")
-                        if re then
-                            abilityEvent = re:FindFirstChild("Ability")
-                            if abilityEvent then
-                                abilityEvent.OnClientEvent:Connect(function(...)
-                                    -- Sempre que uma habilidade é ativada, tenta zerar novamente
-                                    if noCooldownAtivo then
-                                        local controllers2 = ReplicatedStorage:FindFirstChild("Controllers")
-                                        if controllers2 then
-                                            local ac = controllers2:FindFirstChild("AbilityController")
-                                            if ac then
-                                                pcall(function()
-                                                    local mod = require(ac)
-                                                    if mod.legacy then
-                                                        for i = 1, 3 do
-                                                            mod.legacy["Ability" .. ({"One", "Two", "Three"})[i]] = 0
-                                                        end
-                                                    end
-                                                end)
-                                            end
-                                        end
-                                    end
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-        end
+        aplicarNoCooldown()
+        iniciarLoopNoCooldown()
+        conectarEventoHabilidade()
     else
-        -- Restaurar hook original
-        if noCooldownHook then
-            noCooldownHook.module.AbilityCooldown = noCooldownHook.original
-            noCooldownHook = nil
+        -- Restaura hooks originais
+        for fnName, info in pairs(noCooldownHooks) do
+            if info.mod and info.original then
+                info.mod[fnName] = info.original
+            end
         end
+        noCooldownHooks = {}
     end
 end
 
@@ -1160,7 +1217,6 @@ RunService.Heartbeat:Connect(function()
     aplicarDrible()
 end)
 
--- WalkSpeed loop
 RunService.RenderStepped:Connect(function()
     if walkBoost and walkBodyVelocity and player.Character then
         local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -1184,7 +1240,6 @@ end)
 -- =============================================
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
--- Controle de Bola
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 BlueLockSec:Input({
     Title = "Velocidade da Bola",
@@ -1206,7 +1261,6 @@ BlueLockSec:Toggle({
     end
 })
 
--- Aimbot
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
     Title = "Aimbot Personagem",
@@ -1253,7 +1307,6 @@ AimbotSec:Slider({
     end
 })
 
--- Visão de Jogo
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Visão da bola",
@@ -1277,7 +1330,6 @@ VisaoSec:Toggle({
     end
 })
 
--- REACH
 local ReachSec = MainTab:Section({ Title = "REACH", TextXAlignment = "Left" })
 ReachSec:Toggle({
     Title = "REACH Personagem",
@@ -1322,7 +1374,6 @@ ReachSec:Toggle({
     end
 })
 
--- Extras
 local ExtrasSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 ExtrasSec:Toggle({
     Title = "Força da Bola",
@@ -1390,7 +1441,14 @@ ExtrasSec:Button({
     end
 })
 
--- Curvas
+-- NO COOLDOWN na seção Extras
+ExtrasSec:Toggle({
+    Title = "No Cooldown",
+    Desc = "Habilidades recarregam instantaneamente (todas)",
+    Value = Config.noCooldown,
+    Callback = function(v) ativarNoCooldown(v) end
+})
+
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 CurvasSec:Toggle({
     Title = "Bola com curvas",
@@ -1409,7 +1467,6 @@ CurvasSec:Slider({
     Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end
 })
 
--- Drible
 local DribleSec = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 DribleSec:Toggle({
     Title = "Drible",
@@ -1422,9 +1479,6 @@ DribleSec:Toggle({
     end
 })
 
--- =============================================
--- ABA PLAYER
--- =============================================
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 
@@ -1444,14 +1498,9 @@ PlayerSec:Toggle({
     Title = "Ativar Speed",
     Desc = "Ativa o boost de velocidade ao andar",
     Value = Config.walkSpeedAtivo,
-    Callback = function(v)
-        ativarWalkSpeed(v)
-    end
+    Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- =============================================
--- ABA DESEMPENHO
--- =============================================
 local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "activity" })
 local PerfSec = PerfTab:Section({ Title = "Performance", TextXAlignment = "Left" })
 
@@ -1493,9 +1542,6 @@ PerfSec:Toggle({
     Callback = function(v) aplicarPingMenos(v) end
 })
 
--- =============================================
--- SALVAR
--- =============================================
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -1510,18 +1556,6 @@ SaveSec:Button({
     end
 })
 
--- =============================================
--- NO COOLDOWN (UI)
--- =============================================
-ExtrasSec:Toggle({
-    Title = "No Cooldown",
-    Desc = "Habilidades recarregam instantaneamente",
-    Value = Config.noCooldown,
-    Callback = function(v)
-        ativarNoCooldown(v)
-    end
-})
-
 -- Aplica estados salvos ao iniciar
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
@@ -1532,7 +1566,7 @@ if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "No Cooldown adicionado!",
+        Text = "No Cooldown corrigido!",
         Duration = 3
     })
 end)
