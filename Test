@@ -255,4 +255,49 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
+local Tab = Window:Tab({
+    Title = "Credits",
+    Icon = "rbxassetid://11577689639",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "Snowzinn Hub Team",
+    TextXAlignment = "Left",
+    TextSize = 17, -- Default Size
+})
+
+local Paragraph = Tab:Paragraph({
+    Title = "Owner",
+    Desc = "snowbrkkkkk",
+    Color = "Grey",
+    Image = "rbxassetid://4650320901",
+    ImageSize = 22,
+    Thumbnail = "",
+    ThumbnailSize = 22,
+    Locked = true
+})
+
+local Paragraph = Tab:Paragraph({
+    Title = "Co-owner",
+    Desc = "theusbutblue",
+    Color = "Grey",
+    Image = "rbxassetid://4650320901",
+    ImageSize = 22,
+    Thumbnail = "",
+    ThumbnailSize = 22,
+    Locked = true
+})
+
+local Paragraph = Tab:Paragraph({
+    Title = "Co-owner",
+    Desc = "zarthedumbass",
+    Color = "Grey",
+    Image = "rbxassetid://4650320901",
+    ImageSize = 22,
+    Thumbnail = "",
+    ThumbnailSize = 22,
+    Locked = true
+})
+
 print("🍊 SorHub Universal Esport carregado.")
