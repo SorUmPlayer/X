@@ -1,6 +1,6 @@
 --[[
-    ⚽ Blue Lock Rivals – Script completo
-    Features: Aimbot, Visão de Jogo, REACH, Extras, Curvas, Drible, Player, Desempenho, No Cooldown
+    ⚽ Blue Lock Rivals – Script completo com No Cooldown (Clonagem Infinita)
+    AVISO: A clonagem só funciona se as habilidades forem objetos client-side.
 ]]
 
 local Players = game:GetService("Players")
@@ -239,166 +239,208 @@ local walkSpeedValue = Config.walkSpeedValue
 local walkBodyVelocity = nil
 
 -- =============================================
--- NO COOLDOWN
+-- NO COOLDOWN - CLONAGEM INFINITA
 -- =============================================
 local noCooldownEnabled = Config.noCooldown
-local noCooldownLoopActive = false
-local abilityRemote = nil
+local originalAbilities = {}
+local hiddenFolder = nil
+local activeClones = {}
+local monitorConnections = {}
 
-pcall(function()
-    local Packages = ReplicatedStorage:FindFirstChild("Packages")
-    if Packages then
-        local Knit = Packages:FindFirstChild("Knit")
-        if Knit then
-            local Services = Knit:FindFirstChild("Services")
-            if Services then
-                local AbilityService = Services:FindFirstChild("AbilityService")
-                if AbilityService then
-                    local RE = AbilityService:FindFirstChild("RE")
-                    if RE then
-                        abilityRemote = RE:FindFirstChild("Ability")
-                    end
-                end
-            end
-        end
-    end
-end)
+local function criarPastaInvisivel()
+    if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
+    hiddenFolder = Instance.new("Folder")
+    hiddenFolder.Name = "_HiddenAbilities"
+    hiddenFolder.Parent = player:WaitForChild("PlayerGui")
+    return hiddenFolder
+end
 
-local function resetarCooldownUI()
+local function getAbilitiesFolder()
     local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end
+    if not playerGui then return nil end
     local inGameUI = playerGui:FindFirstChild("InGameUI")
-    if not inGameUI then return end
-
-    for _, obj in ipairs(inGameUI:GetDescendants()) do
-        local nome = obj.Name:lower()
-
-        if obj:IsA("NumberValue") or obj:IsA("IntValue") then
-            if nome:find("cooldown") or nome:find("cd") or nome:find("timer")
-                or nome:find("current") or nome:find("time") then
-                obj.Value = 0
-            end
-        elseif obj:IsA("Frame") then
-            if nome:find("cooldown") or nome:find("cd") or nome:find("overlay")
-                or nome:find("dark") then
-                obj.Size = UDim2.new(0, 0, 0, 0)
-                obj.Visible = false
-            end
-        elseif obj:IsA("TextLabel") then
-            if nome:find("cooldown") or nome:find("cd") or nome:find("timer") then
-                obj.Text = ""
-                obj.Visible = false
-            end
-        end
-    end
-
+    if not inGameUI then return nil end
     local bottom = inGameUI:FindFirstChild("Bottom")
-    if bottom then
-        local abilities = bottom:FindFirstChild("Abilities")
-        if abilities then
-            for _, ability in ipairs(abilities:GetChildren()) do
-                for _, child in ipairs(ability:GetDescendants()) do
-                    if child:IsA("NumberValue") or child:IsA("IntValue") then
-                        child.Value = 0
-                    elseif child:IsA("Frame") and child.Name:lower():find("cd") then
-                        child.Size = UDim2.new(0, 0, 0, 0)
-                    end
+    if not bottom then return nil end
+    return bottom:FindFirstChild("Abilities")
+end
+
+local function resetarVisualCooldown()
+    pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        local inGameUI = playerGui:FindFirstChild("InGameUI")
+        if not inGameUI then return end
+        for _, obj in ipairs(inGameUI:GetDescendants()) do
+            local nome = obj.Name:lower()
+            if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                if nome:find("cooldown") or nome:find("cd") or nome:find("timer") then
+                    obj.Value = 0
+                end
+            elseif obj:IsA("Frame") then
+                if nome:find("cooldown") or nome:find("cd") or nome:find("overlay") then
+                    obj.Size = UDim2.new(0, 0, 0, 0)
+                    obj.Visible = false
+                end
+            elseif obj:IsA("TextLabel") then
+                if nome:find("cooldown") or nome:find("cd") or nome:find("timer") then
+                    obj.Text = ""
+                    obj.Visible = false
                 end
             end
         end
-    end
+    end)
 end
 
-local function hookAbilityController()
-    local paths = {
-        {"Controllers", "AbilityController"},
-        {"Controllers", "Ability"},
-        {"Modules", "AbilityController"},
-        {"Packages", "Knit", "Controllers", "AbilityController"},
+local recriarClone  -- forward declaration
+
+local function monitorarClone(clone, originalName)
+    local used = false
+
+    local function marcarUso()
+        if used then return end
+        used = true
+        task.wait(0.05)
+        recriarClone(originalName)
+    end
+
+    -- Tool.Activated
+    if clone:IsA("Tool") then
+        table.insert(monitorConnections, clone.Activated:Connect(marcarUso))
+    end
+
+    -- Botões internos
+    for _, obj in ipairs(clone:GetDescendants()) do
+        if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+            table.insert(monitorConnections, obj.MouseButton1Click:Connect(marcarUso))
+        end
+    end
+
+    -- Teclas (fallback)
+    local keyMap = {
+        Ability1 = Enum.KeyCode.One,
+        Ability2 = Enum.KeyCode.Two,
+        Ability3 = Enum.KeyCode.Three,
+        Ability4 = Enum.KeyCode.Four,
+        AbilityOne = Enum.KeyCode.One,
+        AbilityTwo = Enum.KeyCode.Two,
+        AbilityThree = Enum.KeyCode.Three,
+        AbilityFour = Enum.KeyCode.Four,
     }
-
-    for _, path in ipairs(paths) do
-        pcall(function()
-            local obj = ReplicatedStorage
-            for _, name in ipairs(path) do
-                obj = obj:FindFirstChild(name)
-                if not obj then error("path inválido") end
+    local baseName = originalName:gsub("_Clone", "")
+    local key = keyMap[baseName]
+    if key then
+        table.insert(monitorConnections, UserInputService.InputBegan:Connect(function(input, processed)
+            if processed then return end
+            if input.KeyCode == key then
+                marcarUso()
             end
-
-            local module = require(obj)
-            if type(module) ~= "table" then return end
-
-            local methodsToHook = {
-                "AbilityCooldown", "Cooldown", "StartCooldown",
-                "SetCooldown", "ApplyCooldown", "GetCooldown"
-            }
-
-            for _, methodName in ipairs(methodsToHook) do
-                local original = module[methodName]
-                if type(original) == "function" and not module["__hooked_" .. methodName] then
-                    module[methodName] = function(self, skillIndex, ...)
-                        local ok, result = pcall(original, self, skillIndex, 0, ...)
-                        if ok then return result end
-                        return original(self, skillIndex, ...)
-                    end
-                    module["__hooked_" .. methodName] = true
-                end
-            end
-
-            if module.legacy then
-                for i = 1, 5 do
-                    for _, key in ipairs({"AbilityOne", "AbilityTwo", "AbilityThree",
-                        "AbilityFour", "AbilityFive", "Ability1", "Ability2", "Ability3"}) do
-                        module.legacy[key] = 0
-                    end
-                end
-            end
-        end)
+        end))
     end
 end
 
-local function iniciarNoCooldown()
-    if noCooldownLoopActive then return end
-    noCooldownLoopActive = true
-    hookAbilityController()
+function recriarClone(originalName)
+    local abilitiesFolder = getAbilitiesFolder()
+    if not abilitiesFolder then return end
 
-    task.spawn(function()
-        while noCooldownEnabled do
-            task.wait(0.05)
-            resetarCooldownUI()
-        end
-        noCooldownLoopActive = false
-    end)
+    local oldClone = activeClones[originalName]
+    if oldClone and oldClone.Parent then
+        oldClone:Destroy()
+    end
+
+    local original = originalAbilities[originalName]
+    if not original or not original.Parent then return end
+
+    local newClone = original:Clone()
+    newClone.Name = originalName .. "_Clone"
+    newClone.Parent = abilitiesFolder
+    activeClones[originalName] = newClone
+
+    monitorarClone(newClone, originalName)
+    resetarVisualCooldown()
 end
 
-pcall(function()
-    if abilityRemote then
-        abilityRemote.OnClientEvent:Connect(function()
-            if noCooldownEnabled then
-                resetarCooldownUI()
-                task.wait(0.02)
-                resetarCooldownUI()
-            end
-        end)
+local function guardarEclonarHabilidades()
+    local abilitiesFolder = getAbilitiesFolder()
+    if not abilitiesFolder then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "No Cooldown",
+            Text = "Pasta de habilidades não encontrada!",
+            Duration = 3
+        })
+        return
     end
-end)
 
-pcall(function()
-    UserInputService.InputBegan:Connect(function(input, processed)
-        if not noCooldownEnabled then return end
-        if processed then return end
-        local keyName = input.KeyCode.Name
-        if keyName == "One" or keyName == "Two" or keyName == "Three"
-            or keyName == "Four" or keyName == "Q" or keyName == "E"
-            or keyName == "R" or keyName == "F" then
-            task.wait(0.05)
-            resetarCooldownUI()
-            task.wait(0.1)
-            resetarCooldownUI()
-            task.wait(0.2)
-            resetarCooldownUI()
+    local hidden = criarPastaInvisivel()
+
+    -- Guarda originais
+    for _, ability in ipairs(abilitiesFolder:GetChildren()) do
+        if not ability.Name:find("_Clone") then
+            if not originalAbilities[ability.Name] then
+                originalAbilities[ability.Name] = ability
+                ability.Parent = hidden
+            end
         end
-    end)
+    end
+
+    -- Cria clones
+    for name, original in pairs(originalAbilities) do
+        local clone = original:Clone()
+        clone.Name = name .. "_Clone"
+        clone.Parent = abilitiesFolder
+        activeClones[name] = clone
+        monitorarClone(clone, name)
+    end
+
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "No Cooldown",
+        Text = "Clonagem ativada! Teste e veja se funciona.",
+        Duration = 3
+    })
+end
+
+local function restaurarOriginais()
+    for _, conn in ipairs(monitorConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    monitorConnections = {}
+
+    local abilitiesFolder = getAbilitiesFolder()
+    if abilitiesFolder then
+        for name, clone in pairs(activeClones) do
+            if clone and clone.Parent then clone:Destroy() end
+        end
+        activeClones = {}
+        for name, original in pairs(originalAbilities) do
+            if original and hiddenFolder then
+                original.Parent = abilitiesFolder
+            end
+        end
+        originalAbilities = {}
+    end
+
+    if hiddenFolder then
+        hiddenFolder:Destroy()
+        hiddenFolder = nil
+    end
+end
+
+-- Loop de verificação
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if noCooldownEnabled then
+            local abilitiesFolder = getAbilitiesFolder()
+            if abilitiesFolder then
+                for name, original in pairs(originalAbilities) do
+                    local clone = activeClones[name]
+                    if not clone or not clone.Parent then
+                        recriarClone(name)
+                    end
+                end
+            end
+        end
+    end
 end)
 
 local function aplicarNoCooldown(estado)
@@ -407,12 +449,9 @@ local function aplicarNoCooldown(estado)
     SaveConfig()
 
     if estado then
-        iniciarNoCooldown()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "No Cooldown",
-            Text = "Ativado (pode não ser 100% efetivo se for server-side)",
-            Duration = 3
-        })
+        guardarEclonarHabilidades()
+    else
+        restaurarOriginais()
     end
 end
 
@@ -1422,8 +1461,8 @@ ExtrasSec:Slider({
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
 ExtrasSec:Toggle({
-    Title = "No Cooldown",
-    Desc = "Habilidades recarregam instantaneamente após uso",
+    Title = "No Cooldown (Clonagem)",
+    Desc = "Guarda originais e clona habilidades para recriar após uso",
     Value = Config.noCooldown,
     Callback = function(v) aplicarNoCooldown(v) end
 })
@@ -1588,7 +1627,7 @@ PerfSec:Toggle({
 -- =============================================
 local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
 SaveSec:Button({
-    Title = "💾 Salvar Agora",
+    Title = "💾 Salvar Agoravv2",
     Desc = "Salva todas as configurações manualmente",
     Callback = function()
         SaveConfig()
@@ -1610,7 +1649,7 @@ if Config.noCooldown then task.wait(2); aplicarNoCooldown(true) end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Hub carregado com sucesso!",
+        Text = "Clonagem ativada para teste!",
         Duration = 3
     })
 end)
