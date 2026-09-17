@@ -1298,7 +1298,7 @@ ExtrasSec:Button({
 -- Curvas
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 CurvasSec:Toggle({
-    Title = "Bola com curvas",
+    Title = "Bola com curvasvq",
     Desc = "Ativa curvas na bola (botão flutuante aparece)",
     Value = Config.curvasAtivo,
     Callback = function(v)
