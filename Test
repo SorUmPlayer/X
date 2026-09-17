@@ -256,13 +256,13 @@ StarterGui:SetCore("SendNotification", {
 })
 
 local Tab = Window:Tab({
-    Title = "Credits",
+    Title = "Credits 🍊 SorHub.",
     Icon = "rbxassetid://11577689639",
     Locked = false,
 })
 
 local Section = Tab:Section({ 
-    Title = "Snowzinn Hub Team",
+    Title = "Credits ",
     TextXAlignment = "Left",
     TextSize = 17, -- Default Size
 })
@@ -282,7 +282,7 @@ local Paragraph = Tab:Paragraph({
     Title = "Mega-Fã💎",
     Desc = "Wiki_Nakiwry",
     Color = "Grey",
-    Image = "rbxassetid://4650320901",
+    Image = "rbxassetid://18314616360",
     ImageSize = 22,
     Thumbnail = "",
     ThumbnailSize = 22,
