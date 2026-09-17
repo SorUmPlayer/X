@@ -1317,30 +1317,51 @@ DribleSec:Toggle({
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 
-PlayerSec:Toggle({
-    Title = "Ativar Speed",
-    Desc = "Ativa a velocidade de movimento personalizada",
-    Value = Config.speedAtivo,
+-- WalkSpeed
+local walkBoost = false
+local walkSpeedValue = 70
+local walkBodyVelocity
+
+TabPlayer:Slider({
+    Title = "Walk Speed",
+    Desc = "Velocidade ao andar",
+    Step = 1,
+    Value = { Min = 16, Max = 500, Default = 70 },
     Callback = function(v)
-        speedAtivo = v
-        Config.speedAtivo = v
-        SaveConfig()
-        aplicarSpeed()
+        walkSpeedValue = v
     end
 })
 
-PlayerSec:Slider({
-    Title = "Speed",
-    Desc = "Recomendado 40 de Velocidade!!",
-    Step = 1,
-    Value = { Min = 20, Max = 250, Default = Config.speedValor },
-    Callback = function(v)
-        speedValor = v
-        Config.speedValor = v
-        SaveConfig()
-        aplicarSpeed()
+TabPlayer:Toggle({
+    Title = "🏃 WalkSpeed Boost",
+    Default = false,
+    Callback = function(state)
+        walkBoost = state
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        local root = char.HumanoidRootPart
+
+        if state then
+            walkBodyVelocity = Instance.new("BodyVelocity")
+            walkBodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
+            walkBodyVelocity.Velocity = Vector3.zero
+            walkBodyVelocity.Parent = root
+        else
+            if walkBodyVelocity then walkBodyVelocity:Destroy() walkBodyVelocity = nil end
+        end
     end
 })
+
+RunService.RenderStepped:Connect(function()
+    if walkBoost and walkBodyVelocity and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hum and root then
+            local moveDir = hum.MoveDirection
+            walkBodyVelocity.Velocity = (moveDir.Magnitude > 0) and (moveDir * walkSpeedValue) or Vector3.zero
+        end
+    end
+end)
 
 -- =============================================
 -- ABA DESEMPENHO
