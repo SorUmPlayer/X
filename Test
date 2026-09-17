@@ -61,8 +61,8 @@ local Config = {
     fpsModeAtivo = false,
     fpsModeLevel = 0,
     pingMenos = false,
-    speedAtivo = false,
-    speedValor = 40,
+    walkSpeedAtivo = false,
+    walkSpeedValue = 70,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -230,8 +230,10 @@ local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
-local speedAtivo = Config.speedAtivo
-local speedValor = Config.speedValor
+-- WalkSpeed
+local walkBoost = Config.walkSpeedAtivo
+local walkSpeedValue = Config.walkSpeedValue
+local walkBodyVelocity = nil
 
 -- =============================================
 -- SHOULD AIMBOT WORK
@@ -695,7 +697,7 @@ local function atualizarAdvinhaChute()
 end
 
 -- =============================================
--- CHAT: Força da Bola
+-- CHAT
 -- =============================================
 local function onChatMessage(msg)
     local lower = msg:lower()
@@ -833,15 +835,38 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- CORREÇÕES DE GAMEPLAY
+-- WALKSPEED (PLAYER)
 -- =============================================
-task.spawn(function()
-    while true do
-        task.wait(0.05)
-        if reachPersonagemAtivo then aplicarReachPersonagem() end
+local function ativarWalkSpeed(estado)
+    walkBoost = estado
+    Config.walkSpeedAtivo = estado
+    SaveConfig()
+
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if estado then
+        if walkBodyVelocity then walkBodyVelocity:Destroy() end
+        walkBodyVelocity = Instance.new("BodyVelocity")
+        walkBodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
+        walkBodyVelocity.Velocity = Vector3.zero
+        walkBodyVelocity.Parent = root
+    else
+        if walkBodyVelocity then walkBodyVelocity:Destroy(); walkBodyVelocity = nil end
     end
+end
+
+-- Reaplica ao respawnar
+player.CharacterAdded:Connect(function(char)
+    task.wait(1)
+    if walkBoost then ativarWalkSpeed(true) end
 end)
 
+-- =============================================
+-- ANTI-TACKLE
+-- =============================================
 local tackleAnimIds = {"rasteira", "tackle", "slide", "17996440171"}
 local tackleCooldown = 0
 
@@ -851,9 +876,9 @@ local function isTackleAnim(character)
     local animator = humanoid:FindFirstChild("Animator") or humanoid
     for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
         if track.Animation then
-            local id = tostring(track.Animation.AnimationId)
+            local id = tostring(track.Animation.AnimationId):lower()
             for _, pattern in ipairs(tackleAnimIds) do
-                if string.find(id:lower(), pattern) then return true end
+                if string.find(id, pattern) then return true end
             end
         end
     end
@@ -993,9 +1018,7 @@ local function aplicarFpsMode(level)
     end
 
     if level >= 3 then
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
         pcall(function()
             for _, obj in ipairs(Lighting:GetChildren()) do
                 if obj:IsA("Atmosphere") or obj:IsA("BloomEffect") or obj:IsA("BlurEffect")
@@ -1028,25 +1051,6 @@ local function aplicarPingMenos(estado)
 end
 
 -- =============================================
--- SPEED (Player)
--- =============================================
-local speedConnection = nil
-
-local function aplicarSpeed()
-    if speedConnection then speedConnection:Disconnect(); speedConnection = nil end
-    if not speedAtivo then return end
-
-    speedConnection = RunService.Heartbeat:Connect(function()
-        local char = player.Character
-        if not char then return end
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = speedValor
-        end
-    end)
-end
-
--- =============================================
 -- LOOP PRINCIPAL
 -- =============================================
 RunService.Heartbeat:Connect(function()
@@ -1059,6 +1063,18 @@ RunService.Heartbeat:Connect(function()
     aplicarForcaBola()
     aplicarCurvas()
     aplicarDrible()
+end)
+
+-- WalkSpeed loop
+RunService.RenderStepped:Connect(function()
+    if walkBoost and walkBodyVelocity and player.Character then
+        local hum = player.Character:FindFirstChildOfClass("Humanoid")
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if hum and root then
+            local moveDir = hum.MoveDirection
+            walkBodyVelocity.Velocity = (moveDir.Magnitude > 0) and (moveDir * walkSpeedValue) or Vector3.zero
+        end
+    end
 end)
 
 task.spawn(function()
@@ -1317,51 +1333,26 @@ DribleSec:Toggle({
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 
--- WalkSpeed
-local walkBoost = false
-local walkSpeedValue = 70
-local walkBodyVelocity
-
-TabPlayer:Slider({
-    Title = "Walk Speed",
-    Desc = "Velocidade ao andar",
+PlayerSec:Slider({
+    Title = "Speed",
+    Desc = "Recomendado 40 de Velocidade!!",
     Step = 1,
-    Value = { Min = 16, Max = 500, Default = 70 },
+    Value = { Min = 20, Max = 250, Default = Config.walkSpeedValue },
     Callback = function(v)
         walkSpeedValue = v
+        Config.walkSpeedValue = v
+        SaveConfig()
     end
 })
 
-TabPlayer:Toggle({
-    Title = "🏃 WalkSpeed Boost",
-    Default = false,
-    Callback = function(state)
-        walkBoost = state
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-        local root = char.HumanoidRootPart
-
-        if state then
-            walkBodyVelocity = Instance.new("BodyVelocity")
-            walkBodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
-            walkBodyVelocity.Velocity = Vector3.zero
-            walkBodyVelocity.Parent = root
-        else
-            if walkBodyVelocity then walkBodyVelocity:Destroy() walkBodyVelocity = nil end
-        end
+PlayerSec:Toggle({
+    Title = "Ativar Speed",
+    Desc = "Ativa o boost de velocidade ao andar",
+    Value = Config.walkSpeedAtivo,
+    Callback = function(v)
+        ativarWalkSpeed(v)
     end
 })
-
-RunService.RenderStepped:Connect(function()
-    if walkBoost and walkBodyVelocity and LocalPlayer.Character then
-        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hum and root then
-            local moveDir = hum.MoveDirection
-            walkBodyVelocity.Velocity = (moveDir.Magnitude > 0) and (moveDir * walkSpeedValue) or Vector3.zero
-        end
-    end
-end)
 
 -- =============================================
 -- ABA DESEMPENHO
@@ -1428,7 +1419,7 @@ SaveSec:Button({
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
-if Config.speedAtivo then aplicarSpeed() end
+if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
