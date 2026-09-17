@@ -268,8 +268,8 @@ local Section = Tab:Section({
 })
 
 local Paragraph = Tab:Paragraph({
-    Title = "Owner",
-    Desc = "snowbrkkkkk",
+    Title = "Owner👑",
+    Desc = "Sor_UmPlayer",
     Color = "Grey",
     Image = "rbxassetid://4650320901",
     ImageSize = 22,
@@ -279,19 +279,8 @@ local Paragraph = Tab:Paragraph({
 })
 
 local Paragraph = Tab:Paragraph({
-    Title = "Co-owner",
-    Desc = "theusbutblue",
-    Color = "Grey",
-    Image = "rbxassetid://4650320901",
-    ImageSize = 22,
-    Thumbnail = "",
-    ThumbnailSize = 22,
-    Locked = true
-})
-
-local Paragraph = Tab:Paragraph({
-    Title = "Co-owner",
-    Desc = "zarthedumbass",
+    Title = "Mega-Fã💎",
+    Desc = "Wiki_Nakiwry",
     Color = "Grey",
     Image = "rbxassetid://4650320901",
     ImageSize = 22,
