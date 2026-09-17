@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown (corrigido)
+    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown (Speed fix)
 ]]
 
 local Players = game:GetService("Players")
@@ -231,10 +231,13 @@ local espSphere = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 
--- WalkSpeed
+-- WalkSpeed (variáveis)
 local walkBoost = Config.walkSpeedAtivo
 local walkSpeedValue = Config.walkSpeedValue
 local walkBodyVelocity = nil
+local walkAttachedCharacter = nil
+local walkOriginalWalkSpeed = 16
+local walkOriginalJumpPower = 50
 
 -- No Cooldown
 local noCooldownAtivo = Config.noCooldown
@@ -842,8 +845,25 @@ local function removerBotaoCurvas()
 end
 
 -- =============================================
--- WALKSPEED
+-- WALKSPEED – CORRIGIDO (não reseta mais)
 -- =============================================
+local function criarWalkBodyVelocity(char)
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- Remove BodyVelocity antigo se existir
+    if walkBodyVelocity and walkBodyVelocity.Parent then
+        walkBodyVelocity:Destroy()
+    end
+
+    walkBodyVelocity = Instance.new("BodyVelocity")
+    walkBodyVelocity.Name = "WalkSpeedBoost"
+    walkBodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
+    walkBodyVelocity.Velocity = Vector3.zero
+    walkBodyVelocity.Parent = root
+end
+
 local function ativarWalkSpeed(estado)
     walkBoost = estado
     Config.walkSpeedAtivo = estado
@@ -851,27 +871,56 @@ local function ativarWalkSpeed(estado)
 
     local char = player.Character
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
 
     if estado then
-        if walkBodyVelocity then walkBodyVelocity:Destroy() end
-        walkBodyVelocity = Instance.new("BodyVelocity")
-        walkBodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
-        walkBodyVelocity.Velocity = Vector3.zero
-        walkBodyVelocity.Parent = root
+        criarWalkBodyVelocity(char)
+        walkAttachedCharacter = char
     else
         if walkBodyVelocity then walkBodyVelocity:Destroy(); walkBodyVelocity = nil end
+        walkAttachedCharacter = nil
     end
 end
 
+-- Reaplica ao respawnar
 player.CharacterAdded:Connect(function(char)
-    task.wait(1)
-    if walkBoost then ativarWalkSpeed(true) end
+    walkAttachedCharacter = nil
+    walkBodyVelocity = nil
+    if walkBoost then
+        task.wait(0.5)
+        criarWalkBodyVelocity(char)
+        walkAttachedCharacter = char
+    end
+end)
+
+-- Loop contínuo: garante que o BodyVelocity sempre exista enquanto o toggle estiver ativo
+RunService.Heartbeat:Connect(function()
+    if not walkBoost then return end
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- Se o personagem mudou, recria
+    if walkAttachedCharacter ~= char then
+        walkAttachedCharacter = char
+        criarWalkBodyVelocity(char)
+    end
+
+    -- Se o BodyVelocity foi destruído ou não está no root, recria
+    if not walkBodyVelocity or not walkBodyVelocity.Parent or walkBodyVelocity.Parent ~= root then
+        criarWalkBodyVelocity(char)
+    end
+
+    -- Aplica a velocidade na direção do movimento
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and walkBodyVelocity then
+        local moveDir = hum.MoveDirection
+        walkBodyVelocity.Velocity = (moveDir.Magnitude > 0) and (moveDir * walkSpeedValue) or Vector3.zero
+    end
 end)
 
 -- =============================================
--- NO COOLDOWN – CORRIGIDO (reset para TODAS as habilidades)
+-- NO COOLDOWN
 -- =============================================
 local function getAbilityController()
     local controllers = ReplicatedStorage:FindFirstChild("Controllers")
@@ -879,29 +928,24 @@ local function getAbilityController()
     return nil
 end
 
--- Zera todas as tabelas/valores de cooldown que encontrar no módulo
 local function zerarCooldownsDoModulo(mod)
     if type(mod) ~= "table" then return end
 
-    -- Slots legados
     if mod.legacy then
         for _, key in ipairs({"AbilityOne", "AbilityTwo", "AbilityThree", "AbilityFour"}) do
             if mod.legacy[key] ~= nil then mod.legacy[key] = 0 end
         end
-        -- Também qualquer chave numérica
         for k, v in pairs(mod.legacy) do
             if type(v) == "number" and v > 0 then mod.legacy[k] = 0 end
         end
     end
 
-    -- Tabela de cooldowns (nome comum em jogos)
     for _, key in ipairs({"Cooldowns", "cooldowns", "CD", "cd", "Cooldown"}) do
         if type(mod[key]) == "table" then
             for k, _ in pairs(mod[key]) do mod[key][k] = 0 end
         end
     end
 
-    -- Variáveis numéricas com "cooldown"/"cd" no nome
     for k, v in pairs(mod) do
         if type(v) == "number" and type(k) == "string" then
             local lk = k:lower()
@@ -912,11 +956,9 @@ local function zerarCooldownsDoModulo(mod)
     end
 end
 
--- Aplica hooks nas funções de cooldown do módulo
 local function aplicarHooksNoModulo(mod)
     if type(mod) ~= "table" then return end
 
-    -- Funções comuns de cooldown
     for _, fnName in ipairs({
         "AbilityCooldown", "SetCooldown", "StartCooldown", "Cooldown",
         "ApplyCooldown", "StartCooldownTimer", "SetCooldownTimer"
@@ -924,15 +966,9 @@ local function aplicarHooksNoModulo(mod)
         local original = mod[fnName]
         if type(original) == "function" and not noCooldownHooks[fnName] then
             mod[fnName] = function(self, ...)
-                -- Força o cooldown a 0 sempre
                 local args = {...}
-                -- Tenta passar 0 no primeiro argumento numérico após self
                 if type(args[1]) == "number" then args[1] = 0 end
                 if type(args[2]) == "number" then args[2] = 0 end
-                -- Se for skillIndex + tempo, o tempo é o 2º (após skillIndex)
-                if type(args[1]) == "string" or type(args[1]) == "number" then
-                    if type(args[2]) == "number" then args[2] = 0 end
-                end
                 return original(self, table.unpack(args))
             end
             noCooldownHooks[fnName] = { mod = mod, original = original }
@@ -940,26 +976,18 @@ local function aplicarHooksNoModulo(mod)
     end
 end
 
--- Aplica tudo
 local function aplicarNoCooldown()
     local ac = getAbilityController()
     if not ac then return end
-
-    -- Requer o módulo
     local ok, mod = pcall(require, ac)
     if not ok or type(mod) ~= "table" then return end
-
-    -- Hook nas funções
     aplicarHooksNoModulo(mod)
-    -- Zera valores
     zerarCooldownsDoModulo(mod)
 end
 
--- Loop contínuo (garante reset mesmo após uso / respawn)
 local function iniciarLoopNoCooldown()
     if noCooldownLoopActive then return end
     noCooldownLoopActive = true
-
     task.spawn(function()
         while noCooldownAtivo do
             aplicarNoCooldown()
@@ -969,7 +997,6 @@ local function iniciarLoopNoCooldown()
     end)
 end
 
--- Listener no evento de habilidade
 local function conectarEventoHabilidade()
     if abilityEventConn then return end
     local packages = ReplicatedStorage:FindFirstChild("Packages")
@@ -987,7 +1014,6 @@ local function conectarEventoHabilidade()
 
     abilityEventConn = abilityEvent.OnClientEvent:Connect(function(...)
         if noCooldownAtivo then
-            -- Reaplica imediatamente após uso
             task.spawn(function()
                 task.wait(0.05)
                 aplicarNoCooldown()
@@ -1006,7 +1032,6 @@ local function ativarNoCooldown(estado)
         iniciarLoopNoCooldown()
         conectarEventoHabilidade()
     else
-        -- Restaura hooks originais
         for fnName, info in pairs(noCooldownHooks) do
             if info.mod and info.original then
                 info.mod[fnName] = info.original
@@ -1215,17 +1240,6 @@ RunService.Heartbeat:Connect(function()
     aplicarForcaBola()
     aplicarCurvas()
     aplicarDrible()
-end)
-
-RunService.RenderStepped:Connect(function()
-    if walkBoost and walkBodyVelocity and player.Character then
-        local hum = player.Character:FindFirstChildOfClass("Humanoid")
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if hum and root then
-            local moveDir = hum.MoveDirection
-            walkBodyVelocity.Velocity = (moveDir.Magnitude > 0) and (moveDir * walkSpeedValue) or Vector3.zero
-        end
-    end
 end)
 
 task.spawn(function()
@@ -1441,7 +1455,6 @@ ExtrasSec:Button({
     end
 })
 
--- NO COOLDOWN na seção Extras
 ExtrasSec:Toggle({
     Title = "No Cooldown",
     Desc = "Habilidades recarregam instantaneamente (todas)",
@@ -1566,7 +1579,7 @@ if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "No Cooldown corrigido!",
+        Text = "Speed corrigido!",
         Duration = 3
     })
 end)
