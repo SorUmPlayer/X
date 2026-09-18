@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – REACH + Desempenho + Player Speed + No Cooldown (Speed fix)
+    ⚽ Blue Lock Rivals
 ]]
 
 local Players = game:GetService("Players")
@@ -1344,9 +1344,9 @@ VisaoSec:Toggle({
     end
 })
 
-local ReachSec = MainTab:Section({ Title = "REACH", TextXAlignment = "Left" })
+local ReachSec = MainTab:Section({ Title = "Hitbox", TextXAlignment = "Left" })
 ReachSec:Toggle({
-    Title = "REACH Personagem",
+    Title = "Hitbox Personagem",
     Desc = "Coleta a bola de longe com toques agressivos (anti-latência)",
     Value = Config.reachPersonagem,
     Callback = function(v)
@@ -1354,8 +1354,8 @@ ReachSec:Toggle({
     end
 })
 ReachSec:Slider({
-    Title = "Alcance do REACH",
-    Desc = "Raio de detecção do REACH do personagem (1-30)",
+    Title = "Alcance do Hitbox",
+    Desc = "Raio de detecção do Hitbox do personagem (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.reachPersonagemTamanho },
     Callback = function(v)
@@ -1363,7 +1363,7 @@ ReachSec:Slider({
     end
 })
 ReachSec:Toggle({
-    Title = "REACH da Bola",
+    Title = "Hitbox da Bola",
     Desc = "Aumenta a hitbox da bola (invisível)",
     Value = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
