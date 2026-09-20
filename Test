@@ -1,292 +1,138 @@
--- =============================================
--- 🍊 SorHub Universal Esport
--- =============================================
-local players = game:GetService("Players")
-local coreGui = game:GetService("CoreGui")
-local StarterGui = game:GetService("StarterGui")
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+-- Carregamento da Biblioteca WindUI
+local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 
-local LocalPlayer = players.LocalPlayer
+-- Criação da Janela Principal
+local Window = WindUI:CreateWindow({
+    Title = "Blue Lock System - Spin Manager",
+    Icon = "rotate-cw",
+    Author = "Developer",
+    Folder = "SpinManagerConfig",
+    Size = UDim2.fromOffset(550, 400),
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 180,
+    HasOutline = true
+})
 
--- =============================================
--- CONFIGURAÇÕES PERSISTENTES
--- =============================================
-local CONFIG_FILE = "SorHubUniversal_Config.json"
+-- Abas
+local MainTab = Window:Tab({ Title = "Spin", Icon = "dices" })
+local SettingsTab = Window:Tab({ Title = "Configurações", Icon = "settings" })
 
-local function LoadConfig()
-    if not isfile then return {} end
-    if isfile(CONFIG_FILE) then
-        local success, data = pcall(function()
-            return HttpService:JSONDecode(readfile(CONFIG_FILE))
-        end)
-        if success and type(data) == "table" then
-            return data
-        end
-    end
-    return {}
-end
-
-local function SaveConfigToFile(configTable)
-    if not writefile then return end
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(configTable)
-    end)
-    if success then
-        pcall(function() writefile(CONFIG_FILE, json) end)
-    end
-end
-
-local Config = {
-    JogoSelecionado = "BlueLockRivals",
-    AutoExecutar = false,
-}
-local savedConfig = LoadConfig()
-for k, v in pairs(savedConfig) do
-    Config[k] = v
-end
-
-local function SaveConfig()
-    SaveConfigToFile(Config)
-end
-
--- =============================================
--- SCRIPTS DOS JOGOS
--- =============================================
-local Scripts = {
-    BlueLockRivals = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Blue%20Lock%20Rivals",
-    VolleyballLegends = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Volleyball%20Legends",
-    FechaduraAzure = "https://raw.githubusercontent.com/SorUmPlayer/X/refs/heads/main/Fechadura%20Azure",
+-- Estado Interno (State)
+local State = {
+    IsSpinning = false,
+    AutoSpin = false,
+    CurrentStyle = "Nenhum",
+    TargetRarity = "World Class"
 }
 
-local function CarregarScript(jogo)
-    local url = Scripts[jogo]
-    if not url then
-        StarterGui:SetCore("SendNotification", {
-            Title = "Erro",
-            Text = "Jogo não encontrado!",
+-- Lista de raridades/estilos simulados
+local AvailableStyles = {
+    { Name = "Basic Player", Rarity = "Common", Chance = 50 },
+    { Name = "Barou", Rarity = "Rare", Chance = 30 },
+    { Name = "Nagi", Rarity = "Epic", Chance = 15 },
+    { Name = "Rin", Rarity = "Legendary", Chance = 4 },
+    { Name = "Kaiser", Rarity = "World Class", Chance = 1 }
+}
+
+-- Função local para simulação do sorteio
+local function PerformSpin()
+    local roll = math.random(1, 100)
+    if roll <= 1 then return AvailableStyles[5] end
+    if roll <= 5 then return AvailableStyles[4] end
+    if roll <= 20 then return AvailableStyles[3] end
+    if roll <= 50 then return AvailableStyles[2] end
+    return AvailableStyles[1]
+end
+
+-- UI - Seção Principal
+local SpinSection = MainTab:Section({ Title = "Controle de Giros" })
+
+local StyleDisplay = SpinSection:Paragraph({
+    Title = "Estilo Atual",
+    Desc = "Nenhum estilo obtido."
+})
+
+-- Botão de Giro Único
+SpinSection:Button({
+    Title = "Girar Estilo",
+    Desc = "Consome 1 spin para obter um novo estilo",
+    Callback = function()
+        if State.IsSpinning then return end
+        State.IsSpinning = true
+        
+        StyleDisplay:SetTitle("Girando...")
+        StyleDisplay:SetDesc("Aguardando resposta...")
+        
+        task.wait(0.8) -- Tempo de rotação
+        
+        local result = PerformSpin()
+        State.CurrentStyle = result.Name .. " (" .. result.Rarity .. ")"
+        
+        StyleDisplay:SetTitle("Estilo Obtido")
+        StyleDisplay:SetDesc(State.CurrentStyle)
+        
+        WindUI:Notify({
+            Title = "Spin Concluído",
+            Content = "Você tirou: " .. State.CurrentStyle,
             Duration = 3
         })
-        return
+        
+        State.IsSpinning = false
     end
-    pcall(function()
-        local success, result = pcall(function()
-            return game:HttpGet(url)
-        end)
-        if success then
-            local func, err = loadstring(result)
-            if func then
-                func()
-                StarterGui:SetCore("SendNotification", {
-                    Title = "SorHub",
-                    Text = "Script carregado: " .. jogo,
-                    Duration = 3
-                })
-            else
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Erro",
-                    Text = "Falha ao compilar: " .. tostring(err),
-                    Duration = 5
-                })
-            end
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Falha ao baixar: " .. tostring(result),
-                Duration = 5
-            })
-        end
-    end)
-end
+})
 
--- =============================================
--- AUTO EXECUTAR
--- =============================================
-local autoExecutado = false
-
-local function TentarAutoExecutar()
-    if Config.AutoExecutar and not autoExecutado then
-        autoExecutado = true
-        CarregarScript(Config.JogoSelecionado)
-    end
-end
-
--- Tenta executar automaticamente quando o jogo carregar
-task.spawn(function()
-    -- Aguarda o jogador estar pronto
-    repeat task.wait(1) until LocalPlayer and LocalPlayer.Character
-    TentarAutoExecutar()
-end)
-
--- Também tenta executar quando o script é carregado (já pode estar pronto)
-if LocalPlayer and LocalPlayer.Character then
-    TentarAutoExecutar()
-end
-
--- =============================================
--- MENU – WINDUI
--- =============================================
-local oldWindow = nil
-
-local function CriarMenu()
-    if oldWindow then
-        pcall(function() oldWindow:Destroy() end)
-        oldWindow = nil
-    end
-
-    local WindUI
-    local url = "https://raw.githubusercontent.com/ukinabr/WindUI/refs/heads/main/dist/main.lua"
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        WindUI = result
-    else
-        local fallbackUrl = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-        success, result = pcall(function()
-            return loadstring(game:HttpGet(fallbackUrl))()
-        end)
-        if success and result then
-            WindUI = result
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "Erro",
-                Text = "Não foi possível carregar a WindUI.",
-                Duration = 5
-            })
-            return
+-- Toggle de Auto Spin com Loop Controlado
+SpinSection:Toggle({
+    Title = "Auto Spin Loop",
+    Desc = "Executa giros contínuos até atingir a raridade desejada",
+    Value = false,
+    Callback = function(Value)
+        State.AutoSpin = Value
+        
+        if State.AutoSpin then
+            task.spawn(function()
+                while State.AutoSpin do
+                    if not State.IsSpinning then
+                        State.IsSpinning = true
+                        
+                        StyleDisplay:SetTitle("Auto Spin em andamento...")
+                        task.wait(0.4)
+                        
+                        local result = PerformSpin()
+                        State.CurrentStyle = result.Name .. " (" .. result.Rarity .. ")"
+                        
+                        StyleDisplay:SetTitle("Estilo Atual")
+                        StyleDisplay:SetDesc(State.CurrentStyle)
+                        
+                        -- Parar se atingir a raridade alvo
+                        if result.Rarity == State.TargetRarity then
+                            State.AutoSpin = false
+                            WindUI:Notify({
+                                Title = "Meta Atingida!",
+                                Content = "Conseguiu: " .. State.CurrentStyle,
+                                Duration = 5
+                            })
+                            State.IsSpinning = false
+                            break
+                        end
+                        
+                        State.IsSpinning = false
+                    end
+                    task.wait(0.2)
+                end
+            end)
         end
     end
-
-    local Window = WindUI:CreateWindow({
-        Title = "🍊 SorHub Universal Esport",
-        Icon = "rbxassetid://135710581431595",
-        Author = "Sor_UmPlayer",
-        Folder = "SorHub Universal Esport",
-        Size = UDim2.fromOffset(460, 320),
-        Transparent = false,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 200,
-        BackgroundImageTransparency = 0.42,
-        HideSearchBar = true,
-        ScrollBarEnabled = false,
-        User = {
-            Enabled = true,
-            Anonymous = false,
-            Callback = function() print("clicked") end,
-        },
-    })
-    oldWindow = Window
-    Window:SetIconSize(60)
-
-    Window:EditOpenButton({
-        Title = "🍊 SorHub",
-        Icon = "",
-        CornerRadius = UDim.new(0, 16),
-        StrokeThickness = 2,
-        Color = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("000000")),
-        OnlyMobile = false,
-        Enabled = true,
-        Draggable = false
-    })
-
-    -- ====== ABA GAMES ======
-    local TabGames = Window:Tab({ Title = "Games", Icon = "rbxassetid://135710581431595" })
-
-    -- Seção "Selecione Game"
-    TabGames:Section({ Title = "🎮 Selecione Game" })
-    TabGames:Button({
-        Title = "Blue Lock Rivals",
-        Desc = "Carrega o script do Blue Lock Rivals",
-        Callback = function()
-            CarregarScript("BlueLockRivals")
-        end
-    })
-    TabGames:Button({
-        Title = "Volleyball Legends",
-        Desc = "Carrega o script do Volleyball Legends",
-        Callback = function()
-            CarregarScript("VolleyballLegends")
-        end
-    })
-    TabGames:Button({
-        Title = "Fechadura Azure",
-        Desc = "Carrega o script do Fechadura Azure",
-        Callback = function()
-            CarregarScript("FechaduraAzure")
-        end
-    })
-
-    -- Seção "Auto Execute"
-    TabGames:Section({ Title = "⚡ Auto Execute" })
-    local dropdownJogos = TabGames:Dropdown({
-        Title = "Selecionar Jogo",
-        Values = {"BlueLockRivals", "VolleyballLegends", "FechaduraAzure"},
-        Value = Config.JogoSelecionado,
-        Callback = function(value)
-            Config.JogoSelecionado = value
-            SaveConfig()
-            print("[SorHub] Jogo selecionado:", value)
-        end
-    })
-
-    local toggleAuto = TabGames:Toggle({
-        Title = "Executar",
-        Desc = "Ative para executar o script automaticamente ao entrar no jogo",
-        Value = Config.AutoExecutar,
-        Callback = function(value)
-            Config.AutoExecutar = value
-            SaveConfig()
-            autoExecutado = false -- Permite executar novamente se reativar
-            if value then
-                -- Se ativou, tenta executar imediatamente
-                TentarAutoExecutar()
-            end
-        end
-    })
-end
-
-pcall(CriarMenu)
-
-StarterGui:SetCore("SendNotification", {
-    Title = "🍊 SorHub Universal Esport",
-    Text = "Carregado com sucesso!",
-    Duration = 3
 })
 
-local Tab = Window:Tab({
-    Title = "Credits 🍊 SorHub.",
-    Icon = "rbxassetid://11577689639",
-    Locked = false,
+-- Configuração da Meta do Auto Spin
+SettingsTab:Dropdown({
+    Title = "Parar no Estilo/Raridade",
+    Desc = "O Auto Spin será interrompido ao obter esta raridade",
+    Values = { "Rare", "Epic", "Legendary", "World Class" },
+    Value = "World Class",
+    Callback = function(Selected)
+        State.TargetRarity = Selected
+    end
 })
-
-local Section = Tab:Section({ 
-    Title = "Credits ",
-    TextXAlignment = "Left",
-    TextSize = 17, -- Default Size
-})
-
-local Paragraph = Tab:Paragraph({
-    Title = "Owner👑",
-    Desc = "Sor_UmPlayer",
-    Color = "Grey",
-    Image = "rbxassetid://4650320901",
-    ImageSize = 22,
-    Thumbnail = "",
-    ThumbnailSize = 22,
-    Locked = true
-})
-
-local Paragraph = Tab:Paragraph({
-    Title = "Mega-Fã💎",
-    Desc = "Wiki_Nakiwry",
-    Color = "Grey",
-    Image = "rbxassetid://18314616360",
-    ImageSize = 22,
-    Thumbnail = "",
-    ThumbnailSize = 22,
-    Locked = true
-})
-
-print("🍊 SorHub Universal Esport carregado.")
