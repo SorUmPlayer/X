@@ -1,138 +1,166 @@
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
 -- Carregamento da Biblioteca WindUI
 local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 
--- Criação da Janela Principal
+-- Criar a Janela Principal no WindUI
 local Window = WindUI:CreateWindow({
-    Title = "Blue Lock System - Spin Manager",
-    Icon = "rotate-cw",
+    Title = "Blue Lock Rivals - Auto Spin",
+    Icon = "dices",
     Author = "Developer",
-    Folder = "SpinManagerConfig",
-    Size = UDim2.fromOffset(550, 400),
+    Folder = "BLRivalsConfig",
+    Size = UDim2.fromOffset(500, 350),
     Transparent = true,
     Theme = "Dark",
-    SideBarWidth = 180,
-    HasOutline = true
+    SideBarWidth = 160
 })
 
--- Abas
-local MainTab = Window:Tab({ Title = "Spin", Icon = "dices" })
-local SettingsTab = Window:Tab({ Title = "Configurações", Icon = "settings" })
+local MainTab = Window:Tab({ Title = "Spin Loop", Icon = "rotate-cw" })
 
--- Estado Interno (State)
+-- Estado do Script
 local State = {
-    IsSpinning = false,
     AutoSpin = false,
-    CurrentStyle = "Nenhum",
-    TargetRarity = "World Class"
+    TargetRarity = "World Class",
+    SpinDelay = 0.5,
+    IsSpinning = false
 }
 
--- Lista de raridades/estilos simulados
-local AvailableStyles = {
-    { Name = "Basic Player", Rarity = "Common", Chance = 50 },
-    { Name = "Barou", Rarity = "Rare", Chance = 30 },
-    { Name = "Nagi", Rarity = "Epic", Chance = 15 },
-    { Name = "Rin", Rarity = "Legendary", Chance = 4 },
-    { Name = "Kaiser", Rarity = "World Class", Chance = 1 }
-}
+-- Interface de Controle no WindUI
+local SpinSection = MainTab:Section({ Title = "Configuração do Auto Spin" })
 
--- Função local para simulação do sorteio
-local function PerformSpin()
-    local roll = math.random(1, 100)
-    if roll <= 1 then return AvailableStyles[5] end
-    if roll <= 5 then return AvailableStyles[4] end
-    if roll <= 20 then return AvailableStyles[3] end
-    if roll <= 50 then return AvailableStyles[2] end
-    return AvailableStyles[1]
-end
-
--- UI - Seção Principal
-local SpinSection = MainTab:Section({ Title = "Controle de Giros" })
-
-local StyleDisplay = SpinSection:Paragraph({
-    Title = "Estilo Atual",
-    Desc = "Nenhum estilo obtido."
+local StatusParagraph = SpinSection:Paragraph({
+    Title = "Status",
+    Desc = "Aguardando início..."
 })
 
--- Botão de Giro Único
-SpinSection:Button({
-    Title = "Girar Estilo",
-    Desc = "Consome 1 spin para obter um novo estilo",
-    Callback = function()
-        if State.IsSpinning then return end
-        State.IsSpinning = true
-        
-        StyleDisplay:SetTitle("Girando...")
-        StyleDisplay:SetDesc("Aguardando resposta...")
-        
-        task.wait(0.8) -- Tempo de rotação
-        
-        local result = PerformSpin()
-        State.CurrentStyle = result.Name .. " (" .. result.Rarity .. ")"
-        
-        StyleDisplay:SetTitle("Estilo Obtido")
-        StyleDisplay:SetDesc(State.CurrentStyle)
-        
-        WindUI:Notify({
-            Title = "Spin Concluído",
-            Content = "Você tirou: " .. State.CurrentStyle,
-            Duration = 3
-        })
-        
-        State.IsSpinning = false
+SpinSection:Dropdown({
+    Title = "Parar na Raridade",
+    Values = { "Rare", "Epic", "Legendary", "World Class" },
+    Value = "World Class",
+    Callback = function(Value)
+        State.TargetRarity = Value
     end
 })
 
--- Toggle de Auto Spin com Loop Controlado
 SpinSection:Toggle({
-    Title = "Auto Spin Loop",
-    Desc = "Executa giros contínuos até atingir a raridade desejada",
+    Title = "Ativar Auto Spin",
     Value = false,
     Callback = function(Value)
         State.AutoSpin = Value
-        
         if State.AutoSpin then
             task.spawn(function()
                 while State.AutoSpin do
                     if not State.IsSpinning then
                         State.IsSpinning = true
+                        StatusParagraph:SetTitle("Executando Giro...")
                         
-                        StyleDisplay:SetTitle("Auto Spin em andamento...")
-                        task.wait(0.4)
+                        -- Substitua este bloco pela chamada do RemoteEvent real do jogo:
+                        -- game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Knit"):WaitForChild("Services"):WaitForChild("StyleService"):WaitForChild("RF"):WaitForChild("Spin"):InvokeServer()
                         
-                        local result = PerformSpin()
-                        State.CurrentStyle = result.Name .. " (" .. result.Rarity .. ")"
-                        
-                        StyleDisplay:SetTitle("Estilo Atual")
-                        StyleDisplay:SetDesc(State.CurrentStyle)
-                        
-                        -- Parar se atingir a raridade alvo
-                        if result.Rarity == State.TargetRarity then
-                            State.AutoSpin = false
-                            WindUI:Notify({
-                                Title = "Meta Atingida!",
-                                Content = "Conseguiu: " .. State.CurrentStyle,
-                                Duration = 5
-                            })
-                            State.IsSpinning = false
-                            break
-                        end
+                        task.wait(State.SpinDelay)
+                        StatusParagraph:SetTitle("Giro Concluído")
+                        StatusParagraph:SetDesc("Aguardando próximo ciclo...")
                         
                         State.IsSpinning = false
                     end
-                    task.wait(0.2)
+                    task.wait(0.1)
                 end
+                StatusParagraph:SetTitle("Status")
+                StatusParagraph:SetDesc("Auto Spin Parado.")
             end)
         end
     end
 })
 
--- Configuração da Meta do Auto Spin
-SettingsTab:Dropdown({
-    Title = "Parar no Estilo/Raridade",
-    Desc = "O Auto Spin será interrompido ao obter esta raridade",
-    Values = { "Rare", "Epic", "Legendary", "World Class" },
-    Value = "World Class",
-    Callback = function(Selected)
-        State.TargetRarity = Selected
+----------------------------------------------------------------
+-- CRIAÇÃO DO BOTÃO FLUTUANTE (DRAGGABLE FLOATING BUTTON)
+----------------------------------------------------------------
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "WindUI_FloatingButton"
+ScreenGui.ResetOnSpawn = false
+
+-- Proteção de GUI para executores
+if gethui then
+    ScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = CoreGui
+else
+    ScreenGui.Parent = CoreGui
+end
+
+local FloatingButton = Instance.new("TextButton")
+FloatingButton.Name = "ToggleUI"
+FloatingButton.Size = UDim2.new(0, 50, 0, 50)
+FloatingButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+FloatingButton.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+FloatingButton.BorderSizePixel = 0
+FloatingButton.Text = "🌀"
+FloatingButton.TextSize = 22
+FloatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatingButton.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = FloatingButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 170, 255)
+UIStroke.Thickness = 2
+UIStroke.Parent = FloatingButton
+
+-- Lógica de Arraste (Suporte para PC e Mobile/Touch)
+local dragging = false
+local dragInput, dragStart, startPos
+local dragThreshold = false
+
+local function update(input)
+    local delta = input.Position - dragStart
+    FloatingButton.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+FloatingButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragThreshold = false
+        dragStart = input.Position
+        startPos = FloatingButton.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
     end
-})
+end)
+
+FloatingButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        if (input.Position - dragStart).Magnitude > 5 then
+            dragThreshold = true
+        end
+        update(input)
+    end
+end)
+
+-- Clique do Botão (Abre/Fecha a Janela do WindUI se não estiver arrastando)
+FloatingButton.MouseButton1Click:Connect(function()
+    if not dragThreshold then
+        Window:Toggle()
+    end
+end)
