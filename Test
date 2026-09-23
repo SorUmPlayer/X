@@ -1,13 +1,13 @@
--- [[ Blue Lock: Rivals - Reo Mikage Skill System (Tool + Tecla E) ]] --
+-- [[ Blue Lock: Rivals - Reo Mikage (Injeção Direta na UI Native de Skills) ]] --
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local CopiedSkillName = "Nenhuma"
+local CopiedSkill = "Nenhuma"
 local CopiedTarget = nil
 
--- Função para localizar o jogador mais próximo
+-- Função para encontrar o jogador mais próximo
 local function GetClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -17,9 +17,9 @@ local function GetClosestPlayer()
         local myPos = myChar.HumanoidRootPart.Position
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local distance = (myPos - player.Character.HumanoidRootPart.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
+                local dist = (myPos - player.Character.HumanoidRootPart.Position).Magnitude
+                if dist < shortestDistance then
+                    shortestDistance = dist
                     closestPlayer = player
                 end
             end
@@ -28,17 +28,15 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
--- Efeito Visual da Aura Roxa do Reo Mikage
-local function ApplyReoAura(character)
-    if not character then return end
-    
-    local highlight = character:FindFirstChild("ReoChameleonAura") or Instance.new("Highlight")
-    highlight.Name = "ReoChameleonAura"
-    highlight.FillColor = Color3.fromRGB(147, 51, 234) -- Roxo característico do Reo
+-- Aura Roxa do Reo Mikage no Personagem
+local function ApplyReoAura(char)
+    if not char then return end
+    local highlight = char:FindFirstChild("ReoCopyEffect") or Instance.new("Highlight")
+    highlight.Name = "ReoCopyEffect"
+    highlight.FillColor = Color3.fromRGB(147, 51, 234)
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.FillTransparency = 0.3
-    highlight.OutlineTransparency = 0
-    highlight.Parent = character
+    highlight.Parent = char
     
     task.delay(2.5, function()
         if highlight and highlight.Parent then
@@ -47,72 +45,107 @@ local function ApplyReoAura(character)
     end)
 end
 
--- Execução da Habilidade de Cópia
-local function ActivateReoSkill(toolObject)
+-- Atualiza a interface gráfica oficial do jogo no slot especificado (ex: "5", "6", etc.)
+local function UpdateAbilitySlotUI(slotIndex, skillTitle)
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    
+    local abilitiesFolder = playerGui:FindFirstChild("InGameUI") 
+        and playerGui.InGameUI:FindFirstChild("Bottom") 
+        and playerGui.InGameUI.Bottom:FindFirstChild("Abilities")
+        
+    if not abilitiesFolder then return end
+    
+    local targetSlot = abilitiesFolder:FindFirstChild(tostring(slotIndex))
+    if not targetSlot then return end
+    
+    targetSlot.Visible = true
+    
+    -- Procura o TextLabel do Slot para alterar o nome da Skill
+    for _, desc in ipairs(targetSlot:GetDescendants()) do
+        if desc:IsA("TextLabel") then
+            desc.Text = skillTitle
+        end
+    end
+    
+    -- Adiciona borda roxa de destaque do Reo no Slot da UI
+    local stroke = targetSlot:FindFirstChild("ReoBorder") or Instance.new("UIStroke")
+    stroke.Name = "ReoBorder"
+    stroke.Color = Color3.fromRGB(147, 51, 234)
+    stroke.Thickness = 2
+    stroke.Parent = targetSlot
+end
+
+-- Função principal para roubar skill e atribuir ao Slot
+local function CopySkillToSlot(slotIndex)
+    slotIndex = tostring(slotIndex or "5")
     local target = GetClosestPlayer()
-    local myChar = LocalPlayer.Character
+    local char = LocalPlayer.Character
     
     if target and target.Character then
         CopiedTarget = target
+        local tool = target.Character:FindFirstChildOfClass("Tool") or target.Backpack:FindFirstChildOfClass("Tool")
+        CopiedSkill = tool and tool.Name or ("Estilo: " .. target.DisplayName)
         
-        -- Busca a ferramenta/estilo do jogador mais próximo
-        local targetTool = target.Character:FindFirstChildOfClass("Tool") 
-            or target.Backpack:FindFirstChildOfClass("Tool")
+        -- Aplica aura e atualiza o Slot na UI
+        ApplyReoAura(char)
+        UpdateAbilitySlotUI(slotIndex, CopiedSkill)
         
-        CopiedSkillName = targetTool and targetTool.Name or ("Estilo de " .. target.DisplayName)
-        
-        -- Atualiza o nome da Skill na Hotbar para mostrar o que foi roubado
-        if toolObject then
-            toolObject.Name = "⚡ [Reo] " .. CopiedSkillName
-        end
-        
-        -- Ativa a Aura do Reo no seu personagem
-        ApplyReoAura(myChar)
-        
-        print("[REO SKILL] Skill roubada do jogador @" .. target.Name .. ": " .. CopiedSkillName)
+        print("[REO SYSTEM] Skill '" .. CopiedSkill .. "' injetada no Slot Abilities['" .. slotIndex .. "']")
     else
-        print("[REO SKILL] Nenhum jogador próximo encontrado para copiar.")
+        print("[REO SYSTEM] Nenhum jogador próximo para copiar.")
     end
 end
 
--- Função para criar a Skill no Inventário (Backpack/Hotbar)
-local function CreateReoTool()
-    local backpack = LocalPlayer:WaitForChild("Backpack")
+-- Vincula eventos de clique nos Slots de 5 até 10 da InGameUI
+local function SetupNativeSlots()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local inGameUI = playerGui:WaitForChild("InGameUI", 10)
+    if not inGameUI then return end
     
-    -- Limpa versões antigas caso já exista
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item.Name:sub(1, 6) == "🟣 Skill" or item.Name:sub(1, 7) == "⚡ [Reo]" then
-            item:Destroy()
+    local abilities = inGameUI:WaitForChild("Bottom", 5) and inGameUI.Bottom:WaitForChild("Abilities", 5)
+    if not abilities then return end
+    
+    -- Configura os slots de 5 a 10
+    for i = 5, 10 do
+        local slotName = tostring(i)
+        local slot = abilities:FindFirstChild(slotName)
+        
+        if slot then
+            slot.Visible = true
+            
+            -- Detecta clique na caixa do slot
+            local clickDetector = slot:IsA("GuiButton") and slot 
+                or slot:FindFirstChildOfClass("GuiButton") 
+                or slot:FindFirstChildOfClass("ImageButton") 
+                or slot:FindFirstChildOfClass("TextButton")
+            
+            if clickDetector then
+                clickDetector.MouseButton1Click:Connect(function()
+                    CopySkillToSlot(slotName)
+                end)
+            end
         end
     end
-    
-    local skillTool = Instance.new("Tool")
-    skillTool.Name = "🟣 Skill: Roubo Camaleão"
-    skillTool.RequiresHandle = false
-    skillTool.CanBeDropped = false
-    
-    -- Ao clicar na Skill/Tool equipada
-    skillTool.Activated:Connect(function()
-        ActivateReoSkill(skillTool)
-    end)
-    
-    skillTool.Parent = backpack
-    return skillTool
 end
 
--- Criar a Skill na Hotbar assim que o script é executado
-local currentSkillTool = CreateReoTool()
-
--- Recolocar a Skill no Inventário se o seu personagem morrer/renascer (Respawn)
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    currentSkillTool = CreateReoTool()
+-- Execução Automática ao Injetar
+task.spawn(function()
+    SetupNativeSlots()
+    CopySkillToSlot("5") -- Aloca direto no Slot 5 na primeira execução
 end)
 
--- Atalho de Teclado (Pressionar 'E' aciona a skill diretamente)
+-- Re-aplica a UI em caso de Respawn / Nova Rodada
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1.5)
+    SetupNativeSlots()
+    CopySkillToSlot("5")
+end)
+
+-- Tecla "5" do teclado aciona a cópia direto pro Slot 5
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.E then
-        ActivateReoSkill(currentSkillTool)
+    if input.KeyCode == Enum.KeyCode.Five or input.KeyCode == Enum.KeyCode.KeypadFive then
+        CopySkillToSlot("5")
     end
 end)
