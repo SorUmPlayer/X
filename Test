@@ -1,12 +1,13 @@
--- [[ Blue Lock: Rivals - Reo Mikage Skill Steal (Apenas Botão Flutuante) ]] --
+-- [[ Blue Lock: Rivals - Reo Mikage Skill System (Tool + Tecla E) ]] --
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local CopiedSkill = "Nenhuma"
+local CopiedSkillName = "Nenhuma"
 local CopiedTarget = nil
 
--- Função para encontrar o jogador mais próximo
+-- Função para localizar o jogador mais próximo
 local function GetClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -27,82 +28,91 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
--- Função para copiar a habilidade do alvo
-local function CopyNearestSkill()
+-- Efeito Visual da Aura Roxa do Reo Mikage
+local function ApplyReoAura(character)
+    if not character then return end
+    
+    local highlight = character:FindFirstChild("ReoChameleonAura") or Instance.new("Highlight")
+    highlight.Name = "ReoChameleonAura"
+    highlight.FillColor = Color3.fromRGB(147, 51, 234) -- Roxo característico do Reo
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.3
+    highlight.OutlineTransparency = 0
+    highlight.Parent = character
+    
+    task.delay(2.5, function()
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end)
+end
+
+-- Execução da Habilidade de Cópia
+local function ActivateReoSkill(toolObject)
     local target = GetClosestPlayer()
+    local myChar = LocalPlayer.Character
     
     if target and target.Character then
         CopiedTarget = target
-        local tool = target.Character:FindFirstChildOfClass("Tool") or target.Backpack:FindFirstChildOfClass("Tool")
-        CopiedSkill = tool and tool.Name or ("Estilo do " .. target.DisplayName)
         
-        -- Efeito visual de Aura Roxa no seu personagem
-        local char = LocalPlayer.Character
-        if char then
-            local highlight = char:FindFirstChild("ReoCopyEffect") or Instance.new("Highlight")
-            highlight.Name = "ReoCopyEffect"
-            highlight.FillColor = Color3.fromRGB(138, 43, 226) -- Roxo Reo Mikage
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.Parent = char
-            
-            task.delay(2, function()
-                if highlight and highlight.Parent then
-                    highlight:Destroy()
-                end
-            end)
+        -- Busca a ferramenta/estilo do jogador mais próximo
+        local targetTool = target.Character:FindFirstChildOfClass("Tool") 
+            or target.Backpack:FindFirstChildOfClass("Tool")
+        
+        CopiedSkillName = targetTool and targetTool.Name or ("Estilo de " .. target.DisplayName)
+        
+        -- Atualiza o nome da Skill na Hotbar para mostrar o que foi roubado
+        if toolObject then
+            toolObject.Name = "⚡ [Reo] " .. CopiedSkillName
         end
         
-        print("[REO SYSTEM] Skill Copiada: " .. CopiedSkill .. " (Jogador: " .. target.Name .. ")")
+        -- Ativa a Aura do Reo no seu personagem
+        ApplyReoAura(myChar)
+        
+        print("[REO SKILL] Skill roubada do jogador @" .. target.Name .. ": " .. CopiedSkillName)
     else
-        print("[REO SYSTEM] Nenhum jogador próximo para copiar.")
+        print("[REO SKILL] Nenhum jogador próximo encontrado para copiar.")
     end
 end
 
--- Executa automaticamente uma vez ao injetar o script
-task.spawn(function()
-    task.wait(0.1)
-    CopyNearestSkill()
-end)
-
--- Criar APENAS o botão flutuante na tela (sem nenhuma janela ou Hub)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ReoButtonOnlyGui"
-ScreenGui.ResetOnSpawn = false
-
--- Proteção e injeção na interface
-if gethui then
-    ScreenGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(ScreenGui)
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-else
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- Função para criar a Skill no Inventário (Backpack/Hotbar)
+local function CreateReoTool()
+    local backpack = LocalPlayer:WaitForChild("Backpack")
+    
+    -- Limpa versões antigas caso já exista
+    for _, item in ipairs(backpack:GetChildren()) do
+        if item.Name:sub(1, 6) == "🟣 Skill" or item.Name:sub(1, 7) == "⚡ [Reo]" then
+            item:Destroy()
+        end
+    end
+    
+    local skillTool = Instance.new("Tool")
+    skillTool.Name = "🟣 Skill: Roubo Camaleão"
+    skillTool.RequiresHandle = false
+    skillTool.CanBeDropped = false
+    
+    -- Ao clicar na Skill/Tool equipada
+    skillTool.Activated:Connect(function()
+        ActivateReoSkill(skillTool)
+    end)
+    
+    skillTool.Parent = backpack
+    return skillTool
 end
 
-local CopyButton = Instance.new("TextButton")
-CopyButton.Name = "ReoSkillButton"
-CopyButton.Size = UDim2.new(0, 130, 0, 45)
-CopyButton.Position = UDim2.new(0.85, -10, 0.55, 0) -- Posição perto da área de habilidades
-CopyButton.BackgroundColor3 = Color3.fromRGB(120, 0, 200)
-CopyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyButton.Text = " Roubar Skill"
-CopyButton.Font = Enum.Font.SourceSansBold
-CopyButton.TextSize = 16
-CopyButton.Active = true
-CopyButton.Draggable = true -- Você pode segurar e arrastar para onde quiser
-CopyButton.Parent = ScreenGui
+-- Criar a Skill na Hotbar assim que o script é executado
+local currentSkillTool = CreateReoTool()
 
--- Visual do Botão (Arredondado e com Borda)
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
-UICorner.Parent = CopyButton
+-- Recolocar a Skill no Inventário se o seu personagem morrer/renascer (Respawn)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    currentSkillTool = CreateReoTool()
+end)
 
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Color = Color3.fromRGB(255, 255, 255)
-UIStroke.Thickness = 1.5
-UIStroke.Parent = CopyButton
-
--- Evento de clique
-CopyButton.MouseButton1Click:Connect(function()
-    CopyNearestSkill()
+-- Atalho de Teclado (Pressionar 'E' aciona a skill diretamente)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        ActivateReoSkill(currentSkillTool)
+    end
 end)
