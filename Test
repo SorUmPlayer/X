@@ -1,36 +1,34 @@
 --[[
-    ⚽ Blue Lock Rivals – Atualizado
+    ⚽ Blue Lock Rivals – Update Completo
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
-local UIS = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- =============================================
--- AUTO SAVE
--- =============================================
+-- ========== AUTO SAVE ==========
 local CONFIG_FILE = "BlueLock_AutoSave.json"
 local function LoadConfig()
     if not isfile then return {} end
     if isfile(CONFIG_FILE) then
-        local s, d = pcall(function() return HttpService:JSONDecode(readfile(CONFIG_FILE)) end)
-        if s and type(d) == "table" then return d end
+        local ok, data = pcall(function() return HttpService:JSONDecode(readfile(CONFIG_FILE)) end)
+        if ok and type(data) == "table" then return data end
     end
     return {}
 end
 local function SaveConfigToFile(t)
     if not writefile then return end
-    local s, j = pcall(function() return HttpService:JSONEncode(t) end)
-    if s then pcall(function() writefile(CONFIG_FILE, j) end) end
+    local ok, json = pcall(function() return HttpService:JSONEncode(t) end)
+    if ok then pcall(function() writefile(CONFIG_FILE, json) end) end
 end
 local Config = {
     velocidadeBola = 65, forcaBolaVelocidade = 100, aimbotDelayValue = 0,
@@ -41,19 +39,15 @@ local Config = {
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
-    noCooldown = false, autoGolTeam = "Home",
-    trazerBolaAtivo = false, stopBallAtivo = false, controleBolaVelocidade = 65,
+    noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
+    stopBallMostrar = false, trazerBolaMostrar = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
 local function SaveConfig() SaveConfigToFile(Config) end
-task.spawn(function()
-    while true do task.wait(5) SaveConfig() end
-end)
+task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
--- =============================================
--- SAFE PARENT
--- =============================================
+-- ========== SAFE PARENT ==========
 local function safeParent(gui)
     local ok = pcall(function()
         if gethui then gui.Parent = gethui()
@@ -63,11 +57,9 @@ local function safeParent(gui)
     if not ok then gui.Parent = player:WaitForChild("PlayerGui") end
 end
 
--- =============================================
--- WINDUI
--- =============================================
+-- ========== WINDUI ==========
 local WindUI
-local loaded, _ = pcall(function()
+local loaded = pcall(function()
     WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
 if not loaded or not WindUI then
@@ -81,63 +73,77 @@ local Window = WindUI:CreateWindow({
     Resizable = true, SideBarWidth = 200, HideSearchBar = true, ScrollBarEnabled = false,
 })
 
--- =============================================
--- DETECÇÃO DA BOLA
--- =============================================
+-- ========== BOLA ==========
 local bola, hitbox, bolaValida = nil, nil, false
+
 local function atualizarReferenciaBola()
     for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") then
-            local fb = child:FindFirstChild("Football")
-            if fb then
-                bola = fb
-                local hb = bola:FindFirstChild("Hitbox")
-                hitbox = (hb and hb:IsA("BasePart")) and hb or bola
-                bolaValida = true; return
-            end
-        elseif child.Name == "Football" then
+        if child.Name == "Football" then
             bola = child
             local hb = bola:FindFirstChild("Hitbox")
-            hitbox = (hb and hb:IsA("BasePart")) and hb or bola
-            bolaValida = true; return
+            hitbox = (hb and hb:IsA("BasePart")) and hb or (bola:IsA("Model") and bola.PrimaryPart) or bola
+            bolaValida = true
+            return
+        end
+    end
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Model") and child.Name ~= "Football" then
+            local f = child:FindFirstChild("Football")
+            if f then
+                bola = f
+                local hb = f:FindFirstChild("Hitbox")
+                hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
+                bolaValida = true
+                return
+            end
         end
     end
     bola = nil; hitbox = nil; bolaValida = false
 end
+
 Workspace.ChildAdded:Connect(atualizarReferenciaBola)
 Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 task.spawn(function()
-    while true do
-        task.wait(1)
-        if not bolaValida or not hitbox then atualizarReferenciaBola() end
-    end
+    while true do task.wait(1); if not bolaValida or not hitbox then atualizarReferenciaBola() end end
 end)
+
 local function getBall()
     if bola and bolaValida then return bola end
-    local fb = Workspace:FindFirstChild("Football")
-    if fb then
-        local ba = fb:FindFirstChild("BallAnims")
-        if ba then
-            if ba:IsA("BasePart") then return ba end
-            return ba:FindFirstChildWhichIsA("BasePart") or ba.PrimaryPart
+    local f = Workspace:FindFirstChild("Football")
+    if f then return f end
+    for _, c in ipairs(Workspace:GetChildren()) do
+        if c:IsA("Model") and c.Name ~= "Football" then
+            local f2 = c:FindFirstChild("Football")
+            if f2 then return f2 end
         end
     end
     return nil
 end
+
+local function getBallPart()
+    local b = getBall()
+    if not b then return nil end
+    if b:IsA("BasePart") then return b end
+    if b:IsA("Model") then return b.PrimaryPart or b:FindFirstChildWhichIsA("BasePart") end
+    return nil
+end
+
 local function euTenhoBola()
     local m = Workspace:FindFirstChild(player.Name)
     if m and m:FindFirstChild("Football") then return true end
     return false
 end
+
 local function alguemTemBola()
     for _, c in ipairs(Workspace:GetChildren()) do
-        if c:IsA("Model") and c.Name ~= "Football" and c:FindFirstChild("Football") then
-            return true
+        if c:IsA("Model") and c.Name ~= "Football" and c.Name ~= "Ball" then
+            if c:FindFirstChild("Football") then return true end
         end
     end
     return false
 end
+
 local function getMyTeam()
     local v = player:FindFirstChild("Values")
     if v then
@@ -147,9 +153,7 @@ local function getMyTeam()
     return nil
 end
 
--- =============================================
--- VARIÁVEIS
--- =============================================
+-- ========== VARIÁVEIS ==========
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
@@ -167,48 +171,42 @@ local curvasBotaoGUI, curvasBotao = nil, nil
 local curvasTimer, curvasIntervalo, curvasDirecaoAtual = 0, 1.0, 1
 local dribleEnabled = Config.dribleAtivo
 local dribleSphere, dribleLastFired = nil, 0
-local dribleCooldown = 0.3
-local dribleAnimId = "18668814876"
-local dribleRadius = 70
+local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
 local velocidadeBola = Config.controleBolaVelocidade
 local isControlActive = false
 local controlConnection, controlScreenGui, toggleButton = nil, nil, nil
-local cameraButtonActive = false
-local cameraScreenGui, cameraToggleButton = nil, nil
+local cameraButtonActive, cameraScreenGui, cameraToggleButton = false, nil, nil
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-local aimbotDelayValue = Config.aimbotDelayValue
-local aimbotBlocked, aimbotBlockedUntil = false, 0
-local visaoBolaEnabled = Config.visaoBola
-local advinhaChuteEnabled = Config.advinhaChute
+local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayValue, false, 0
+local visaoBolaEnabled, advinhaChuteEnabled = Config.visaoBola, Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
 local gyro, espSphere = nil, nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 local hitboxDesativadoAte = 0
-local walkBoost = Config.walkSpeedAtivo
-local walkSpeedValue = Config.walkSpeedValue
+local walkBoost, walkSpeedValue = Config.walkSpeedAtivo, Config.walkSpeedValue
 local walkBodyVelocity, walkAttachedCharacter = nil, nil
 local noCooldownAtivo = Config.noCooldown
-local noCooldownHooks = {}
-local noCooldownLoopActive = false
-local abilityEventConn = nil
-local autoGolTeam = Config.autoGolTeam or "Home"
-local autoGolBotaoGUI, autoGolBotao = nil, nil
-local trazerBolaAtivo = Config.trazerBolaAtivo
-local trazerBolaGUI, trazerBolaBotao = nil, nil
-local stopBallAtivo = Config.stopBallAtivo
-local stopBallGUI, stopBallBotao = nil, nil
-local floatingSliderGUI = nil
+local noCooldownHooks, noCooldownLoopActive, abilityEventConn = {}, false, nil
 
--- =============================================
--- SHOULD AIMBOT
--- =============================================
+-- Stop Ball
+local stopBallAtivo = false
+local stopBallGUI, stopBallBtn = nil, nil
+
+-- Trazer Bola
+local trazerBolaAtivo = false
+local trazerBolaGUI, trazerBolaBtn = nil, nil
+
+-- Auto Gol
+local autoGolTeam = Config.autoGolTeam or "Home"
+local autoGolRunning = false
+local autoGolTeamGUI, autoGolTeamBtn = nil, nil
+
+-- ========== SHOULD AIMBOT ==========
 local function shouldAimbotWork()
     if euTenhoBola() then
-        aimbotBlocked = true
-        aimbotBlockedUntil = tick() + aimbotDelayValue
-        return false
+        aimbotBlocked = true; aimbotBlockedUntil = tick() + aimbotDelayValue; return false
     end
     if aimbotBlocked then
         if tick() >= aimbotBlockedUntil then aimbotBlocked = false; return true
@@ -217,37 +215,30 @@ local function shouldAimbotWork()
     return true
 end
 
--- =============================================
--- REACH DA BOLA (fix AWK)
--- =============================================
+-- ========== REACH BOLA (HITBOX FIX) ==========
 local function aplicarReachBola()
     if not hitbox then return end
     local agora = tick()
     if alguemTemBola() then hitboxDesativadoAte = agora + 0.5 end
     if agora < hitboxDesativadoAte then
-        if hitbox.Size ~= hitboxOriginalSize then
-            hitbox.Size = hitboxOriginalSize
-            hitbox.Transparency = hitboxOriginalTransparency
+        if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
+            hitbox.Size = hitboxOriginalSize; hitbox.Transparency = hitboxOriginalTransparency
         end
         return
     end
     if not reachBolaAtivo then
-        if hitbox.Size ~= hitboxOriginalSize then
-            hitbox.Size = hitboxOriginalSize
-            hitbox.Transparency = hitboxOriginalTransparency
+        if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
+            hitbox.Size = hitboxOriginalSize; hitbox.Transparency = hitboxOriginalTransparency
         end
         return
     end
-    local td = Vector3.new(reachBolaDistancia, reachBolaDistancia, reachBolaDistancia)
-    if hitbox.Size ~= td or hitbox.Transparency ~= 1 then
-        hitbox.Size = td
-        hitbox.Transparency = 1
+    local t = Vector3.new(reachBolaDistancia, reachBolaDistancia, reachBolaDistancia)
+    if hitbox.Size ~= t or hitbox.Transparency ~= 1 then
+        hitbox.Size = t; hitbox.Transparency = 1
     end
 end
 
--- =============================================
--- REACH DO PERSONAGEM
--- =============================================
+-- ========== REACH PERSONAGEM ==========
 local function aplicarReachPersonagem()
     if not reachPersonagemAtivo then return end
     if euTenhoBola() then return end
@@ -259,46 +250,44 @@ local function aplicarReachPersonagem()
     local dist = (hrp.Position - hitbox.Position).Magnitude
     if dist <= reachPersonagemTamanho then
         if firetouchinterest then
-            for i = 1, 3 do
-                firetouchinterest(hrp, hitbox, 0)
-                task.wait(0.005)
-                firetouchinterest(hrp, hitbox, 1)
+            for _ = 1, 3 do
+                firetouchinterest(hrp, hitbox, 0); task.wait(0.005); firetouchinterest(hrp, hitbox, 1)
             end
         end
     end
 end
 
--- =============================================
--- FORÇA / CURVAS / DRIBLE
--- =============================================
+-- ========== FORÇA DA BOLA ==========
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
-    if not bola or not bolaValida then return end
+    local ball = getBallPart()
+    if not ball then return end
     local tenho = euTenhoBola()
     if tinhaBola and not tenho then
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
         if dir.Magnitude < 0.1 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
-        bola.AssemblyLinearVelocity = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
+        ball.AssemblyLinearVelocity = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
     end
     tinhaBola = tenho
 end
 
+-- ========== CURVAS ==========
 local function aplicarCurvas()
     if not curvasEnabled then return end
-    if not bola or not bolaValida then return end
+    local ball = getBallPart()
+    if not ball then return end
     if euTenhoBola() then return end
-    local vel = bola.AssemblyLinearVelocity
+    local vel = ball.AssemblyLinearVelocity
     if vel.Magnitude < 40 then return end
-    if bola.Position.Y < 0.5 then return end
+    if ball.Position.Y < 0.5 then return end
     local dir = Vector3.new(vel.X, 0, vel.Z)
     if dir.Magnitude < 0.01 then return end
     dir = dir.Unit
     local perp = Vector3.new(-dir.Z, 0, dir.X)
     local fator = (curvasIntensidade / 10) * 15 + 1.5
     local lado = 1
-    if curvasModo == 1 then lado = 1
-    elseif curvasModo == 2 then lado = -1
+    if curvasModo == 2 then lado = -1
     elseif curvasModo == 3 then
         local now = tick()
         if now - curvasTimer > curvasIntervalo then
@@ -308,19 +297,115 @@ local function aplicarCurvas()
         end
         lado = curvasDirecaoAtual
     end
-    bola.AssemblyLinearVelocity = vel + perp * lado * fator
+    ball.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
+-- ========== TRAZER BOLA (SINGLE FLOATING BUTTON) ==========
+local function aplicarTrazerBola()
+    if not trazerBolaAtivo then return end
+    if euTenhoBola() then return end
+    local ballPart = getBallPart()
+    if not ballPart then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local dir = hrp.Position - ballPart.Position
+    local dist = dir.Magnitude
+    if dist < 2 then return end
+    dir = dir.Unit
+    ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
+end
+
+-- ========== STOP BALL (SINGLE FLOATING BUTTON) ==========
+local function aplicarStopBall()
+    if not stopBallAtivo then return end
+    if euTenhoBola() then return end
+    local ball = getBallPart()
+    if not ball then return end
+    ball.AssemblyLinearVelocity = Vector3.zero
+    ball.AssemblyAngularVelocity = Vector3.zero
+end
+
+local function desativarStopBall()
+    local ball = getBallPart()
+    if ball then
+        local dir = camera.CFrame.LookVector
+        dir = Vector3.new(dir.X, 0, dir.Z)
+        if dir.Magnitude < 0.01 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
+        ball.AssemblyLinearVelocity = dir * 40
+    end
+end
+
+-- ========== AUTO GOL ==========
+local function executarAutoGol()
+    if autoGolRunning then return end
+    autoGolRunning = true
+    task.spawn(function()
+        local char = player.Character
+        if not char then autoGolRunning = false; return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then autoGolRunning = false; return end
+        local posOriginal = hrp.Position
+
+        -- 1. Ir até a bola
+        local ballPart = getBallPart()
+        if ballPart then
+            hrp.CFrame = CFrame.new(ballPart.Position + Vector3.new(0, 3, 0))
+            task.wait(0.25)
+            -- 2. Pegar a bola (touch múltiplo)
+            if firetouchinterest then
+                for _ = 1, 8 do
+                    firetouchinterest(hrp, ballPart, 0)
+                    task.wait(0.03)
+                    firetouchinterest(hrp, ballPart, 1)
+                end
+            end
+            task.wait(0.3)
+        end
+
+        -- 3. Ir pro gol
+        local posGol = autoGolTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
+        hrp.CFrame = CFrame.new(posGol)
+        task.wait(0.25)
+
+        -- 4. Chutar
+        local args = { [1] = 110, [4] = posGol }
+        local pk = ReplicatedStorage:FindFirstChild("Packages")
+        if pk then
+            local knit = pk:FindFirstChild("Knit")
+            if knit then
+                local sv = knit:FindFirstChild("Services")
+                if sv then
+                    local bs = sv:FindFirstChild("BallService")
+                    if bs then
+                        local re = bs:FindFirstChild("RE")
+                        if re then
+                            local shoot = re:FindFirstChild("Shoot")
+                            if shoot then shoot:FireServer(unpack(args)) end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.3)
+        -- 5. Voltar
+        hrp.CFrame = CFrame.new(posOriginal)
+        autoGolRunning = false
+    end)
+end
+
+-- ========== DRIBLE ==========
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
             local pk = ReplicatedStorage:FindFirstChild("Packages")
             if pk then
-                local k = pk:FindFirstChild("Knit")
-                if k then
-                    local s = k:FindFirstChild("Services")
-                    if s then
-                        local bs = s:FindFirstChild("BallService")
+                local knit = pk:FindFirstChild("Knit")
+                if knit then
+                    local sv = knit:FindFirstChild("Services")
+                    if sv then
+                        local bs = sv:FindFirstChild("BallService")
                         if bs then
                             local re = bs:FindFirstChild("RE")
                             if re then dribleEvent = re:FindFirstChild("Dribble") end
@@ -334,7 +419,7 @@ local function setupDrible()
         dribleSphere = Instance.new("Part")
         dribleSphere.Name = "DetectionSphereVisual"
         dribleSphere.Shape = Enum.PartType.Ball
-        dribleSphere.Size = Vector3.new(dribleRadius * 2, dribleRadius * 2, dribleRadius * 2)
+        dribleSphere.Size = Vector3.new(dribleRadius*2, dribleRadius*2, dribleRadius*2)
         dribleSphere.Material = Enum.Material.ForceField
         dribleSphere.Color = Color3.fromRGB(255, 0, 128)
         dribleSphere.Transparency = 0.6
@@ -346,36 +431,33 @@ local function setupDrible()
 end
 
 local function trackDribleAnimation(character)
-    local hum = character:FindFirstChild("Humanoid")
-    if not hum then return end
-    local anim = hum:FindFirstChild("Animator") or hum
+    local h = character:FindFirstChild("Humanoid")
+    if not h then return end
+    local anim = h:FindFirstChild("Animator") or h
     local function check(track)
         if not track or not track.Animation then return end
         if string.find(tostring(track.Animation.AnimationId), dribleAnimId) then
             driblePlayingAnims[character] = true
             local cs, ce
-            cs = track.Stopped:Connect(function() driblePlayingAnims[character] = nil; cs:Disconnect(); if ce then ce:Disconnect() end end)
-            ce = track.Ended:Connect(function() driblePlayingAnims[character] = nil; cs:Disconnect(); ce:Disconnect() end)
+            cs = track.Stopped:Connect(function() driblePlayingAnims[character]=nil; cs:Disconnect(); if ce then ce:Disconnect() end end)
+            ce = track.Ended:Connect(function() driblePlayingAnims[character]=nil; cs:Disconnect(); ce:Disconnect() end)
         end
     end
     for _, t in ipairs(anim:GetPlayingAnimationTracks()) do check(t) end
     anim.AnimationPlayed:Connect(check)
 end
 
-local function setupDriblePlayerTracking(plr)
-    if plr == player then return end
-    if plr.Character then task.spawn(trackDribleAnimation, plr.Character) end
-    plr.CharacterAdded:Connect(function(c)
-        driblePlayingAnims[c] = nil
-        task.spawn(trackDribleAnimation, c)
-    end)
+local function setupDriblePlayerTracking(p)
+    if p == player then return end
+    if p.Character then task.spawn(trackDribleAnimation, p.Character) end
+    p.CharacterAdded:Connect(function(c) driblePlayingAnims[c]=nil; task.spawn(trackDribleAnimation, c) end)
 end
 
 local function isDribleAnimActive(char)
     if driblePlayingAnims[char] then return true end
-    local hum = char:FindFirstChild("Humanoid")
-    if not hum then return false end
-    local anim = hum:FindFirstChild("Animator") or hum
+    local h = char:FindFirstChild("Humanoid")
+    if not h then return false end
+    local anim = h:FindFirstChild("Animator") or h
     for _, t in ipairs(anim:GetPlayingAnimationTracks()) do
         if t.Animation and string.find(tostring(t.Animation.AnimationId), dribleAnimId) then return true end
     end
@@ -407,8 +489,8 @@ local function aplicarDrible()
         if p ~= player and p.Character then
             local th = p.Character:FindFirstChild("HumanoidRootPart")
             if th then
-                if (th.Position - hrp.Position).Magnitude <= dribleRadius
-                    and isLookingAtLocal(th, hrp) and isDribleAnimActive(p.Character) then
+                local d = (th.Position - hrp.Position).Magnitude
+                if d <= dribleRadius and isLookingAtLocal(th, hrp) and isDribleAnimActive(p.Character) then
                     dribleLastFired = now
                     if dribleEvent then dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3) end
                     break
@@ -422,14 +504,129 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- =============================================
--- CONTROLE DE BOLA
--- =============================================
+-- ========== CONTROLE DE BOLA (COM SLIDE FLUTUANTE) ==========
+local floatSliderGui, floatSliderContainer, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil, nil
+
+local function atualizarSliderVisual(val)
+    val = math.clamp(math.floor(val), 0, 200)
+    velocidadeBola = val
+    Config.controleBolaVelocidade = val
+    SaveConfig()
+    if floatSliderFill and floatSliderThumb and floatSliderValueLabel and floatSliderTrack then
+        local pct = val / 200
+        floatSliderFill.Size = UDim2.new(pct, 0, 1, 0)
+        floatSliderThumb.Position = UDim2.new(pct, -10, 0.5, -10)
+        floatSliderValueLabel.Text = tostring(val)
+    end
+end
+
+local function criarSlideFlutuante()
+    if floatSliderGui then return end
+    floatSliderGui = Instance.new("ScreenGui")
+    floatSliderGui.Name = "ControleBolaSlideGui"
+    floatSliderGui.ResetOnSpawn = false
+    safeParent(floatSliderGui)
+
+    local main = Instance.new("Frame")
+    main.Name = "Container"
+    main.Size = UDim2.new(0, 400, 0, 75)
+    main.Position = UDim2.new(0.5, -200, 1, -140)
+    main.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    main.BackgroundTransparency = 0.15
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = floatSliderGui
+    local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 10); mc.Parent = main
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 0, 22)
+    title.Position = UDim2.new(0, 10, 0, 5)
+    title.BackgroundTransparency = 1
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 13
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = "⚽ Velocidade da Bola"
+    title.Parent = main
+
+    floatSliderValueLabel = Instance.new("TextLabel")
+    floatSliderValueLabel.Size = UDim2.new(0, 60, 0, 22)
+    floatSliderValueLabel.Position = UDim2.new(1, -70, 0, 5)
+    floatSliderValueLabel.BackgroundTransparency = 1
+    floatSliderValueLabel.TextColor3 = Color3.fromRGB(0, 170, 255)
+    floatSliderValueLabel.Font = Enum.Font.GothamBold
+    floatSliderValueLabel.TextSize = 14
+    floatSliderValueLabel.Text = tostring(velocidadeBola)
+    floatSliderValueLabel.Parent = main
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -40, 0, 14)
+    track.Position = UDim2.new(0, 20, 0, 45)
+    track.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    track.BorderSizePixel = 0
+    track.Parent = main
+    local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(1, 0); tc.Parent = track
+    floatSliderTrack = track
+
+    floatSliderFill = Instance.new("Frame")
+    floatSliderFill.Size = UDim2.new(velocidadeBola/200, 0, 1, 0)
+    floatSliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    floatSliderFill.BorderSizePixel = 0
+    floatSliderFill.Parent = track
+    local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(1, 0); fc.Parent = floatSliderFill
+
+    floatSliderThumb = Instance.new("TextButton")
+    floatSliderThumb.Size = UDim2.new(0, 20, 0, 20)
+    floatSliderThumb.Position = UDim2.new(velocidadeBola/200, -10, 0.5, -10)
+    floatSliderThumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    floatSliderThumb.Text = ""
+    floatSliderThumb.AutoButtonColor = false
+    floatSliderThumb.Parent = track
+    local tcc = Instance.new("UICorner"); tcc.CornerRadius = UDim.new(1, 0); tcc.Parent = floatSliderThumb
+
+    local dragging = false
+    local function setFromX(x)
+        local tAbs = track.AbsolutePosition
+        local tSize = track.AbsoluteSize.X
+        local pct = math.clamp((x - tAbs.X) / tSize, 0, 1)
+        atualizarSliderVisual(pct * 200)
+    end
+
+    floatSliderThumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+    floatSliderThumb.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            setFromX(input.Position.X)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging then setFromX(input.Position.X) end
+    end)
+end
+
+local function removerSlideFlutuante()
+    if floatSliderGui then
+        floatSliderGui:Destroy()
+        floatSliderGui, floatSliderContainer, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil, nil
+    end
+end
+
+-- ========== CONTROLE BOLA – TOGGLE + FLOATING ==========
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
     end
 end
+
 local function toggleControl()
     isControlActive = not isControlActive
     if isControlActive then
@@ -439,7 +636,7 @@ local function toggleControl()
         end
         if controlConnection then controlConnection:Disconnect() end
         controlConnection = RunService.Heartbeat:Connect(function()
-            local ball = getBall()
+            local ball = getBallPart()
             if ball then
                 if euTenhoBola() then resetCamera()
                 else
@@ -460,25 +657,31 @@ end
 
 local function criarBotaoFlutuante()
     if controlScreenGui then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "ControlBallGui"; sg.ResetOnSpawn = false
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "ControlBallGui"; sg.ResetOnSpawn = false
     safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 180, 0, 45); b.Position = UDim2.new(0.5, -90, 0.1, 0)
-    b.BackgroundColor3 = Color3.fromRGB(220, 53, 69); b.Text = "Control BALL [OFF]"
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 16; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(toggleControl)
-    toggleButton = b; controlScreenGui = sg
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Control BALL [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleControl)
+    toggleButton = btn; controlScreenGui = sg
 end
+
 local function removerBotaoFlutuante()
     if isControlActive then toggleControl() end
     if controlScreenGui then controlScreenGui:Destroy(); controlScreenGui = nil; toggleButton = nil end
 end
 
--- =============================================
--- BOTÃO CÂMERA
--- =============================================
+-- ========== BOTÃO CÂMERA ==========
 local function toggleCameraButton()
     cameraButtonActive = not cameraButtonActive
     if cameraButtonActive then
@@ -495,275 +698,168 @@ local function toggleCameraButton()
         aimbotCamera = false
     end
 end
+
 local function criarBotaoCameraFlutuante()
     if cameraScreenGui then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "CameraAimbotGui"; sg.ResetOnSpawn = false
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "CameraAimbotGui"; sg.ResetOnSpawn = false
     safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 180, 0, 45); b.Position = UDim2.new(0.5, -90, 0.15, 0)
-    b.BackgroundColor3 = Color3.fromRGB(220, 53, 69); b.Text = "Aimbot Cam [OFF]"
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 16; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(toggleCameraButton)
-    cameraToggleButton = b; cameraScreenGui = sg
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 180, 0, 45)
+    btn.Position = UDim2.new(0.5, -90, 0.15, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Aimbot Cam [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCameraButton)
+    cameraToggleButton = btn; cameraScreenGui = sg
 end
+
 local function removerBotaoCameraFlutuante()
     if cameraButtonActive then toggleCameraButton() end
     if cameraScreenGui then cameraScreenGui:Destroy(); cameraScreenGui = nil; cameraToggleButton = nil end
 end
 
--- =============================================
--- AUTO GOL (botão único – click executa, botão direito troca time)
--- =============================================
-local function executarAutoGolImediato()
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local posOriginal = hrp.Position
-    local posGol = autoGolTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
-    hrp.CFrame = CFrame.new(posGol)
-    task.wait(0.2)
-    local args = { [1] = 110, [4] = posGol }
-    local bs = ReplicatedStorage:FindFirstChild("Packages")
-    if bs then
-        bs = bs:FindFirstChild("Knit")
-        if bs then
-            bs = bs:FindFirstChild("Services")
-            if bs then
-                bs = bs:FindFirstChild("BallService")
-                if bs then
-                    local sh = bs:FindFirstChild("RE")
-                    if sh then sh:FireServer(unpack(args)) end
-                end
-            end
-        end
-    end
-    task.wait(0.2)
-    hrp.CFrame = CFrame.new(posOriginal)
-end
-
-local function atualizarBotaoAutoGol()
-    if not autoGolBotao then return end
-    if autoGolTeam == "Home" then
-        autoGolBotao.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-    else
-        autoGolBotao.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    end
-    autoGolBotao.Text = "⚽ Auto Gol: " .. autoGolTeam .. "\n(Click=Exec | Dir=Troca)"
-end
-
-local function criarBotaoAutoGol()
-    if autoGolBotaoGUI then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "AutoGolGui"; sg.ResetOnSpawn = false
-    safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 220, 0, 55); b.Position = UDim2.new(0.5, -110, 0.20, 0)
-    b.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 14; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(executarAutoGolImediato)
-    b.MouseButton2Click:Connect(function()
-        autoGolTeam = (autoGolTeam == "Home") and "Away" or "Home"
-        Config.autoGolTeam = autoGolTeam; SaveConfig()
-        atualizarBotaoAutoGol()
-    end)
-    autoGolBotao = b; autoGolBotaoGUI = sg
-    atualizarBotaoAutoGol()
-end
-local function removerBotaoAutoGol()
-    if autoGolBotaoGUI then autoGolBotaoGUI:Destroy(); autoGolBotaoGUI = nil; autoGolBotao = nil end
-end
-
--- =============================================
--- TRAZER BOLA (botão único)
--- =============================================
-local function toggleTrazerBolaButton()
-    trazerBolaAtivo = not trazerBolaAtivo
-    Config.trazerBolaAtivo = trazerBolaAtivo; SaveConfig()
-    if trazerBolaBotao then
-        if trazerBolaAtivo then
-            trazerBolaBotao.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            trazerBolaBotao.Text = "Trazer Bola [ON]"
-        else
-            trazerBolaBotao.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            trazerBolaBotao.Text = "Trazer Bola [OFF]"
-        end
-    end
-end
-local function criarBotaoTrazerBola()
-    if trazerBolaGUI then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "TrazerBolaGui"; sg.ResetOnSpawn = false
-    safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 180, 0, 45); b.Position = UDim2.new(0.5, -90, 0.25, 0)
-    b.BackgroundColor3 = Color3.fromRGB(220, 53, 69); b.Text = "Trazer Bola [OFF]"
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 16; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(toggleTrazerBolaButton)
-    trazerBolaBotao = b; trazerBolaGUI = sg
-end
-local function removerBotaoTrazerBola()
-    if trazerBolaGUI then trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBotao = nil end
-end
-
--- =============================================
--- STOP BALL (botão único – só no ar, não trava player)
--- =============================================
-local function toggleStopBallButton()
+-- ========== BOTÃO STOP BALL ==========
+local function toggleStopBallBtn()
     stopBallAtivo = not stopBallAtivo
-    Config.stopBallAtivo = stopBallAtivo; SaveConfig()
-    if stopBallBotao then
+    if stopBallBtn then
         if stopBallAtivo then
-            stopBallBotao.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-            stopBallBotao.Text = "Stop Ball [ON]"
+            stopBallBtn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            stopBallBtn.Text = "Stop Ball [ON]"
         else
-            stopBallBotao.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            stopBallBotao.Text = "Stop Ball [OFF]"
+            stopBallBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            stopBallBtn.Text = "Stop Ball [OFF]"
+            desativarStopBall()
         end
     end
 end
+
 local function criarBotaoStopBall()
     if stopBallGUI then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "StopBallGui"; sg.ResetOnSpawn = false
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "StopBallGui"; sg.ResetOnSpawn = false
     safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 180, 0, 45); b.Position = UDim2.new(0.5, -90, 0.30, 0)
-    b.BackgroundColor3 = Color3.fromRGB(220, 53, 69); b.Text = "Stop Ball [OFF]"
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 16; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(toggleStopBallButton)
-    stopBallBotao = b; stopBallGUI = sg
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 160, 0, 45)
+    btn.Position = UDim2.new(0.5, -80, 0.20, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Stop Ball [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleStopBallBtn)
+    stopBallBtn = btn; stopBallGUI = sg
 end
+
 local function removerBotaoStopBall()
-    if stopBallGUI then stopBallGUI:Destroy(); stopBallGUI = nil; stopBallBotao = nil end
+    if stopBallAtivo then toggleStopBallBtn() end
+    if stopBallGUI then stopBallGUI:Destroy(); stopBallGUI = nil; stopBallBtn = nil end
 end
 
--- =============================================
--- SLIDE FLUTUANTE (fixo, arrastável)
--- =============================================
-local function criarSlideFlutuante()
-    if floatingSliderGUI then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "FloatingSpeedSlider"; sg.ResetOnSpawn = false
+-- ========== BOTÃO TRAZER BOLA ==========
+local function toggleTrazerBolaBtn()
+    trazerBolaAtivo = not trazerBolaAtivo
+    if trazerBolaBtn then
+        if trazerBolaAtivo then
+            trazerBolaBtn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            trazerBolaBtn.Text = "Trazer Bola [ON]"
+        else
+            trazerBolaBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            trazerBolaBtn.Text = "Trazer Bola [OFF]"
+        end
+    end
+end
+
+local function criarBotaoTrazerBola()
+    if trazerBolaGUI then return end
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "TrazerBolaGui"; sg.ResetOnSpawn = false
     safeParent(sg)
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 320, 0, 75)
-    frame.Position = UDim2.new(0.5, -160, 0.82, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    frame.BackgroundTransparency = 0.15
-    frame.BorderSizePixel = 0
-    frame.Active = true
-    frame.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = frame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -20, 0, 20); title.Position = UDim2.new(0, 10, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Text = "Velocidade da Bola: " .. velocidadeBola
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Font = Enum.Font.GothamBold; title.TextSize = 14
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = frame
-
-    local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -20, 0, 18); track.Position = UDim2.new(0, 10, 0, 35)
-    track.BackgroundColor3 = Color3.fromRGB(50, 50, 60); track.BorderSizePixel = 0
-    track.Parent = frame
-    local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0, 9); tc.Parent = track
-
-    local fill = Instance.new("Frame")
-    fill.Size = UDim2.new(math.clamp(velocidadeBola/150, 0, 1), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255); fill.BorderSizePixel = 0
-    fill.Parent = track
-    local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(0, 9); fc.Parent = fill
-
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 18, 0, 18)
-    knob.Position = UDim2.new(math.clamp(velocidadeBola/150, 0, 1), -9, 0, 0)
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255); knob.BorderSizePixel = 0
-    knob.Parent = track
-    local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(1, 0); kc.Parent = knob
-
-    local slidingKnob = false
-    local draggingFrame = false
-    local dragStart, startPos
-
-    local function updateValue(inputX)
-        local ax = track.AbsolutePosition.X
-        local aw = track.AbsoluteSize.X
-        local rel = math.clamp(inputX - ax, 0, aw)
-        local val = math.floor((rel / aw) * 150)
-        velocidadeBola = val
-        Config.controleBolaVelocidade = val; SaveConfig()
-        title.Text = "Velocidade da Bola: " .. val
-        fill.Size = UDim2.new(val / 150, 0, 1, 0)
-        knob.Position = UDim2.new(val / 150, -9, 0, 0)
-    end
-
-    track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            slidingKnob = true
-            updateValue(input.Position.X)
-        end
-    end)
-    track.InputChanged:Connect(function(input)
-        if slidingKnob and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            updateValue(input.Position.X)
-        end
-    end)
-
-    -- Arrastar pelo título
-    title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingFrame = true
-            dragStart = input.Position
-            startPos = frame.Position
-        end
-    end)
-    title.InputChanged:Connect(function(input)
-        if draggingFrame and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            slidingKnob = false
-            draggingFrame = false
-        end
-    end)
-
-    _G.AtualizarSlideFlutuante = function(v)
-        velocidadeBola = v
-        title.Text = "Velocidade da Bola: " .. v
-        fill.Size = UDim2.new(v / 150, 0, 1, 0)
-        knob.Position = UDim2.new(v / 150, -9, 0, 0)
-    end
-
-    floatingSliderGUI = sg
-end
-local function removerSlideFlutuante()
-    if floatingSliderGUI then floatingSliderGUI:Destroy(); floatingSliderGUI = nil end
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 160, 0, 45)
+    btn.Position = UDim2.new(0.5, -80, 0.25, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    btn.Text = "Trazer Bola [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleTrazerBolaBtn)
+    trazerBolaBtn = btn; trazerBolaGUI = sg
 end
 
--- =============================================
--- VISÃO DE JOGO
--- =============================================
+local function removerBotaoTrazerBola()
+    if trazerBolaAtivo then toggleTrazerBolaBtn() end
+    if trazerBolaGUI then trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBtn = nil end
+end
+
+-- ========== BOTÃO TIME (HOME/AWAY) ==========
+local function atualizarBotaoTeam()
+    if not autoGolTeamBtn then return end
+    if autoGolTeam == "Home" then
+        autoGolTeamBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+        autoGolTeamBtn.Text = "Time: Home ⚽"
+    else
+        autoGolTeamBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        autoGolTeamBtn.Text = "Time: Away ⚽"
+    end
+end
+
+local function toggleTeam()
+    autoGolTeam = (autoGolTeam == "Home") and "Away" or "Home"
+    Config.autoGolTeam = autoGolTeam
+    SaveConfig()
+    atualizarBotaoTeam()
+end
+
+local function criarBotaoTeam()
+    if autoGolTeamGUI then return end
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "AutoGolTeamGui"; sg.ResetOnSpawn = false
+    safeParent(sg)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 160, 0, 45)
+    btn.Position = UDim2.new(0.5, -80, 0.30, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleTeam)
+    autoGolTeamBtn = btn; autoGolTeamGUI = sg
+    atualizarBotaoTeam()
+end
+
+local function removerBotaoTeam()
+    if autoGolTeamGUI then autoGolTeamGUI:Destroy(); autoGolTeamGUI = nil; autoGolTeamBtn = nil end
+end
+
+-- ========== VISÃO ==========
 local function getInimigoComBola()
-    local mt = getMyTeam()
-    if not mt then return nil end
+    local my = getMyTeam()
+    if not my then return nil end
     for _, o in ipairs(Players:GetPlayers()) do
         if o ~= player and o.Character and o.Character:FindFirstChild("Football") then
             local v = o:FindFirstChild("Values")
             if v then
                 local t = v:FindFirstChild("Team")
-                if t and tostring(t.Value) ~= mt then return o end
+                if t and tostring(t.Value) ~= my then return o end
             end
         end
     end
@@ -776,7 +872,7 @@ local function criarLinhaVisao()
         linhaVisao = Instance.new("Part")
         linhaVisao.Name = "LinhaVisao"; linhaVisao.Anchored = true; linhaVisao.CanCollide = false
         linhaVisao.Transparency = 0.1; linhaVisao.Color = Color3.fromRGB(0, 255, 0)
-        linhaVisao.Material = Enum.Material.Neon; linhaVisao.Size = Vector3.new(1.0, 1.0, 100)
+        linhaVisao.Material = Enum.Material.Neon; linhaVisao.Size = Vector3.new(1, 1, 100)
         linhaVisao.Parent = workspace
     end
     return linhaVisao
@@ -787,12 +883,12 @@ local function atualizarVisaoBola()
         if linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
         return
     end
-    local inig = getInimigoComBola()
-    if not inig then
+    local inimigo = getInimigoComBola()
+    if not inimigo then
         if linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
         return
     end
-    local char = inig.Character
+    local char = inimigo.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -800,17 +896,16 @@ local function atualizarVisaoBola()
     if not origem then return end
     local pi = origem.Position
     if origem == hrp then pi = pi + Vector3.new(0, 1.5, 0) end
-    local dir = Vector3.new(1, 0, 0)
-    if head then dir = head.CFrame.LookVector
-    elseif hrp then dir = hrp.CFrame.LookVector end
-    dir = Vector3.new(dir.X, 0, dir.Z)
-    if dir.Magnitude < 0.001 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
-    local pf = pi + dir * 100
+    local d = Vector3.new(1, 0, 0)
+    if head then d = head.CFrame.LookVector elseif hrp then d = hrp.CFrame.LookVector end
+    d = Vector3.new(d.X, 0, d.Z)
+    if d.Magnitude < 0.001 then d = Vector3.new(1, 0, 0) else d = d.Unit end
+    local pf = pi + d * 100
     criarLinhaVisao()
     local m = (pi + pf) / 2
-    local d = (pi - pf).Magnitude
-    if d < 0.1 then d = 0.1 end
-    linhaVisao.Size = Vector3.new(1.0, 1.0, d)
+    local dist = (pi - pf).Magnitude
+    if dist < 0.1 then dist = 0.1 end
+    linhaVisao.Size = Vector3.new(1, 1, dist)
     linhaVisao.CFrame = CFrame.lookAt(m, pf)
 end
 
@@ -844,55 +939,50 @@ local function atualizarAdvinhaChute()
         if circuloChute then circuloChute:Destroy(); circuloChute = nil end
         return
     end
-    if not bola or not bolaValida then
+    local ball = getBallPart()
+    if not ball then
         if linhaChute then linhaChute:Destroy(); linhaChute = nil end
         if circuloChute then circuloChute:Destroy(); circuloChute = nil end
         return
     end
-    local vel = bola.AssemblyLinearVelocity
+    local vel = ball.AssemblyLinearVelocity
     if vel.Magnitude < 0.5 then
         if linhaChute then linhaChute:Destroy(); linhaChute = nil end
         if circuloChute then circuloChute:Destroy(); circuloChute = nil end
         return
     end
     local g = Vector3.new(0, -50, 0)
-    local pos = bola.Position
-    local v = vel
-    local dt = 0.02
-    local maxP = 500
-    local chao = 0
-    local pts = {pos}
-    for i = 1, maxP do
+    local pos, v = ball.Position, vel
+    local dt, maxP, chaoY = 0.02, 500, 0
+    local pontos = {pos}
+    for _ = 1, maxP do
         v = v + g * dt; pos = pos + v * dt
-        table.insert(pts, pos)
-        if pos.Y <= chao then break end
+        table.insert(pontos, pos)
+        if pos.Y <= chaoY then break end
     end
-    if #pts < 2 then return end
-    local posF = pts[#pts]
-    posF = Vector3.new(posF.X, chao, posF.Z)
-    local ini = pts[1]; local fim = pts[#pts]
+    if #pontos < 2 then return end
+    local pf = pontos[#pontos]; pf = Vector3.new(pf.X, chaoY, pf.Z)
+    local ini, fim = pontos[1], pontos[#pontos]
     local m = (ini + fim) / 2
-    local d = (ini - fim).Magnitude
+    local dist = (ini - fim).Magnitude
     criarLinhaChute()
-    if d > 0.1 then
-        linhaChute.Size = Vector3.new(0.5, 0.5, d)
+    if dist > 0.1 then
+        linhaChute.Size = Vector3.new(0.5, 0.5, dist)
         linhaChute.CFrame = CFrame.lookAt(m, fim)
         linhaChute.Transparency = 0.2
     else linhaChute.Transparency = 1 end
     if v.Y < -0.5 then
         criarCirculoChute()
-        circuloChute.Position = posF
-        local t = math.clamp(vel.Magnitude / 8, 3, 8)
-        circuloChute.Size = Vector3.new(t, 0.1, t)
+        circuloChute.Position = pf
+        local tam = math.clamp(vel.Magnitude / 8, 3, 8)
+        circuloChute.Size = Vector3.new(tam, 0.1, tam)
         circuloChute.Transparency = 0.2
     else
         if circuloChute then circuloChute:Destroy(); circuloChute = nil end
     end
 end
 
--- =============================================
--- CHAT
--- =============================================
+-- ========== CHAT ==========
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -901,21 +991,23 @@ local function onChatMessage(msg)
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
                 forcaBolaVelocidade = val; Config.forcaBolaVelocidade = val; SaveConfig()
-                player:Chat("Força da bola: " .. val)
-            end
-        end
+                player:Chat("Força da bola ajustada para " .. val)
+            else player:Chat("Use um número entre 1 e 200.") end
+        else player:Chat("Use: Força da bola [número]") end
     end
-    local numV = msg:match("^velocidade (%d+)") or msg:match("^(%d+)$")
-    if numV then
-        local val = tonumber(numV)
-        if val and val >= 0 and val <= 150 then
-            velocidadeBola = val
-            Config.controleBolaVelocidade = val; SaveConfig()
-            if _G.AtualizarSlideFlutuante then _G.AtualizarSlideFlutuante(val) end
-            player:Chat("Velocidade: " .. val)
+    -- Velocidade: "velocidade 150" ou apenas "150"
+    local n1 = msg:match("^velocidade%s+(%d+)")
+    local n2 = msg:match("^(%d+)$")
+    local num = n1 or n2
+    if num then
+        local val = tonumber(num)
+        if val and val >= 0 and val <= 200 then
+            atualizarSliderVisual(val)
+            player:Chat("Velocidade da bola ajustada para " .. val)
         end
     end
 end
+
 local function setupChatCommand()
     local cs = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
     if cs then
@@ -925,20 +1017,25 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
--- =============================================
--- AIMBOT
--- =============================================
+-- ========== AIMBOT ==========
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
-    Config.aimbotPersonagem = estado; SaveConfig()
+    Config.aimbotPersonagem = estado
+    SaveConfig()
     if not estado and gyro then gyro:Destroy(); gyro = nil end
 end
+
 local function atualizarAimbotPersonagem()
     if not aimbotPersonagem then
         if gyro then gyro:Destroy(); gyro = nil end
         return
     end
-    if not shouldAimbotWork() or not hitbox or not bolaValida then
+    if not shouldAimbotWork() then
+        if gyro then gyro:Destroy(); gyro = nil end
+        return
+    end
+    local ball = getBallPart()
+    if not ball then
         if gyro then gyro:Destroy(); gyro = nil end
         return
     end
@@ -951,25 +1048,27 @@ local function atualizarAimbotPersonagem()
         gyro.Parent = hrp; gyro.D = 1000; gyro.P = 10000
         gyro.MaxTorque = Vector3.new(8000, 8000, 8000)
     end
-    local pb = hitbox.Position
-    local pj = hrp.Position
+    local pb, pj = ball.Position, hrp.Position
     local d = (Vector3.new(pb.X, pj.Y, pb.Z) - pj).Unit
     gyro.CFrame = CFrame.lookAt(pj, pj + d)
 end
+
 local function atualizarAimbotCamera()
     if isControlActive then return end
-    if not aimbotCamera or not shouldAimbotWork() then return end
-    if not hitbox or not bolaValida then return end
+    if not aimbotCamera then return end
+    if not shouldAimbotWork() then return end
+    local ball = getBallPart()
+    if not ball then return end
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    local pb = hitbox.Position
-    local pj = hrp.Position
+    local pb, pj = ball.Position, hrp.Position
     local dir = (Vector3.new(pb.X, pj.Y, pb.Z) - pj).Unit
-    local camPos = hrp.Position - dir * 10 + Vector3.new(0, 5, 0)
-    camera.CFrame = CFrame.new(camPos, hrp.Position)
+    local cam = hrp.Position - dir * 10 + Vector3.new(0, 5, 0)
+    camera.CFrame = CFrame.new(cam, hrp.Position)
 end
+
 local function atualizarESP()
     if euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then espSphere:Destroy(); espSphere = nil end
@@ -984,9 +1083,7 @@ local function atualizarESP()
     espSphere.Scale = Vector3.new(s, s, s)
 end
 
--- =============================================
--- BOTÃO CURVAS
--- =============================================
+-- ========== CURVAS BOTÃO ==========
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -995,37 +1092,44 @@ local function atualizarBotaoCurvas()
     elseif curvasModo == 2 then
         curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
         curvasBotao.Text = "Curva: Esquerda ☚"
-    elseif curvasModo == 3 then
+    else
         curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
         curvasBotao.Text = "Curva: Aleatório 🥴"
     end
 end
+
 local function toggleCurvasModo()
     curvasModo = curvasModo + 1
     if curvasModo > 3 then curvasModo = 1 end
     atualizarBotaoCurvas()
 end
+
 local function criarBotaoCurvas()
     if curvasBotaoGUI then return end
-    local sg = Instance.new("ScreenGui"); sg.Name = "CurvasGui"; sg.ResetOnSpawn = false
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "CurvasGui"; sg.ResetOnSpawn = false
     safeParent(sg)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 200, 0, 45); b.Position = UDim2.new(0.5, -100, 0.35, 0)
-    b.BackgroundColor3 = Color3.fromRGB(255, 0, 0); b.Text = "Curva: Direita ☛"
-    b.TextColor3 = Color3.fromRGB(255, 255, 255); b.Font = Enum.Font.GothamBold
-    b.TextSize = 16; b.Active = true; b.Draggable = true; b.Parent = sg
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = b
-    b.MouseButton1Click:Connect(toggleCurvasModo)
-    curvasBotao = b; curvasBotaoGUI = sg
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 200, 0, 45)
+    btn.Position = UDim2.new(0.5, -100, 0.35, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = sg
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCurvasModo)
+    curvasBotao = btn; curvasBotaoGUI = sg
     atualizarBotaoCurvas()
 end
+
 local function removerBotaoCurvas()
     if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
 end
 
--- =============================================
--- WALKSPEED
--- =============================================
+-- ========== WALKSPEED ==========
 local function criarWalkBodyVelocity(char)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1037,9 +1141,11 @@ local function criarWalkBodyVelocity(char)
     walkBodyVelocity.Velocity = Vector3.zero
     walkBodyVelocity.Parent = root
 end
+
 local function ativarWalkSpeed(estado)
     walkBoost = estado
-    Config.walkSpeedAtivo = estado; SaveConfig()
+    Config.walkSpeedAtivo = estado
+    SaveConfig()
     local char = player.Character
     if not char then return end
     if estado then
@@ -1050,61 +1156,60 @@ local function ativarWalkSpeed(estado)
         walkAttachedCharacter = nil
     end
 end
+
 player.CharacterAdded:Connect(function(char)
-    walkAttachedCharacter = nil
-    walkBodyVelocity = nil
-    if walkBoost then
-        task.wait(0.5)
-        criarWalkBodyVelocity(char)
-        walkAttachedCharacter = char
-    end
+    walkAttachedCharacter = nil; walkBodyVelocity = nil
+    if walkBoost then task.wait(0.5); criarWalkBodyVelocity(char); walkAttachedCharacter = char end
 end)
 
--- =============================================
--- NO COOLDOWN
--- =============================================
+-- ========== NO COOLDOWN ==========
 local function getAbilityController()
     local c = ReplicatedStorage:FindFirstChild("Controllers")
     if c then return c:FindFirstChild("AbilityController") end
     return nil
 end
+
 local function zerarCooldownsDoModulo(mod)
     if type(mod) ~= "table" then return end
     if mod.legacy then
-        for _, k in ipairs({"AbilityOne","AbilityTwo","AbilityThree","AbilityFour"}) do
+        for _, k in ipairs({"AbilityOne", "AbilityTwo", "AbilityThree", "AbilityFour"}) do
             if mod.legacy[k] ~= nil then mod.legacy[k] = 0 end
         end
         for k, v in pairs(mod.legacy) do
             if type(v) == "number" and v > 0 then mod.legacy[k] = 0 end
         end
     end
-    for _, k in ipairs({"Cooldowns","cooldowns","CD","cd","Cooldown"}) do
-        if type(mod[k]) == "table" then
-            for kk, _ in pairs(mod[k]) do mod[k][kk] = 0 end
+    for _, key in ipairs({"Cooldowns", "cooldowns", "CD", "cd", "Cooldown"}) do
+        if type(mod[key]) == "table" then
+            for k, _ in pairs(mod[key]) do mod[key][k] = 0 end
         end
     end
     for k, v in pairs(mod) do
         if type(v) == "number" and type(k) == "string" then
             local lk = k:lower()
-            if lk:find("cooldown") or lk:find("recharge") or lk:find("reload") then mod[k] = 0 end
+            if lk:find("cooldown") or lk:find("cd") or lk:find("recharge") or lk:find("reload") then
+                mod[k] = 0
+            end
         end
     end
 end
+
 local function aplicarHooksNoModulo(mod)
     if type(mod) ~= "table" then return end
     for _, fn in ipairs({"AbilityCooldown","SetCooldown","StartCooldown","Cooldown","ApplyCooldown","StartCooldownTimer","SetCooldownTimer"}) do
         local orig = mod[fn]
         if type(orig) == "function" and not noCooldownHooks[fn] then
             mod[fn] = function(self, ...)
-                local a = {...}
-                if type(a[1]) == "number" then a[1] = 0 end
-                if type(a[2]) == "number" then a[2] = 0 end
-                return orig(self, table.unpack(a))
+                local args = {...}
+                if type(args[1]) == "number" then args[1] = 0 end
+                if type(args[2]) == "number" then args[2] = 0 end
+                return orig(self, table.unpack(args))
             end
             noCooldownHooks[fn] = { mod = mod, original = orig }
         end
     end
 end
+
 local function aplicarNoCooldown()
     local ac = getAbilityController()
     if not ac then return end
@@ -1113,40 +1218,41 @@ local function aplicarNoCooldown()
     aplicarHooksNoModulo(mod)
     zerarCooldownsDoModulo(mod)
 end
+
 local function iniciarLoopNoCooldown()
     if noCooldownLoopActive then return end
     noCooldownLoopActive = true
     task.spawn(function()
-        while noCooldownAtivo do
-            aplicarNoCooldown()
-            task.wait(0.25)
-        end
+        while noCooldownAtivo do aplicarNoCooldown(); task.wait(0.25) end
         noCooldownLoopActive = false
     end)
 end
+
 local function conectarEventoHabilidade()
     if abilityEventConn then return end
     local pk = ReplicatedStorage:FindFirstChild("Packages")
     if not pk then return end
-    local k = pk:FindFirstChild("Knit")
-    if not k then return end
-    local s = k:FindFirstChild("Services")
-    if not s then return end
-    local as = s:FindFirstChild("AbilityService")
+    local knit = pk:FindFirstChild("Knit")
+    if not knit then return end
+    local sv = knit:FindFirstChild("Services")
+    if not sv then return end
+    local as = sv:FindFirstChild("AbilityService")
     if not as then return end
     local re = as:FindFirstChild("RE")
     if not re then return end
-    local ae = re:FindFirstChild("Ability")
-    if not ae then return end
-    abilityEventConn = ae.OnClientEvent:Connect(function(...)
+    local ev = re:FindFirstChild("Ability")
+    if not ev then return end
+    abilityEventConn = ev.OnClientEvent:Connect(function(...)
         if noCooldownAtivo then
             task.spawn(function() task.wait(0.05); aplicarNoCooldown() end)
         end
     end)
 end
+
 local function ativarNoCooldown(estado)
     noCooldownAtivo = estado
-    Config.noCooldown = estado; SaveConfig()
+    Config.noCooldown = estado
+    SaveConfig()
     if estado then
         aplicarNoCooldown()
         iniciarLoopNoCooldown()
@@ -1159,73 +1265,83 @@ local function ativarNoCooldown(estado)
     end
 end
 
--- =============================================
--- TRAZER BOLA (FIX)
--- =============================================
-local function aplicarTrazerBola()
-    if not trazerBolaAtivo then return end
+-- ========== ANTI-TACKLE ==========
+local tackleAnimIds = {"rasteira", "tackle", "slide", "17996440171"}
+local tackleCooldown = 0
+
+local function isTackleAnim(char)
+    local h = char:FindFirstChild("Humanoid")
+    if not h then return false end
+    local anim = h:FindFirstChild("Animator") or h
+    for _, t in ipairs(anim:GetPlayingAnimationTracks()) do
+        if t.Animation then
+            local id = tostring(t.Animation.AnimationId):lower()
+            for _, p in ipairs(tackleAnimIds) do
+                if string.find(id, p) then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function antiTackle()
+    if tick() - tackleCooldown < 0.5 then return end
     local char = player.Character
     if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if euTenhoBola() then return end
-    local ball = getBall()
-    if not ball then return end
-
-    pcall(function()
-        if ball:GetNetworkOwner() ~= player then
-            ball:SetNetworkOwner(player)
+    local mh = char:FindFirstChild("HumanoidRootPart")
+    if not mh then return end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local eh = p.Character:FindFirstChild("HumanoidRootPart")
+            if eh then
+                local d = (eh.Position - mh.Position).Magnitude
+                if d < 8 and isTackleAnim(p.Character) then
+                    local w = Instance.new("TextLabel")
+                    w.Size = UDim2.new(0, 200, 0, 30)
+                    w.Position = UDim2.new(0.5, -100, 0.7, 0)
+                    w.BackgroundTransparency = 1
+                    w.TextColor3 = Color3.fromRGB(255, 0, 0)
+                    w.TextStrokeTransparency = 0
+                    w.Text = "⚠️ RASTEIRA DETECTADA!"
+                    w.Font = Enum.Font.GothamBold
+                    w.TextSize = 18
+                    w.Parent = player.PlayerGui
+                    game:GetService("Debris"):AddItem(w, 0.8)
+                    tackleCooldown = tick()
+                    break
+                end
+            end
         end
-    end)
-
-    local target = hrp.Position + Vector3.new(0, 3, 0)
-    local dir = target - ball.Position
-    local dist = dir.Magnitude
-    if dist < 2 then return end
-    dir = dir.Unit
-    ball.AssemblyLinearVelocity = dir * math.min(dist * 25, 300)
+    end
 end
 
--- =============================================
--- STOP BALL (FIX – só no ar, não afeta player)
--- =============================================
-local function aplicarStopBall()
-    if not stopBallAtivo then return end
-    if euTenhoBola() then return end  -- não faz nada se player tem bola
-    local ball = getBall()
-    if not ball then return end
-    if ball.Position.Y < 2 then return end  -- só funciona no ar (Y > 2)
-    pcall(function()
-        if ball:GetNetworkOwner() ~= player then
-            ball:SetNetworkOwner(player)
-        end
-    end)
-    ball.AssemblyLinearVelocity = Vector3.zero
-    ball.AssemblyAngularVelocity = Vector3.zero
-end
+task.spawn(function() while true do task.wait(0.1); antiTackle() end end)
 
--- =============================================
--- PERFORMANCE
--- =============================================
+-- ========== PERFORMANCE ==========
 local statsLabel, statsGui = nil, nil
+
 local function criarStatsGui()
     if statsGui then return end
-    statsGui = Instance.new("ScreenGui"); statsGui.Name = "StatsGui"; statsGui.ResetOnSpawn = false
+    statsGui = Instance.new("ScreenGui")
+    statsGui.Name = "StatsGui"; statsGui.ResetOnSpawn = false
     safeParent(statsGui)
     statsLabel = Instance.new("TextLabel")
     statsLabel.Size = UDim2.new(0, 250, 0, 60)
     statsLabel.Position = UDim2.new(1, -260, 1, -70)
     statsLabel.BackgroundTransparency = 1
     statsLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    statsLabel.Font = Enum.Font.GothamBold; statsLabel.TextSize = 14
+    statsLabel.Font = Enum.Font.GothamBold
+    statsLabel.TextSize = 14
     statsLabel.TextXAlignment = Enum.TextXAlignment.Right
     statsLabel.TextYAlignment = Enum.TextYAlignment.Bottom
     statsLabel.Text = "FPS: --\nPING: --"
     statsLabel.Parent = statsGui
 end
+
 local function destruirStatsGui()
     if statsGui then statsGui:Destroy(); statsGui = nil; statsLabel = nil end
 end
+
 local function atualizarStats()
     if not statsLabel then return end
     local fps = math.floor(1 / RunService.RenderStepped:Wait())
@@ -1235,6 +1351,7 @@ local function atualizarStats()
 end
 
 local fpsOriginalSettings, fpsModeParticles = nil, {}
+
 local function salvarSettingsOriginais()
     if fpsOriginalSettings then return end
     fpsOriginalSettings = {
@@ -1243,6 +1360,7 @@ local function salvarSettingsOriginais()
         OutdoorAmbient = Lighting.OutdoorAmbient,
     }
 end
+
 local function restaurarSettings()
     if not fpsOriginalSettings then return end
     Lighting.GlobalShadows = fpsOriginalSettings.GlobalShadows
@@ -1250,26 +1368,23 @@ local function restaurarSettings()
     Lighting.Brightness = fpsOriginalSettings.Brightness
     Lighting.Ambient = fpsOriginalSettings.Ambient
     Lighting.OutdoorAmbient = fpsOriginalSettings.OutdoorAmbient
-    for _, o in ipairs(fpsModeParticles) do
-        if o and o.Parent then o.Enabled = true end
-    end
+    for _, o in ipairs(fpsModeParticles) do if o and o.Parent then o.Enabled = true end end
     fpsModeParticles = {}
 end
+
 local function aplicarFpsMode(level)
     if level == 0 then restaurarSettings(); return end
     salvarSettingsOriginais()
     if level >= 1 then
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false; Lighting.FogEnd = 100000
         pcall(function() sethiddenproperty(Lighting, "Technology", 2) end)
         pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
     end
     if level >= 2 then
         for _, o in ipairs(workspace:GetDescendants()) do
-            if o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Smoke")
-                or o:IsA("Fire") or o:IsA("Sparkles") or o:IsA("Explosion")
-                or o:IsA("Beam") or o:IsA("PointLight") or o:IsA("SpotLight")
-                or o:IsA("SurfaceLight") then
+            if o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Smoke") or o:IsA("Fire")
+                or o:IsA("Sparkles") or o:IsA("Explosion") or o:IsA("Beam") or o:IsA("PointLight")
+                or o:IsA("SpotLight") or o:IsA("SurfaceLight") then
                 if o.Enabled then o.Enabled = false; table.insert(fpsModeParticles, o) end
             end
         end
@@ -1282,17 +1397,15 @@ local function aplicarFpsMode(level)
         pcall(function()
             for _, o in ipairs(Lighting:GetChildren()) do
                 if o:IsA("Atmosphere") or o:IsA("BloomEffect") or o:IsA("BlurEffect")
-                    or o:IsA("ColorCorrectionEffect") or o:IsA("SunRaysEffect")
-                    or o:IsA("DepthOfFieldEffect") then
+                    or o:IsA("ColorCorrectionEffect") or o:IsA("SunRaysEffect") or o:IsA("DepthOfFieldEffect") then
                     o.Enabled = false; table.insert(fpsModeParticles, o)
                 end
             end
         end)
     end
 end
-local pingMenosAtivo = false
+
 local function aplicarPingMenos(estado)
-    pingMenosAtivo = estado
     Config.pingMenos = estado; SaveConfig()
     if estado then
         pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
@@ -1307,9 +1420,7 @@ local function aplicarPingMenos(estado)
     end
 end
 
--- =============================================
--- LOOP PRINCIPAL
--- =============================================
+-- ========== LOOP PRINCIPAL ==========
 RunService.Heartbeat:Connect(function()
     aplicarReachBola()
     atualizarAimbotPersonagem()
@@ -1323,76 +1434,94 @@ RunService.Heartbeat:Connect(function()
     aplicarTrazerBola()
     aplicarStopBall()
 end)
+
 RunService.RenderStepped:Connect(function()
-    if walkBoost and walkBodyVelocity and player.Character then
-        local hum = player.Character:FindFirstChildOfClass("Humanoid")
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
+    if walkBoost and player.Character then
+        local char = player.Character
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
         if hum and root then
-            local md = hum.MoveDirection
-            walkBodyVelocity.Velocity = (md.Magnitude > 0) and (md * walkSpeedValue) or Vector3.zero
+            if walkAttachedCharacter ~= char then
+                walkAttachedCharacter = char
+                criarWalkBodyVelocity(char)
+            end
+            if not walkBodyVelocity or not walkBodyVelocity.Parent or walkBodyVelocity.Parent ~= root then
+                criarWalkBodyVelocity(char)
+            end
+            if walkBodyVelocity then
+                local md = hum.MoveDirection
+                walkBodyVelocity.Velocity = (md.Magnitude > 0) and (md * walkSpeedValue) or Vector3.zero
+            end
         end
     end
 end)
-task.spawn(function()
-    while true do
-        atualizarStats()
-        task.wait(0.5)
-    end
-end)
 
--- =============================================
--- UI
--- =============================================
+task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
+
+-- ========== UI ==========
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
+-- CONTROLE DE BOLA
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
+BlueLockSec:Input({
+    Title = "Velocidade da Bola (Chat)",
+    Desc = "Digite 0-200 | Use chat 'velocidade N' ou apenas 'N'",
+    Value = tostring(Config.controleBolaVelocidade),
+    Placeholder = "0-200",
+    Callback = function(txt)
+        local v = tonumber(txt)
+        if v then atualizarSliderVisual(v) end
+    end
+})
 BlueLockSec:Toggle({
-    Title = "Botão Flutuante",
-    Desc = "Cria um botão arrastável para controlar a bola",
+    Title = "Controle de Bola",
+    Desc = "Ativa controle (cria botão + slide flutuante)",
     Value = Config.botaoFlutuante,
     Callback = function(v)
         Config.botaoFlutuante = v; SaveConfig()
-        if v then criarBotaoFlutuante() else removerBotaoFlutuante() end
-    end
-})
-BlueLockSec:Toggle({
-    Title = "Slide Flutuante (Velocidade)",
-    Desc = "Exibe o slide de velocidade arrastável na tela",
-    Value = false,
-    Callback = function(v)
-        if v then criarSlideFlutuante() else removerSlideFlutuante() end
+        if v then
+            criarBotaoFlutuante()
+            criarSlideFlutuante()
+        else
+            removerBotaoFlutuante()
+            removerSlideFlutuante()
+        end
     end
 })
 
--- Trazer Bola (só botão flutuante)
+-- TRAZER BOLA
 BlueLockSec:Toggle({
     Title = "Botão Voador (Trazer Bola)",
-    Desc = "Cria o botão flutuante para trazer a bola até você",
-    Value = false,
+    Desc = "Mostra o botão flutuante Trazer Bola",
+    Value = Config.trazerBolaMostrar,
     Callback = function(v)
+        Config.trazerBolaMostrar = v; SaveConfig()
         if v then criarBotaoTrazerBola() else removerBotaoTrazerBola() end
     end
 })
 
--- Stop Ball (só botão flutuante)
+-- STOP BALL
 BlueLockSec:Toggle({
     Title = "Botão Voador (Stop Ball)",
-    Desc = "Cria o botão flutuante para parar a bola no ar",
-    Value = false,
+    Desc = "Mostra o botão flutuante Stop Ball",
+    Value = Config.stopBallMostrar,
     Callback = function(v)
+        Config.stopBallMostrar = v; SaveConfig()
         if v then criarBotaoStopBall() else removerBotaoStopBall() end
     end
 })
 
--- Aimbot
+-- AIMBOT
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
-    Title = "Aimbot Personagem", Desc = "Corpo vira para a bola",
+    Title = "Aimbot Personagem",
+    Desc = "Corpo vira para a bola",
     Value = Config.aimbotPersonagem,
     Callback = function(v) ativarAimbotPersonagem(v) end
 })
 AimbotSec:Toggle({
-    Title = "Aimbot Câmera", Desc = "Câmera atrás do personagem olhando para a bola",
+    Title = "Aimbot Câmera",
+    Desc = "Câmera atrás do personagem olhando para a bola",
     Value = Config.aimbotCamera,
     Callback = function(v)
         aimbotCamera = v; Config.aimbotCamera = v; SaveConfig()
@@ -1410,7 +1539,8 @@ AimbotSec:Toggle({
     end
 })
 AimbotSec:Toggle({
-    Title = "Botão Voador (Câmera)", Desc = "Botão flutuante para ligar/desligar a câmera",
+    Title = "Botão Voador (Câmera)",
+    Desc = "Botão flutuante da câmera",
     Value = Config.botaoCamera,
     Callback = function(v)
         Config.botaoCamera = v; SaveConfig()
@@ -1418,18 +1548,21 @@ AimbotSec:Toggle({
     end
 })
 AimbotSec:Slider({
-    Title = "Tempo do Aimbot", Desc = "Atraso após perder a bola (0-5s)",
-    Step = 1, Value = { Min = 0, Max = 10, Default = Config.aimbotDelayValue },
+    Title = "Tempo do Aimbot",
+    Desc = "Delay após perder a bola",
+    Step = 1,
+    Value = { Min = 0, Max = 10, Default = Config.aimbotDelayValue },
     Callback = function(v)
         aimbotDelayValue = aimbotDelayValues[v] or 0
         Config.aimbotDelayValue = v; SaveConfig()
     end
 })
 
--- Visão
+-- VISÃO DE JOGO
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
-    Title = "Visão da bola", Desc = "Linha verde saindo da cabeça do inimigo com a bola",
+    Title = "Visão da bola",
+    Desc = "Linha verde saindo da cabeça do inimigo com a bola",
     Value = Config.visaoBola,
     Callback = function(v)
         visaoBolaEnabled = v; Config.visaoBola = v; SaveConfig()
@@ -1437,7 +1570,8 @@ VisaoSec:Toggle({
     end
 })
 VisaoSec:Toggle({
-    Title = "Advinha Chute", Desc = "Mostra a trajetória da bola e o ponto de queda",
+    Title = "Advinha Chute",
+    Desc = "Trajetória da bola até o chão",
     Value = Config.advinhaChute,
     Callback = function(v)
         advinhaChuteEnabled = v; Config.advinhaChute = v; SaveConfig()
@@ -1451,30 +1585,41 @@ VisaoSec:Toggle({
 -- REACH
 local ReachSec = MainTab:Section({ Title = "REACH", TextXAlignment = "Left" })
 ReachSec:Toggle({
-    Title = "REACH Personagem", Desc = "Coleta a bola de longe com toques agressivos",
+    Title = "REACH Personagem",
+    Desc = "Coleta a bola de longe",
     Value = Config.reachPersonagem,
-    Callback = function(v) reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig() end
+    Callback = function(v)
+        reachPersonagemAtivo = v; Config.reachPersonagem = v; SaveConfig()
+    end
 })
 ReachSec:Slider({
-    Title = "Alcance do REACH", Desc = "Raio de detecção (1-30)",
-    Step = 1, Value = { Min = 1, Max = 30, Default = Config.reachPersonagemTamanho },
-    Callback = function(v) reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig() end
+    Title = "Alcance do REACH",
+    Desc = "Raio de detecção (1-30)",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = Config.reachPersonagemTamanho },
+    Callback = function(v)
+        reachPersonagemTamanho = v; Config.reachPersonagemTamanho = v; SaveConfig()
+    end
 })
 ReachSec:Toggle({
-    Title = "REACH da Bola", Desc = "Aumenta a hitbox da bola (desativa quando alguém tem)",
+    Title = "REACH da Bola",
+    Desc = "Aumenta hitbox da bola (desativa se alguém tem)",
     Value = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
 })
 ReachSec:Slider({
-    Title = "Tamanho da Hitbox da Bola", Desc = "Tamanho da hitbox (1-30)",
-    Step = 1, Value = { Min = 1, Max = 30, Default = Config.reachBolaTamanho },
+    Title = "Tamanho da Hitbox",
+    Desc = "Tamanho da hitbox (1-30)",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = Config.reachBolaTamanho },
     Callback = function(v)
         reachBolaDistancia = v; Config.reachBolaTamanho = v; SaveConfig()
         if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
     end
 })
 ReachSec:Toggle({
-    Title = "Mostrar Área ESP", Desc = "Círculo verde ao redor da hitbox",
+    Title = "Mostrar Área ESP",
+    Desc = "Círculo verde ao redor da hitbox",
     Value = Config.mostrarESP,
     Callback = function(v)
         mostrarESP = v; Config.mostrarESP = v; SaveConfig()
@@ -1482,20 +1627,24 @@ ReachSec:Toggle({
     end
 })
 
--- Extras
+-- EXTRAS
 local ExtrasSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 ExtrasSec:Toggle({
-    Title = "Força da Bola", Desc = "Chute sempre com potência máxima",
+    Title = "Força da Bola",
+    Desc = "Chute sempre com potência máxima",
     Value = Config.forcaBola,
     Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end
 })
 ExtrasSec:Slider({
-    Title = "Força Máxima", Desc = "Velocidade do chute (10-200)",
-    Step = 1, Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
+    Title = "Força Máxima",
+    Desc = "Velocidade do chute (10-200)",
+    Step = 1,
+    Value = { Min = 10, Max = 200, Default = Config.forcaBolaVelocidade },
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end
 })
 ExtrasSec:Button({
-    Title = "Stamina Infinita", Desc = "Stamina sempre no máximo",
+    Title = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
     Callback = function()
         task.spawn(function()
             while true do
@@ -1507,26 +1656,36 @@ ExtrasSec:Button({
         end)
     end
 })
+
+-- AUTO GOL
+ExtrasSec:Button({
+    Title = "Auto Gol",
+    Desc = "Pega a bola, vai pro gol, chuta e volta (clique único)",
+    Callback = function()
+        executarAutoGol()
+    end
+})
 ExtrasSec:Toggle({
-    Title = "No Cooldown", Desc = "Habilidades recarregam instantaneamente (todas)",
+    Title = "Botão Voador (Selecionar Time)",
+    Desc = "Mostra botão flutuante para alternar Home/Away",
+    Value = false,
+    Callback = function(v)
+        if v then criarBotaoTeam() else removerBotaoTeam() end
+    end
+})
+
+ExtrasSec:Toggle({
+    Title = "No Cooldown",
+    Desc = "Habilidades recarregam instantaneamente",
     Value = Config.noCooldown,
     Callback = function(v) ativarNoCooldown(v) end
 })
 
--- Auto Gol (só botão flutuante)
-ExtrasSec:Toggle({
-    Title = "Botão Voador (Auto Gol)",
-    Desc = "Botão flutuante. Click = executa gol | Botão direito = troca Home/Away",
-    Value = false,
-    Callback = function(v)
-        if v then criarBotaoAutoGol() else removerBotaoAutoGol() end
-    end
-})
-
--- Curvas
+-- CURVAS
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 CurvasSec:Toggle({
-    Title = "Bola com curvas", Desc = "Ativa curvas na bola (botão flutuante aparece)",
+    Title = "Bola com curvas",
+    Desc = "Ativa curvas (botão flutuante aparece)",
     Value = Config.curvasAtivo,
     Callback = function(v)
         curvasEnabled = v; Config.curvasAtivo = v; SaveConfig()
@@ -1534,15 +1693,18 @@ CurvasSec:Toggle({
     end
 })
 CurvasSec:Slider({
-    Title = "Intensidade da Curva", Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
-    Step = 1, Value = { Min = 1, Max = 10, Default = Config.curvasIntensidade },
+    Title = "Intensidade da Curva",
+    Desc = "1-5 fraco | 6-8 médio | 9 forte | 10 muito forte",
+    Step = 1,
+    Value = { Min = 1, Max = 10, Default = Config.curvasIntensidade },
     Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end
 })
 
--- Drible
+-- DRIBLE
 local DribleSec = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 DribleSec:Toggle({
-    Title = "Drible", Desc = "Círculo rosa de detecção (raio 70)",
+    Title = "Drible",
+    Desc = "Círculo rosa de detecção (raio 70)",
     Value = Config.dribleAtivo,
     Callback = function(v)
         dribleEnabled = v; Config.dribleAtivo = v; SaveConfig()
@@ -1551,25 +1713,29 @@ DribleSec:Toggle({
     end
 })
 
--- Aba Player
+-- PLAYER
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
-    Title = "Speed", Desc = "Recomendado 40 de Velocidade!!",
-    Step = 1, Value = { Min = 20, Max = 250, Default = Config.walkSpeedValue },
+    Title = "Speed",
+    Desc = "Recomendado 40 de Velocidade!!",
+    Step = 1,
+    Value = { Min = 20, Max = 250, Default = Config.walkSpeedValue },
     Callback = function(v) walkSpeedValue = v; Config.walkSpeedValue = v; SaveConfig() end
 })
 PlayerSec:Toggle({
-    Title = "Ativar Speed", Desc = "Ativa o boost de velocidade ao andar",
+    Title = "Ativar Speed",
+    Desc = "Ativa o boost de velocidade",
     Value = Config.walkSpeedAtivo,
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Aba Desempenho
+-- DESEMPENHO
 local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "activity" })
 local PerfSec = PerfTab:Section({ Title = "Performance", TextXAlignment = "Left" })
 PerfSec:Toggle({
-    Title = "Mostrar Ping e FPS", Desc = "Exibe FPS e Ping no canto inferior direito (vermelho)",
+    Title = "Mostrar Ping e FPS",
+    Desc = "Exibe no canto inferior direito",
     Value = Config.statsToggle,
     Callback = function(v)
         Config.statsToggle = v; SaveConfig()
@@ -1577,7 +1743,8 @@ PerfSec:Toggle({
     end
 })
 PerfSec:Toggle({
-    Title = "Modo FPS++", Desc = "Remove sombras, efeitos, partículas e vibrações",
+    Title = "Modo FPS++",
+    Desc = "Remove sombras, efeitos e partículas",
     Value = Config.fpsModeAtivo,
     Callback = function(v)
         Config.fpsModeAtivo = v; SaveConfig()
@@ -1585,22 +1752,27 @@ PerfSec:Toggle({
     end
 })
 PerfSec:Slider({
-    Title = "Nível FPS++", Desc = "0 = Desligado | 1 = Sombras | 2 = Partículas | 3 = Tudo",
-    Step = 1, Value = { Min = 0, Max = 3, Default = Config.fpsModeLevel },
+    Title = "Nível FPS++",
+    Desc = "0-3",
+    Step = 1,
+    Value = { Min = 0, Max = 3, Default = Config.fpsModeLevel },
     Callback = function(v)
         Config.fpsModeLevel = v; SaveConfig()
         if Config.fpsModeAtivo then aplicarFpsMode(v) end
     end
 })
 PerfSec:Toggle({
-    Title = "Ping -10", Desc = "Reduz qualidade gráfica para diminuir latência",
+    Title = "Ping -10",
+    Desc = "Reduz qualidade gráfica",
     Value = Config.pingMenos,
     Callback = function(v) aplicarPingMenos(v) end
 })
 
-local SaveSec = MainTab:Section({ Title = "Salvar Configurações", TextXAlignment = "Left" })
+-- SALVAR
+local SaveSec = MainTab:Section({ Title = "Salvar", TextXAlignment = "Left" })
 SaveSec:Button({
-    Title = "💾 Salvar Agora", Desc = "Salva todas as configurações manualmente",
+    Title = "💾 Salvar Agora",
+    Desc = "Salva tudo manualmente",
     Callback = function()
         SaveConfig()
         game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -1609,17 +1781,20 @@ SaveSec:Button({
     end
 })
 
--- Aplica estados salvos
+-- Aplicar estados salvos
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
+if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
+if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
+if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Atualizado: slide flutuante, Auto Gol 1-click, Stop Ball/Trazer Bola fix",
+        Text = "Update: Trazer Bola, Stop Ball e Auto Gol!",
         Duration = 3
     })
 end)
