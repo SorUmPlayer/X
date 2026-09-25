@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Update Completo
+    ⚽ Blue Lock Rivals – Update Fix
 ]]
 
 local Players = game:GetService("Players")
@@ -40,14 +40,13 @@ local Config = {
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
-    stopBallMostrar = false, trazerBolaMostrar = false,
+    stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
--- ========== SAFE PARENT ==========
 local function safeParent(gui)
     local ok = pcall(function()
         if gethui then gui.Parent = gethui()
@@ -77,22 +76,21 @@ local Window = WindUI:CreateWindow({
 local bola, hitbox, bolaValida = nil, nil, false
 
 local function atualizarReferenciaBola()
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child.Name == "Football" then
-            bola = child
-            local hb = bola:FindFirstChild("Hitbox")
-            hitbox = (hb and hb:IsA("BasePart")) and hb or (bola:IsA("Model") and bola.PrimaryPart) or bola
-            bolaValida = true
-            return
-        end
+    local f = Workspace:FindFirstChild("Football")
+    if f then
+        bola = f
+        local hb = f:FindFirstChild("Hitbox")
+        hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
+        bolaValida = true
+        return
     end
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") and child.Name ~= "Football" then
-            local f = child:FindFirstChild("Football")
-            if f then
-                bola = f
-                local hb = f:FindFirstChild("Hitbox")
-                hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
+    for _, c in ipairs(Workspace:GetChildren()) do
+        if c:IsA("Model") and c.Name ~= "Football" then
+            local f2 = c:FindFirstChild("Football")
+            if f2 then
+                bola = f2
+                local hb = f2:FindFirstChild("Hitbox")
+                hitbox = (hb and hb:IsA("BasePart")) and hb or (f2:IsA("Model") and f2.PrimaryPart) or f2
                 bolaValida = true
                 return
             end
@@ -104,9 +102,7 @@ end
 Workspace.ChildAdded:Connect(atualizarReferenciaBola)
 Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
-task.spawn(function()
-    while true do task.wait(1); if not bolaValida or not hitbox then atualizarReferenciaBola() end end
-end)
+task.spawn(function() while true do task.wait(1); if not bolaValida or not hitbox then atualizarReferenciaBola() end end end)
 
 local function getBall()
     if bola and bolaValida then return bola end
@@ -175,7 +171,7 @@ local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
 local velocidadeBola = Config.controleBolaVelocidade
 local isControlActive = false
-local controlConnection, controlScreenGui, toggleButton = nil, nil, nil
+local controlScreenGui, toggleButton = nil, nil
 local cameraButtonActive, cameraScreenGui, cameraToggleButton = false, nil, nil
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
 local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayValue, false, 0
@@ -190,17 +186,17 @@ local walkBodyVelocity, walkAttachedCharacter = nil, nil
 local noCooldownAtivo = Config.noCooldown
 local noCooldownHooks, noCooldownLoopActive, abilityEventConn = {}, false, nil
 
--- Stop Ball
 local stopBallAtivo = false
 local stopBallGUI, stopBallBtn = nil, nil
-
--- Trazer Bola
 local trazerBolaAtivo = false
 local trazerBolaGUI, trazerBolaBtn = nil, nil
 
--- Auto Gol
+-- AUTO GOL
 local autoGolTeam = Config.autoGolTeam or "Home"
+local autoGolToggle = Config.autoGolToggle
 local autoGolRunning = false
+local autoGolLastRun = 0
+local autoGolCooldown = 3
 local autoGolTeamGUI, autoGolTeamBtn = nil, nil
 
 -- ========== SHOULD AIMBOT ==========
@@ -215,7 +211,7 @@ local function shouldAimbotWork()
     return true
 end
 
--- ========== REACH BOLA (HITBOX FIX) ==========
+-- ========== REACH BOLA ==========
 local function aplicarReachBola()
     if not hitbox then return end
     local agora = tick()
@@ -257,7 +253,7 @@ local function aplicarReachPersonagem()
     end
 end
 
--- ========== FORÇA DA BOLA ==========
+-- ========== FORÇA ==========
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
     local ball = getBallPart()
@@ -300,7 +296,7 @@ local function aplicarCurvas()
     ball.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
--- ========== TRAZER BOLA (SINGLE FLOATING BUTTON) ==========
+-- ========== TRAZER BOLA ==========
 local function aplicarTrazerBola()
     if not trazerBolaAtivo then return end
     if euTenhoBola() then return end
@@ -317,7 +313,7 @@ local function aplicarTrazerBola()
     ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
 end
 
--- ========== STOP BALL (SINGLE FLOATING BUTTON) ==========
+-- ========== STOP BALL (release speed maior) ==========
 local function aplicarStopBall()
     if not stopBallAtivo then return end
     if euTenhoBola() then return end
@@ -333,11 +329,12 @@ local function desativarStopBall()
         local dir = camera.CFrame.LookVector
         dir = Vector3.new(dir.X, 0, dir.Z)
         if dir.Magnitude < 0.01 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
-        ball.AssemblyLinearVelocity = dir * 40
+        -- Solta com força + leve impulso pra cima pra não ficar "murcha"
+        ball.AssemblyLinearVelocity = dir * 80 + Vector3.new(0, 20, 0)
     end
 end
 
--- ========== AUTO GOL ==========
+-- ========== AUTO GOL (auto-execute) ==========
 local function executarAutoGol()
     if autoGolRunning then return end
     autoGolRunning = true
@@ -348,51 +345,75 @@ local function executarAutoGol()
         if not hrp then autoGolRunning = false; return end
         local posOriginal = hrp.Position
 
-        -- 1. Ir até a bola
-        local ballPart = getBallPart()
-        if ballPart then
-            hrp.CFrame = CFrame.new(ballPart.Position + Vector3.new(0, 3, 0))
-            task.wait(0.25)
-            -- 2. Pegar a bola (touch múltiplo)
-            if firetouchinterest then
-                for _ = 1, 8 do
-                    firetouchinterest(hrp, ballPart, 0)
-                    task.wait(0.03)
-                    firetouchinterest(hrp, ballPart, 1)
+        -- 1. Se não tem a bola, tenta pegar
+        if not euTenhoBola() then
+            local ballPart = getBallPart()
+            if ballPart then
+                hrp.CFrame = CFrame.new(ballPart.Position + Vector3.new(0, 3, 0))
+                task.wait(0.3)
+                if firetouchinterest then
+                    for _ = 1, 12 do
+                        firetouchinterest(hrp, ballPart, 0)
+                        task.wait(0.02)
+                        firetouchinterest(hrp, ballPart, 1)
+                    end
                 end
+                task.wait(0.4)
             end
-            task.wait(0.3)
         end
 
-        -- 3. Ir pro gol
+        -- 2. Confere se realmente pegou
+        if not euTenhoBola() then
+            autoGolRunning = false
+            hrp.CFrame = CFrame.new(posOriginal)
+            return
+        end
+
+        -- 3. Vai pro gol
         local posGol = autoGolTeam == "Home" and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
         hrp.CFrame = CFrame.new(posGol)
-        task.wait(0.25)
+        task.wait(0.2)
 
-        -- 4. Chutar
-        local args = { [1] = 110, [4] = posGol }
-        local pk = ReplicatedStorage:FindFirstChild("Packages")
-        if pk then
-            local knit = pk:FindFirstChild("Knit")
-            if knit then
-                local sv = knit:FindFirstChild("Services")
-                if sv then
-                    local bs = sv:FindFirstChild("BallService")
-                    if bs then
-                        local re = bs:FindFirstChild("RE")
-                        if re then
-                            local shoot = re:FindFirstChild("Shoot")
-                            if shoot then shoot:FireServer(unpack(args)) end
+        -- 4. Chuta (múltiplas tentativas)
+        for _ = 1, 3 do
+            local args = { [1] = 110, [4] = posGol }
+            local pk = ReplicatedStorage:FindFirstChild("Packages")
+            if pk then
+                local knit = pk:FindFirstChild("Knit")
+                if knit then
+                    local sv = knit:FindFirstChild("Services")
+                    if sv then
+                        local bs = sv:FindFirstChild("BallService")
+                        if bs then
+                            local re = bs:FindFirstChild("RE")
+                            if re then
+                                local shoot = re:FindFirstChild("Shoot")
+                                if shoot then
+                                    pcall(function() shoot:FireServer(unpack(args)) end)
+                                end
+                            end
                         end
                     end
                 end
             end
+            task.wait(0.1)
         end
+
         task.wait(0.3)
-        -- 5. Voltar
+
+        -- 5. Volta pro lugar original
         hrp.CFrame = CFrame.new(posOriginal)
         autoGolRunning = false
     end)
+end
+
+local function checkAutoGol()
+    if not autoGolToggle then return end
+    if autoGolRunning then return end
+    if tick() - autoGolLastRun < autoGolCooldown then return end
+    if not euTenhoBola() then return end
+    autoGolLastRun = tick()
+    executarAutoGol()
 end
 
 -- ========== DRIBLE ==========
@@ -504,15 +525,15 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- ========== CONTROLE DE BOLA (COM SLIDE FLUTUANTE) ==========
-local floatSliderGui, floatSliderContainer, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil, nil
+-- ========== CONTROLE DE BOLA (SLIDE + BOTÃO) ==========
+local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
 
 local function atualizarSliderVisual(val)
     val = math.clamp(math.floor(val), 0, 200)
     velocidadeBola = val
     Config.controleBolaVelocidade = val
     SaveConfig()
-    if floatSliderFill and floatSliderThumb and floatSliderValueLabel and floatSliderTrack then
+    if floatSliderFill and floatSliderThumb and floatSliderValueLabel then
         local pct = val / 200
         floatSliderFill.Size = UDim2.new(pct, 0, 1, 0)
         floatSliderThumb.Position = UDim2.new(pct, -10, 0.5, -10)
@@ -528,7 +549,6 @@ local function criarSlideFlutuante()
     safeParent(floatSliderGui)
 
     local main = Instance.new("Frame")
-    main.Name = "Container"
     main.Size = UDim2.new(0, 400, 0, 75)
     main.Position = UDim2.new(0.5, -200, 1, -140)
     main.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
@@ -592,7 +612,6 @@ local function criarSlideFlutuante()
         local pct = math.clamp((x - tAbs.X) / tSize, 0, 1)
         atualizarSliderVisual(pct * 200)
     end
-
     floatSliderThumb.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -616,42 +635,43 @@ end
 local function removerSlideFlutuante()
     if floatSliderGui then
         floatSliderGui:Destroy()
-        floatSliderGui, floatSliderContainer, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil, nil
+        floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
     end
 end
 
--- ========== CONTROLE BOLA – TOGGLE + FLOATING ==========
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
     end
 end
 
+-- ATUALIZA O CONTROLE A CADA FRAME (no loop principal - não para mais)
+local function atualizarControleBola()
+    if not isControlActive then return end
+    local ball = getBallPart()
+    if ball then
+        if euTenhoBola() then
+            resetCamera()
+        else
+            camera.CameraSubject = ball
+            ball.AssemblyLinearVelocity = camera.CFrame.LookVector * velocidadeBola
+        end
+    else
+        resetCamera()
+    end
+end
+
 local function toggleControl()
     isControlActive = not isControlActive
-    if isControlActive then
-        if toggleButton then
+    if toggleButton then
+        if isControlActive then
             toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
             toggleButton.Text = "Control BALL [ON]"
-        end
-        if controlConnection then controlConnection:Disconnect() end
-        controlConnection = RunService.Heartbeat:Connect(function()
-            local ball = getBallPart()
-            if ball then
-                if euTenhoBola() then resetCamera()
-                else
-                    camera.CameraSubject = ball
-                    ball.AssemblyLinearVelocity = camera.CFrame.LookVector * velocidadeBola
-                end
-            else resetCamera() end
-        end)
-    else
-        if toggleButton then
+        else
             toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             toggleButton.Text = "Control BALL [OFF]"
+            resetCamera()
         end
-        if controlConnection then controlConnection:Disconnect(); controlConnection = nil end
-        resetCamera()
     end
 end
 
@@ -806,7 +826,7 @@ local function removerBotaoTrazerBola()
     if trazerBolaGUI then trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBtn = nil end
 end
 
--- ========== BOTÃO TIME (HOME/AWAY) ==========
+-- ========== BOTÃO TIME ==========
 local function atualizarBotaoTeam()
     if not autoGolTeamBtn then return end
     if autoGolTeam == "Home" then
@@ -995,7 +1015,6 @@ local function onChatMessage(msg)
             else player:Chat("Use um número entre 1 e 200.") end
         else player:Chat("Use: Força da bola [número]") end
     end
-    -- Velocidade: "velocidade 150" ou apenas "150"
     local n1 = msg:match("^velocidade%s+(%d+)")
     local n2 = msg:match("^(%d+)$")
     local num = n1 or n2
@@ -1172,14 +1191,14 @@ end
 local function zerarCooldownsDoModulo(mod)
     if type(mod) ~= "table" then return end
     if mod.legacy then
-        for _, k in ipairs({"AbilityOne", "AbilityTwo", "AbilityThree", "AbilityFour"}) do
+        for _, k in ipairs({"AbilityOne","AbilityTwo","AbilityThree","AbilityFour"}) do
             if mod.legacy[k] ~= nil then mod.legacy[k] = 0 end
         end
         for k, v in pairs(mod.legacy) do
             if type(v) == "number" and v > 0 then mod.legacy[k] = 0 end
         end
     end
-    for _, key in ipairs({"Cooldowns", "cooldowns", "CD", "cd", "Cooldown"}) do
+    for _, key in ipairs({"Cooldowns","cooldowns","CD","cd","Cooldown"}) do
         if type(mod[key]) == "table" then
             for k, _ in pairs(mod[key]) do mod[key][k] = 0 end
         end
@@ -1187,9 +1206,7 @@ local function zerarCooldownsDoModulo(mod)
     for k, v in pairs(mod) do
         if type(v) == "number" and type(k) == "string" then
             local lk = k:lower()
-            if lk:find("cooldown") or lk:find("cd") or lk:find("recharge") or lk:find("reload") then
-                mod[k] = 0
-            end
+            if lk:find("cooldown") or lk:find("cd") or lk:find("recharge") or lk:find("reload") then mod[k] = 0 end
         end
     end
 end
@@ -1433,6 +1450,8 @@ RunService.Heartbeat:Connect(function()
     aplicarDrible()
     aplicarTrazerBola()
     aplicarStopBall()
+    atualizarControleBola()
+    checkAutoGol()
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -1442,8 +1461,7 @@ RunService.RenderStepped:Connect(function()
         local root = char:FindFirstChild("HumanoidRootPart")
         if hum and root then
             if walkAttachedCharacter ~= char then
-                walkAttachedCharacter = char
-                criarWalkBodyVelocity(char)
+                walkAttachedCharacter = char; criarWalkBodyVelocity(char)
             end
             if not walkBodyVelocity or not walkBodyVelocity.Parent or walkBodyVelocity.Parent ~= root then
                 criarWalkBodyVelocity(char)
@@ -1461,7 +1479,6 @@ task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
 -- ========== UI ==========
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
--- CONTROLE DE BOLA
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 BlueLockSec:Input({
     Title = "Velocidade da Bola (Chat)",
@@ -1489,7 +1506,6 @@ BlueLockSec:Toggle({
     end
 })
 
--- TRAZER BOLA
 BlueLockSec:Toggle({
     Title = "Botão Voador (Trazer Bola)",
     Desc = "Mostra o botão flutuante Trazer Bola",
@@ -1500,7 +1516,6 @@ BlueLockSec:Toggle({
     end
 })
 
--- STOP BALL
 BlueLockSec:Toggle({
     Title = "Botão Voador (Stop Ball)",
     Desc = "Mostra o botão flutuante Stop Ball",
@@ -1511,7 +1526,6 @@ BlueLockSec:Toggle({
     end
 })
 
--- AIMBOT
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
 AimbotSec:Toggle({
     Title = "Aimbot Personagem",
@@ -1558,7 +1572,6 @@ AimbotSec:Slider({
     end
 })
 
--- VISÃO DE JOGO
 local VisaoSec = MainTab:Section({ Title = "Visão de Jogo", TextXAlignment = "Left" })
 VisaoSec:Toggle({
     Title = "Visão da bola",
@@ -1582,7 +1595,6 @@ VisaoSec:Toggle({
     end
 })
 
--- REACH
 local ReachSec = MainTab:Section({ Title = "REACH", TextXAlignment = "Left" })
 ReachSec:Toggle({
     Title = "REACH Personagem",
@@ -1627,7 +1639,6 @@ ReachSec:Toggle({
     end
 })
 
--- EXTRAS
 local ExtrasSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
 ExtrasSec:Toggle({
     Title = "Força da Bola",
@@ -1657,17 +1668,18 @@ ExtrasSec:Button({
     end
 })
 
--- AUTO GOL
-ExtrasSec:Button({
-    Title = "Auto Gol",
-    Desc = "Pega a bola, vai pro gol, chuta e volta (clique único)",
-    Callback = function()
-        executarAutoGol()
+-- AUTO GOL (agora é TOGGLE auto-execute)
+ExtrasSec:Toggle({
+    Title = "Auto Gol (Automático)",
+    Desc = "Quando você pega a bola, faz o gol e volta (cooldown 3s)",
+    Value = Config.autoGolToggle,
+    Callback = function(v)
+        autoGolToggle = v; Config.autoGolToggle = v; SaveConfig()
     end
 })
 ExtrasSec:Toggle({
     Title = "Botão Voador (Selecionar Time)",
-    Desc = "Mostra botão flutuante para alternar Home/Away",
+    Desc = "Botão flutuante alterna Home/Away",
     Value = false,
     Callback = function(v)
         if v then criarBotaoTeam() else removerBotaoTeam() end
@@ -1681,7 +1693,6 @@ ExtrasSec:Toggle({
     Callback = function(v) ativarNoCooldown(v) end
 })
 
--- CURVAS
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
 CurvasSec:Toggle({
     Title = "Bola com curvas",
@@ -1700,7 +1711,6 @@ CurvasSec:Slider({
     Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end
 })
 
--- DRIBLE
 local DribleSec = MainTab:Section({ Title = "Drible", TextXAlignment = "Left" })
 DribleSec:Toggle({
     Title = "Drible",
@@ -1713,7 +1723,6 @@ DribleSec:Toggle({
     end
 })
 
--- PLAYER
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
@@ -1730,7 +1739,6 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- DESEMPENHO
 local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "activity" })
 local PerfSec = PerfTab:Section({ Title = "Performance", TextXAlignment = "Left" })
 PerfSec:Toggle({
@@ -1768,7 +1776,6 @@ PerfSec:Toggle({
     Callback = function(v) aplicarPingMenos(v) end
 })
 
--- SALVAR
 local SaveSec = MainTab:Section({ Title = "Salvar", TextXAlignment = "Left" })
 SaveSec:Button({
     Title = "💾 Salvar Agora",
@@ -1781,7 +1788,6 @@ SaveSec:Button({
     end
 })
 
--- Aplicar estados salvos
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
@@ -1794,7 +1800,7 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Update: Trazer Bola, Stop Ball e Auto Gol!",
+        Text = "Correções aplicadas!",
         Duration = 3
     })
 end)
