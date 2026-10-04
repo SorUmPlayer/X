@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Anti-Cantisine + Hitbox Fix
+    ⚽ Blue Lock Rivals – Anti-Cantisine + Hitbox Fix + Camera Lock
 ]]
 
 local Players = game:GetService("Players")
@@ -72,23 +72,32 @@ local Window = WindUI:CreateWindow({
 })
 
 local bola, hitbox, bolaValida = nil, nil, false
+local bolaSpawnTime = 0
 
 local function atualizarReferenciaBola()
     local f = Workspace:FindFirstChild("Football")
-    if f then
+    if f and f ~= bola then
         bola = f
         local hb = f:FindFirstChild("Hitbox")
         hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
+        bolaValida = true
+        bolaSpawnTime = tick()
+        return
+    elseif f then
         bolaValida = true
         return
     end
     for _, c in ipairs(Workspace:GetChildren()) do
         if c:IsA("Model") and c.Name ~= "Football" then
             local f2 = c:FindFirstChild("Football")
-            if f2 then
+            if f2 and f2 ~= bola then
                 bola = f2
                 local hb = f2:FindFirstChild("Hitbox")
                 hitbox = (hb and hb:IsA("BasePart")) and hb or (f2:IsA("Model") and f2.PrimaryPart) or f2
+                bolaValida = true
+                bolaSpawnTime = tick()
+                return
+            elseif f2 then
                 bolaValida = true
                 return
             end
@@ -207,10 +216,18 @@ local function shouldAimbotWork()
     return true
 end
 
--- ===== HITBOX FIX (bloqueia quando alguém tem a bola) =====
 local function aplicarReachBola()
     if not hitbox then return end
     local agora = tick()
+
+    -- Se a bola acabou de spawnar (< 0.5s), força hitbox para 1
+    if agora - bolaSpawnTime < 0.5 then
+        if hitbox.Size ~= Vector3.new(1, 1, 1) or hitbox.Transparency ~= hitboxOriginalTransparency then
+            hitbox.Size = Vector3.new(1, 1, 1)
+            hitbox.Transparency = hitboxOriginalTransparency
+        end
+        return
+    end
 
     -- Se alguém tem a bola → bloqueia e força hitbox para 1
     if alguemTemBola() then
@@ -249,11 +266,10 @@ local function aplicarReachBola()
     end
 end
 
--- ===== REACH PERSONAGEM (desativa quando alguém tem a bola) =====
 local function aplicarReachPersonagem()
     if not reachPersonagemAtivo then return end
     if euTenhoBola() then return end
-    if alguemTemBola() then return end -- bloqueia se alguém estiver com a bola
+    if alguemTemBola() then return end
     if not hitbox or not bolaValida then return end
     local char = player.Character
     if not char then return end
@@ -269,10 +285,6 @@ local function aplicarReachPersonagem()
     end
 end
 
--- ===== ANTICANTISINE + CAMERA LOCK =====
-local cantisineKeywords = {"chute", "kick", "awk", "stun", "slide", "tackle", "cants", "canti"}
-local cantisineCooldown = 0
-
 local function antiCantisine()
     if not antiCantisineAtivo then return end
     local char = player.Character
@@ -280,26 +292,51 @@ local function antiCantisine()
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
 
-    -- Cancela animações de stun
     local animator = humanoid:FindFirstChildOfClass("Animator")
     if animator then
+        local allowList = {
+            "idle", "walk", "run", "fall", "jump", "climb", "swim",
+            "1804382913", "507771019",
+        }
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             if track.Animation then
                 local id = tostring(track.Animation.AnimationId):lower()
-                for _, kw in ipairs(cantisineKeywords) do
-                    if id:find(kw) then
-                        pcall(function() track:Stop(0) end)
+                local nomeAnim = ""
+                pcall(function() nomeAnim = track.Animation.Name:lower() end)
+                local essencial = false
+                for _, kw in ipairs(allowList) do
+                    if id:find(kw) or nomeAnim:find(kw) then
+                        essencial = true
                         break
                     end
+                end
+                if not essencial then
+                    pcall(function() track:Stop(0) end)
                 end
             end
         end
     end
 
-    -- Reseta estado travado do Humanoid
     if humanoid.WalkSpeed == 0 then humanoid.WalkSpeed = 16 end
     if humanoid.JumpPower and humanoid.JumpPower == 0 and humanoid.UseJumpPower then
         humanoid.JumpPower = 50
+    end
+    if humanoid.JumpHeight and humanoid.JumpHeight == 0 and not humanoid.UseJumpPower then
+        humanoid.JumpHeight = 7.2
+    end
+
+    if humanoid.PlatformStand then
+        humanoid.PlatformStand = false
+    end
+
+    if humanoid:GetState() == Enum.HumanoidStateType.Physics then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    if humanoid:GetState() == Enum.HumanoidStateType.FallingDown then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    if humanoid:GetState() == Enum.HumanoidStateType.GettingUp then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
 end
 
@@ -309,6 +346,7 @@ local function cameraLock()
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
+
     if camera.CameraSubject ~= humanoid then
         camera.CameraSubject = humanoid
     end
@@ -317,15 +355,11 @@ local function cameraLock()
     end
 end
 
-task.spawn(function()
-    while true do
-        task.wait(0.05)
-        antiCantisine()
-        cameraLock()
-    end
+RunService.RenderStepped:Connect(function()
+    antiCantisine()
+    cameraLock()
 end)
 
--- ===== FORÇA =====
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
     local ball = getBallPart()
@@ -340,7 +374,6 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
--- ===== CURVAS =====
 local function aplicarCurvas()
     if not curvasEnabled then return end
     local ball = getBallPart()
@@ -368,7 +401,6 @@ local function aplicarCurvas()
     ball.AssemblyLinearVelocity = vel + perp * lado * fator
 end
 
--- ===== TRAZER BOLA =====
 local function aplicarTrazerBola()
     if not trazerBolaAtivo then return end
     if euTenhoBola() then return end
@@ -385,7 +417,6 @@ local function aplicarTrazerBola()
     ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
 end
 
--- ===== STOP BALL =====
 local function aplicarStopBall()
     if not stopBallAtivo then return end
     if euTenhoBola() then return end
@@ -405,7 +436,6 @@ local function desativarStopBall()
     end
 end
 
--- ===== AUTO GOL =====
 local function executarAutoGol()
     if autoGolRunning then return end
     autoGolRunning = true
@@ -476,7 +506,6 @@ local function checkAutoGol()
     executarAutoGol()
 end
 
--- ===== DRIBLE =====
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -585,7 +614,6 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- ===== CONTROLE DE BOLA =====
 local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
 
 local function atualizarSliderVisual(val)
@@ -1133,7 +1161,6 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(cam, hrp.Position)
 end
 
--- ===== ESP (desativa quando alguém tem a bola) =====
 local function atualizarESP()
     if alguemTemBola() or euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then espSphere:Destroy(); espSphere = nil end
@@ -1810,8 +1837,6 @@ PerfSec:Toggle({
     Value = Config.pingMenos,
     Callback = function(v) aplicarPingMenos(v) end
 })
-
--- NOVOS TOGGLES DE DESEMPENHO
 PerfSec:Toggle({
     Title = "Anti-Cantisine",
     Desc = "Cancela animações de chute, awk e slide (evita travar)",
@@ -1857,7 +1882,7 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Anti-Cantisine + Hitbox Fix aplicados!",
+        Text = "Anti-Cantisine + Hitbox Fix + Camera Lock!",
         Duration = 3
     })
 end)
