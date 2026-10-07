@@ -1,12 +1,11 @@
 --[[
-    Blue Lock Rivals – Teste Reach no Player + ESP na Bola
+    Blue Lock Rivals – Reach no Player (CORRIGIDO)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -35,7 +34,6 @@ local Window = WindUI:CreateWindow({
     Resizable = true, SideBarWidth = 200, HideSearchBar = true, ScrollBarEnabled = false,
 })
 
--- ===== DETECÇÃO DA BOLA =====
 local bola, hitbox, bolaValida = nil, nil, false
 
 local function atualizarReferenciaBola()
@@ -82,16 +80,14 @@ local function alguemTemBola()
     return false
 end
 
--- ===== VARIÁVEIS =====
 local reachAtivo = false
 local reachTamanho = 15
 local espAtivo = false
 local reachPart = nil
 local espSphere = nil
 
--- ===== REACH NO PLAYER =====
+-- ===== REACH NO PLAYER (SEM FÍSICA) =====
 local function aplicarReach()
-    -- Destroi reach se alguém tem a bola
     if alguemTemBola() or euTenhoBola() then
         if reachPart then reachPart:Destroy(); reachPart = nil end
         return
@@ -113,7 +109,7 @@ local function aplicarReach()
         return
     end
 
-    -- Cria a esfera invisível em volta do player
+    -- Cria a parte UMA vez
     if not reachPart or not reachPart.Parent then
         if reachPart then reachPart:Destroy() end
         reachPart = Instance.new("Part")
@@ -121,25 +117,20 @@ local function aplicarReach()
         reachPart.Shape = Enum.PartType.Ball
         reachPart.Size = Vector3.new(reachTamanho, reachTamanho, reachTamanho)
         reachPart.Transparency = 1
-        reachPart.CanCollide = false
-        reachPart.CanTouch = true
+        reachPart.CanCollide = false   -- não colide com NADA
+        reachPart.CanTouch = true      -- MAS detecta toques
+        reachPart.CanQuery = false     -- não interfere em raycast
+        reachPart.Anchored = true      -- NÃO É AFETADA POR FÍSICA
         reachPart.Massless = true
-        reachPart.Anchored = false
+        reachPart.Material = Enum.Material.ForceField
         reachPart.Parent = workspace
-
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = hrp
-        weld.Part1 = reachPart
-        weld.Parent = reachPart
-
-        reachPart.CFrame = hrp.CFrame
-    else
-        -- Atualiza tamanho se o slider mudou
-        if reachPart.Size.X ~= reachTamanho then
-            reachPart.Size = Vector3.new(reachTamanho, reachTamanho, reachTamanho)
-        end
-        reachPart.CFrame = hrp.CFrame
     end
+
+    -- Atualiza tamanho + posição todo frame (sem weld, sem física)
+    if reachPart.Size.X ~= reachTamanho then
+        reachPart.Size = Vector3.new(reachTamanho, reachTamanho, reachTamanho)
+    end
+    reachPart.CFrame = hrp.CFrame
 end
 
 -- ===== ESP NA BOLA =====
@@ -149,7 +140,6 @@ local function aplicarESP()
         return
     end
 
-    -- Não mostra ESP se alguém tem a bola
     if alguemTemBola() or euTenhoBola() then
         if espSphere then espSphere:Destroy(); espSphere = nil end
         return
@@ -171,26 +161,21 @@ local function aplicarESP()
     end
 end
 
--- ===== LOOP PRINCIPAL =====
 RunService.Heartbeat:Connect(function()
     aplicarReach()
     aplicarESP()
 end)
 
--- ===== UI =====
 local MainTab = Window:Tab({ Title = "Teste", Icon = "home" })
 local ReachSec = MainTab:Section({ Title = "HITBOX", TextXAlignment = "Left" })
 
 ReachSec:Toggle({
     Title = "Reach (no Player)",
-    Desc = "Cria esfera invisível em volta do player para coletar a bola",
+    Desc = "Esfera invisível em volta do player para coletar",
     Value = false,
     Callback = function(v)
         reachAtivo = v
-        if not v and reachPart then
-            reachPart:Destroy()
-            reachPart = nil
-        end
+        if not v and reachPart then reachPart:Destroy(); reachPart = nil end
     end
 })
 
@@ -199,9 +184,7 @@ ReachSec:Slider({
     Desc = "Raio de coleta em studs (1-50)",
     Step = 1,
     Value = { Min = 1, Max = 50, Default = 15 },
-    Callback = function(v)
-        reachTamanho = v
-    end
+    Callback = function(v) reachTamanho = v end
 })
 
 ReachSec:Toggle({
@@ -210,17 +193,14 @@ ReachSec:Toggle({
     Value = false,
     Callback = function(v)
         espAtivo = v
-        if not v and espSphere then
-            espSphere:Destroy()
-            espSphere = nil
-        end
+        if not v and espSphere then espSphere:Destroy(); espSphere = nil end
     end
 })
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Teste HITBOX",
-        Text = "Reach no player + ESP na bola!",
+        Text = "Reach fixado - sem física!",
         Duration = 3
     })
 end)
