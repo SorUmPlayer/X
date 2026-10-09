@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Update
+    ⚽ Blue Lock Rivals – Update Completo (Magnet fix)
 ]]
 
 local Players = game:GetService("Players")
@@ -121,6 +121,7 @@ Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 task.spawn(function() while true do task.wait(1); if not bolaValida or not hitbox then atualizarReferenciaBola() end end end)
 
+-- getBall: retorna o Model/Parent da bola
 local function getBall()
     if bola and bolaValida then return bola end
     local f = Workspace:FindFirstChild("Football")
@@ -134,11 +135,23 @@ local function getBall()
     return nil
 end
 
+-- getBallPart: NOVO – sempre encontra a parte física da bola (mesmo se alguém estiver com ela)
 local function getBallPart()
-    local b = getBall()
-    if not b then return nil end
-    if b:IsA("BasePart") then return b end
-    if b:IsA("Model") then return b.PrimaryPart or b:FindFirstChildWhichIsA("BasePart") end
+    if hitbox and hitbox.Parent then return hitbox end
+    local f = Workspace:FindFirstChild("Football")
+    if f then
+        if f:IsA("BasePart") then return f end
+        return f.PrimaryPart or f:FindFirstChildWhichIsA("BasePart")
+    end
+    for _, c in ipairs(Workspace:GetChildren()) do
+        if c:IsA("Model") and c.Name ~= "Football" then
+            local f2 = c:FindFirstChild("Football")
+            if f2 then
+                if f2:IsA("BasePart") then return f2 end
+                return f2.PrimaryPart or f2:FindFirstChildWhichIsA("BasePart")
+            end
+        end
+    end
     return nil
 end
 
@@ -272,7 +285,6 @@ end
 local function resetarBola()
     if not hitbox then return end
     local agora = tick()
-    -- Delay de 0.7s após spawn
     if agora - bolaSpawnTime < 0.7 then
         if hitbox.Size ~= BOLA_TAMANHO_ORIGINAL then
             hitbox.Size = BOLA_TAMANHO_ORIGINAL
@@ -280,51 +292,64 @@ local function resetarBola()
         end
         return
     end
-    -- Reset sempre que estiver fora do padrão
     if hitbox.Size ~= BOLA_TAMANHO_ORIGINAL then
         hitbox.Size = BOLA_TAMANHO_ORIGINAL
         hitbox.Transparency = 0
     end
 end
 
--- ===== MAGNET (Player) – Puxa a bola =====
+-- ===== MAGNET (Player) – Puxa a bola / rouba de quem estiver com ela =====
 local function aplicarMagnet()
     if not magnetAtivo then
         if espMagnet then espMagnet:Destroy(); espMagnet = nil end
         return
     end
-    if euTenhoBola() then
-        if espMagnet then espMagnet:Destroy(); espMagnet = nil end
-        return
-    end
-    local ball = getBallPart()
+
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- ESP vermelho ao redor do player
+    -- ESP (cria/atualiza independente do resto)
     if mostrarESPMagnet then
-        if not espMagnet or espMagnet.Parent ~= workspace then
+        if not espMagnet or not espMagnet.Parent then
             if espMagnet then espMagnet:Destroy() end
             espMagnet = Instance.new("SelectionSphere")
             espMagnet.Name = "MagnetESP"
-            espMagnet.Adornee = hrp
-            espMagnet.Parent = workspace
             espMagnet.Color3 = Color3.fromRGB(255, 0, 0)
             espMagnet.Transparency = 0.6
+            espMagnet.Parent = workspace
         end
+        espMagnet.Adornee = hrp
         local s = magnetRange / 2.5
-        if espMagnet.Scale.X ~= s then espMagnet.Scale = Vector3.new(s, s, s) end
+        if espMagnet.Scale.X ~= s then
+            espMagnet.Scale = Vector3.new(s, s, s)
+        end
     else
         if espMagnet then espMagnet:Destroy(); espMagnet = nil end
     end
 
+    -- Não puxa se EU tiver a bola
+    if euTenhoBola() then return end
+
+    -- Sempre procura a bola (mesmo se alguém estiver com ela)
+    local ball = getBallPart()
     if not ball then return end
+
     local dist = (hrp.Position - ball.Position).Magnitude
-    if dist <= magnetRange then
+    if dist > magnetRange then return end
+
+    -- 1. Dispara o toque (rouba a bola de quem estiver)
+    if firetouchinterest then
+        firetouchinterest(hrp, ball, 0)
+        firetouchinterest(hrp, ball, 1)
+    end
+
+    -- 2. Se a bola NÃO estiver ancorada, também puxa com velocidade
+    if not ball.Anchored then
         local dir = (hrp.Position - ball.Position).Unit
-        ball.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 60, 200) + Vector3.new(0, 5, 0)
+        local forca = math.clamp(dist * 15, 60, 200)
+        ball.AssemblyLinearVelocity = dir * forca + Vector3.new(0, 5, 0)
     end
 end
 
@@ -335,13 +360,11 @@ local function aplicarReach()
         return
     end
 
-    -- Delay de 0.7s após spawn
     if tick() - bolaSpawnTime < 0.7 then
         if espReach then espReach:Destroy(); espReach = nil end
         return
     end
 
-    -- Se alguém tem a bola, desativa
     if alguemTemBola() or euTenhoBola() then
         if espReach then espReach:Destroy(); espReach = nil end
         return
@@ -352,7 +375,6 @@ local function aplicarReach()
         return
     end
 
-    -- ESP verde ao redor da bola
     if mostrarESPReach then
         if not espReach or espReach.Parent ~= workspace then
             if espReach then espReach:Destroy() end
@@ -369,7 +391,6 @@ local function aplicarReach()
         if espReach then espReach:Destroy(); espReach = nil end
     end
 
-    -- Coleta: congela 1 frame + aumenta + dispara + restaura
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -516,7 +537,13 @@ local function aplicarTrazerBola()
     local dist = dir.Magnitude
     if dist < 2 then return end
     dir = dir.Unit
-    ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
+    if firetouchinterest then
+        firetouchinterest(hrp, ballPart, 0)
+        firetouchinterest(hrp, ballPart, 1)
+    end
+    if not ballPart.Anchored then
+        ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
+    end
 end
 
 -- ===== STOP BALL =====
@@ -838,7 +865,9 @@ local function atualizarControleBola()
             resetCamera()
         else
             camera.CameraSubject = ball
-            ball.AssemblyLinearVelocity = camera.CFrame.LookVector * velocidadeBola
+            if not ball.Anchored then
+                ball.AssemblyLinearVelocity = camera.CFrame.LookVector * velocidadeBola
+            end
         end
     else
         resetCamera()
@@ -1915,7 +1944,6 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Nova categoria Button
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
@@ -2018,7 +2046,7 @@ if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Update: Magnet + Reach + Fixa Button!",
+        Text = "Magnet corrigido + Rouba bola de qualquer player!",
         Duration = 3
     })
 end)
