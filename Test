@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Full Update
+    ⚽ Blue Lock Rivals – Full Update (ESP corrigido)
 ]]
 
 local Players = game:GetService("Players")
@@ -266,12 +266,27 @@ local function shouldAimbotWork()
     return true
 end
 
--- ========== REACH/MAGNET ==========
+-- ========== REACH/MAGNET COM ESP CORRETO ==========
 local function resetarBolaTamanho()
     if hitbox and hitbox.Size ~= hitboxOriginalSize then
         hitbox.Size = hitboxOriginalSize
         hitbox.Transparency = hitboxOriginalTransparency
     end
+end
+
+local function getHitboxSize(part)
+    if not part then return 1.4 end
+    if part:IsA("BasePart") then return part.Size.X end
+    if part:IsA("Model") then
+        local p = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
+        return p and p.Size.X or 1.4
+    end
+    return 1.4
+end
+
+local function calcularScale(alcanceStuds, tamanhoBola)
+    local t = math.max(tamanhoBola, 0.1)
+    return (alcanceStuds * 2) / t
 end
 
 local function aplicarReachEMagnet()
@@ -281,7 +296,6 @@ local function aplicarReachEMagnet()
         return
     end
 
-    -- Aviso de spawn: 0.7s de espera antes de aplicar qualquer coisa
     if tick() - bolaSpawnTime < 0.7 then
         resetarBolaTamanho()
         if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
@@ -289,7 +303,6 @@ local function aplicarReachEMagnet()
         return
     end
 
-    -- Se alguém tem a bola, reseta
     if alguemTemBola() or euTenhoBola() then
         resetarBolaTamanho()
         if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
@@ -304,36 +317,35 @@ local function aplicarReachEMagnet()
         return
     end
 
-    -- ==== ESP VISUAL (apenas quando ativo) ====
+    local tamanhoBola = getHitboxSize(hitbox)
+
     if mostrarESP then
-        -- Reach (verde padrão)
         if reachBolaAtivo then
-            if not espSphereReach then
+            if not espSphereReach or not espSphereReach.Parent then
+                if espSphereReach then espSphereReach:Destroy() end
                 espSphereReach = Instance.new("SelectionSphere")
                 espSphereReach.Name = "ReachESP"
-                espSphereReach.Adornee = hitbox
                 espSphereReach.Parent = workspace
                 espSphereReach.Color3 = Color3.fromRGB(0, 255, 0)
                 espSphereReach.Transparency = 0.7
             end
             espSphereReach.Adornee = hitbox
-            local s = reachBolaDistancia / 2.5
+            local s = calcularScale(reachBolaDistancia, tamanhoBola)
             espSphereReach.Scale = Vector3.new(s, s, s)
         else
             if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
         end
-        -- Magnet (vermelho)
         if magnetAtivo then
-            if not espSphereMagnet then
+            if not espSphereMagnet or not espSphereMagnet.Parent then
+                if espSphereMagnet then espSphereMagnet:Destroy() end
                 espSphereMagnet = Instance.new("SelectionSphere")
                 espSphereMagnet.Name = "MagnetESP"
-                espSphereMagnet.Adornee = hitbox
                 espSphereMagnet.Parent = workspace
                 espSphereMagnet.Color3 = Color3.fromRGB(255, 0, 0)
                 espSphereMagnet.Transparency = 0.7
             end
             espSphereMagnet.Adornee = hitbox
-            local s2 = magnetTamanho / 2.5
+            local s2 = calcularScale(magnetTamanho, tamanhoBola)
             espSphereMagnet.Scale = Vector3.new(s2, s2, s2)
         else
             if espSphereMagnet then espSphereMagnet:Destroy(); espSphereMagnet = nil end
@@ -343,7 +355,6 @@ local function aplicarReachEMagnet()
         if espSphereMagnet then espSphereMagnet:Destroy(); espSphereMagnet = nil end
     end
 
-    -- ==== MAGNET: coleta de longe (não altera bola) ====
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -357,7 +368,6 @@ local function aplicarReachEMagnet()
         end
     end
 
-    -- ==== REACH: coleta com enlarge de 1 frame (bola não fica gigante) ====
     if reachBolaAtivo then
         local dist = (hrp.Position - hitbox.Position).Magnitude
         if dist <= reachBolaDistancia and firetouchinterest then
@@ -807,7 +817,6 @@ local function criarSlideFlutuante()
     UserInputService.InputChanged:Connect(function(input)
         if dragging then setFromX(input.Position.X) end
     end)
-    -- Persistência de posição do slide
     main.InputEnded:Connect(function(input)
         if not Config.fixaButton then
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1773,7 +1782,7 @@ ReachSec:Toggle({
 })
 ReachSec:Slider({
     Title = "Alcance Magnet",
-    Desc = "1-30 | Vermelho no ESP | Seguro em qualquer valor",
+    Desc = "1-30 | Vermelho no ESP",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.reachPersonagemTamanho },
     Callback = function(v)
@@ -1783,7 +1792,7 @@ ReachSec:Slider({
 
 ReachSec:Toggle({
     Title = "Bola Reach",
-    Desc = "Coleta com enlarge de 1 frame (não deixa bola gigante, 1-20)",
+    Desc = "Coleta com enlarge de 1 frame (1-20)",
     Value = Config.reachBola,
     Callback = function(v)
         reachBolaAtivo = v; Config.reachBola = v; SaveConfig()
@@ -1889,7 +1898,7 @@ DribleSec:Toggle({
     end
 })
 
--- ========== PLAYER (com nova categoria Button) ==========
+-- ========== PLAYER ==========
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
@@ -1906,7 +1915,6 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Nova categoria "Button"
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
@@ -2030,7 +2038,7 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Update: Reset Ball + Botões Persistentes + Fixa Button!",
+        Text = "Update: Reset Ball + Botões Persistentes + Fixa Button + ESP corrigido!",
         Duration = 3
     })
 end)
