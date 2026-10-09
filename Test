@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Update Completo (Magnet fix)
+    ⚽ Blue Lock Rivals – Reach com hitbox separada
 ]]
 
 local Players = game:GetService("Players")
@@ -74,14 +74,11 @@ local Window = WindUI:CreateWindow({
 -- ===== BOLA =====
 local bola, hitbox, bolaValida = nil, nil, false
 local bolaSpawnTime = 0
-local BOLA_TAMANHO_ORIGINAL = Vector3.new(1.4, 1.4, 1.4)
 
 local function atualizarReferenciaBola()
     local f = Workspace:FindFirstChild("Football")
     if f then
-        if bola ~= f then
-            bolaSpawnTime = tick()
-        end
+        if bola ~= f then bolaSpawnTime = tick() end
         bola = f
         local hb = f:FindFirstChild("Hitbox")
         if hb and hb:IsA("BasePart") then
@@ -121,7 +118,6 @@ Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
 task.spawn(function() while true do task.wait(1); if not bolaValida or not hitbox then atualizarReferenciaBola() end end end)
 
--- getBall: retorna o Model/Parent da bola
 local function getBall()
     if bola and bolaValida then return bola end
     local f = Workspace:FindFirstChild("Football")
@@ -135,7 +131,6 @@ local function getBall()
     return nil
 end
 
--- getBallPart: NOVO – sempre encontra a parte física da bola (mesmo se alguém estiver com ela)
 local function getBallPart()
     if hitbox and hitbox.Parent then return hitbox end
     local f = Workspace:FindFirstChild("Football")
@@ -179,7 +174,7 @@ local function getMyTeam()
     return nil
 end
 
--- ===== BOTÕES FLUTUANTES – POSIÇÃO SALVA =====
+-- ===== BOTÕES FLUTUANTES =====
 local floatingButtons = {}
 local fixaButtonAtivo = Config.fixaButton
 
@@ -252,7 +247,14 @@ local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayVa
 local visaoBolaEnabled, advinhaChuteEnabled = Config.visaoBola, Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
 local gyro = nil
-local espMagnet, espReach = nil, nil
+
+-- ESP Parts (usa Part anchored em vez de SelectionSphere - mais confiável)
+local espReachPart = nil
+local espMagnetPart = nil
+
+-- Hitbox falsa para Reach
+local reachHitboxFalsa = nil
+
 local walkBoost, walkSpeedValue = Config.walkSpeedAtivo, Config.walkSpeedValue
 local walkBodyVelocity, walkAttachedCharacter = nil, nil
 local noCooldownAtivo = Config.noCooldown
@@ -281,71 +283,111 @@ local function shouldAimbotWork()
     return true
 end
 
--- ===== RESET DA BOLA =====
-local function resetarBola()
-    if not hitbox then return end
-    local agora = tick()
-    if agora - bolaSpawnTime < 0.7 then
-        if hitbox.Size ~= BOLA_TAMANHO_ORIGINAL then
-            hitbox.Size = BOLA_TAMANHO_ORIGINAL
-            hitbox.Transparency = 0
-        end
-        return
-    end
-    if hitbox.Size ~= BOLA_TAMANHO_ORIGINAL then
-        hitbox.Size = BOLA_TAMANHO_ORIGINAL
-        hitbox.Transparency = 0
-    end
+-- ===== REACH com hitbox falsa (NÃO altera a bola) =====
+local function getReachHitboxFalsa()
+    if reachHitboxFalsa and reachHitboxFalsa.Parent then return reachHitboxFalsa end
+    reachHitboxFalsa = Instance.new("Part")
+    reachHitboxFalsa.Name = "ReachHitboxFalsa"
+    reachHitboxFalsa.Shape = Enum.PartType.Ball
+    reachHitboxFalsa.Size = Vector3.new(1, 1, 1)
+    reachHitboxFalsa.Transparency = 1
+    reachHitboxFalsa.CanCollide = false
+    reachHitboxFalsa.CanTouch = true
+    reachHitboxFalsa.CanQuery = true
+    reachHitboxFalsa.Anchored = true
+    reachHitboxFalsa.CastShadow = false
+    reachHitboxFalsa.Massless = true
+    reachHitboxFalsa.Parent = workspace
+    return reachHitboxFalsa
 end
 
--- ===== MAGNET (Player) – Puxa a bola / rouba de quem estiver com ela =====
-local function aplicarMagnet()
-    if not magnetAtivo then
-        if espMagnet then espMagnet:Destroy(); espMagnet = nil end
+local function aplicarReach()
+    local ball = getBallPart()
+    if not ball then
+        if reachHitboxFalsa then reachHitboxFalsa.Position = Vector3.new(0, -100, 0) end
         return
     end
+
+    -- Cria/atualiza a hitbox falsa
+    local hbFalsa = getReachHitboxFalsa()
+    hbFalsa.Position = ball.Position
+    local size = math.max(reachRange, 1)
+    if hbFalsa.Size.X ~= size then
+        hbFalsa.Size = Vector3.new(size, size, size)
+    end
+
+    -- Só dispara o toque se reach estiver ativo E ninguém tiver a bola
+    if not reachAtivo then return end
+    if euTenhoBola() or alguemTemBola() then return end
+    if tick() - bolaSpawnTime < 0.5 then return end
 
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- ESP (cria/atualiza independente do resto)
-    if mostrarESPMagnet then
-        if not espMagnet or not espMagnet.Parent then
-            if espMagnet then espMagnet:Destroy() end
-            espMagnet = Instance.new("SelectionSphere")
-            espMagnet.Name = "MagnetESP"
-            espMagnet.Color3 = Color3.fromRGB(255, 0, 0)
-            espMagnet.Transparency = 0.6
-            espMagnet.Parent = workspace
+    local dist = (hrp.Position - ball.Position).Magnitude
+    if dist <= reachRange then
+        if firetouchinterest then
+            firetouchinterest(hrp, hbFalsa, 0)
+            firetouchinterest(hrp, hbFalsa, 1)
         end
-        espMagnet.Adornee = hrp
-        local s = magnetRange / 2.5
-        if espMagnet.Scale.X ~= s then
-            espMagnet.Scale = Vector3.new(s, s, s)
-        end
-    else
-        if espMagnet then espMagnet:Destroy(); espMagnet = nil end
+    end
+end
+
+-- ===== ESP REACH (esfera verde pequena na bola) =====
+local function atualizarESPReach()
+    if not mostrarESPReach then
+        if espReachPart then espReachPart:Destroy(); espReachPart = nil end
+        return
     end
 
-    -- Não puxa se EU tiver a bola
+    local ball = getBallPart()
+    if not ball then
+        if espReachPart then espReachPart:Destroy(); espReachPart = nil end
+        return
+    end
+
+    if not espReachPart or not espReachPart.Parent then
+        espReachPart = Instance.new("Part")
+        espReachPart.Name = "ReachESP"
+        espReachPart.Shape = Enum.PartType.Ball
+        espReachPart.Material = Enum.Material.ForceField
+        espReachPart.Color = Color3.fromRGB(0, 255, 0)
+        espReachPart.Transparency = 0.5
+        espReachPart.CanCollide = false
+        espReachPart.Anchored = true
+        espReachPart.CastShadow = false
+        espReachPart.Parent = workspace
+    end
+
+    espReachPart.Position = ball.Position
+    -- Tamanho pequeno fixo (escala 1 = ~2 studs visual)
+    espReachPart.Size = Vector3.new(3, 3, 3)
+end
+
+-- ===== MAGNET (puxa a bola / rouba de quem estiver com ela) =====
+local function aplicarMagnet()
+    if not magnetAtivo then return end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
     if euTenhoBola() then return end
 
-    -- Sempre procura a bola (mesmo se alguém estiver com ela)
     local ball = getBallPart()
     if not ball then return end
 
     local dist = (hrp.Position - ball.Position).Magnitude
     if dist > magnetRange then return end
 
-    -- 1. Dispara o toque (rouba a bola de quem estiver)
     if firetouchinterest then
         firetouchinterest(hrp, ball, 0)
         firetouchinterest(hrp, ball, 1)
     end
 
-    -- 2. Se a bola NÃO estiver ancorada, também puxa com velocidade
     if not ball.Anchored then
         local dir = (hrp.Position - ball.Position).Unit
         local forca = math.clamp(dist * 15, 60, 200)
@@ -353,82 +395,41 @@ local function aplicarMagnet()
     end
 end
 
--- ===== REACH (Bola) – Congela 1 frame =====
-local function aplicarReach()
-    if not hitbox then
-        if espReach then espReach:Destroy(); espReach = nil end
+-- ===== ESP MAGNET (esfera vermelha ao redor do player) =====
+local function atualizarESPMagnet()
+    if not mostrarESPMagnet then
+        if espMagnetPart then espMagnetPart:Destroy(); espMagnetPart = nil end
         return
-    end
-
-    if tick() - bolaSpawnTime < 0.7 then
-        if espReach then espReach:Destroy(); espReach = nil end
-        return
-    end
-
-    if alguemTemBola() or euTenhoBola() then
-        if espReach then espReach:Destroy(); espReach = nil end
-        return
-    end
-
-    if not reachAtivo then
-        if espReach then espReach:Destroy(); espReach = nil end
-        return
-    end
-
-    if mostrarESPReach then
-        if not espReach or espReach.Parent ~= workspace then
-            if espReach then espReach:Destroy() end
-            espReach = Instance.new("SelectionSphere")
-            espReach.Name = "ReachESP"
-            espReach.Adornee = hitbox
-            espReach.Parent = workspace
-            espReach.Color3 = Color3.fromRGB(0, 255, 0)
-            espReach.Transparency = 0.6
-        end
-        local s = reachRange / 2.5
-        if espReach.Scale.X ~= s then espReach.Scale = Vector3.new(s, s, s) end
-    else
-        if espReach then espReach:Destroy(); espReach = nil end
     end
 
     local char = player.Character
-    if not char then return end
+    if not char then
+        if espMagnetPart then espMagnetPart:Destroy(); espMagnetPart = nil end
+        return
+    end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then
+        if espMagnetPart then espMagnetPart:Destroy(); espMagnetPart = nil end
+        return
+    end
 
-    local dist = (hrp.Position - hitbox.Position).Magnitude
-    if dist <= reachRange then
-        if firetouchinterest then
-            local origSize = hitbox.Size
-            local origTransparency = hitbox.Transparency
-            local origCFrame = hitbox.CFrame
-            local origAnchored = hitbox.Anchored
-            local origCanCollide = hitbox.CanCollide
-            local origVelocity = hitbox.AssemblyLinearVelocity
-            local origAngular = hitbox.AssemblyAngularVelocity
+    if not espMagnetPart or not espMagnetPart.Parent then
+        espMagnetPart = Instance.new("Part")
+        espMagnetPart.Name = "MagnetESP"
+        espMagnetPart.Shape = Enum.PartType.Ball
+        espMagnetPart.Material = Enum.Material.ForceField
+        espMagnetPart.Color = Color3.fromRGB(255, 0, 0)
+        espMagnetPart.Transparency = 0.6
+        espMagnetPart.CanCollide = false
+        espMagnetPart.Anchored = true
+        espMagnetPart.CastShadow = false
+        espMagnetPart.Parent = workspace
+    end
 
-            hitbox.Anchored = true
-            hitbox.CanCollide = false
-            hitbox.AssemblyLinearVelocity = Vector3.zero
-            hitbox.AssemblyAngularVelocity = Vector3.zero
-            hitbox.CFrame = origCFrame
-
-            hitbox.Size = Vector3.new(reachRange, reachRange, reachRange)
-            hitbox.Transparency = 1
-
-            firetouchinterest(hrp, hitbox, 0)
-            firetouchinterest(hrp, hitbox, 1)
-
-            hitbox.Size = origSize
-            hitbox.Transparency = origTransparency
-            hitbox.CFrame = origCFrame
-            hitbox.Anchored = origAnchored
-            hitbox.CanCollide = origCanCollide
-            if not origAnchored then
-                hitbox.AssemblyLinearVelocity = origVelocity
-                hitbox.AssemblyAngularVelocity = origAngular
-            end
-        end
+    espMagnetPart.Position = hrp.Position
+    local size = math.max(magnetRange * 2, 2)
+    if espMagnetPart.Size.X ~= size then
+        espMagnetPart.Size = Vector3.new(size, size, size)
     end
 end
 
@@ -1634,9 +1635,10 @@ end
 
 -- ===== LOOP PRINCIPAL =====
 RunService.Heartbeat:Connect(function()
-    resetarBola()
     aplicarReach()
+    atualizarESPReach()
     aplicarMagnet()
+    atualizarESPMagnet()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     atualizarVisaoBola()
@@ -1796,7 +1798,7 @@ ReachSec:Toggle({
     Value = Config.magnetAtivo,
     Callback = function(v)
         magnetAtivo = v; Config.magnetAtivo = v; SaveConfig()
-        if not v and espMagnet then espMagnet:Destroy(); espMagnet = nil end
+        if not v and espMagnetPart then espMagnetPart:Destroy(); espMagnetPart = nil end
     end
 })
 ReachSec:Slider({
@@ -1814,7 +1816,7 @@ ReachSec:Toggle({
     Value = Config.mostrarESPMagnet,
     Callback = function(v)
         mostrarESPMagnet = v; Config.mostrarESPMagnet = v; SaveConfig()
-        if not v and espMagnet then espMagnet:Destroy(); espMagnet = nil end
+        if not v and espMagnetPart then espMagnetPart:Destroy(); espMagnetPart = nil end
     end
 })
 
@@ -1824,7 +1826,7 @@ ReachSec:Toggle({
     Value = Config.reachAtivo,
     Callback = function(v)
         reachAtivo = v; Config.reachAtivo = v; SaveConfig()
-        if not v and espReach then espReach:Destroy(); espReach = nil end
+        if not v and espReachPart then espReachPart:Destroy(); espReachPart = nil end
     end
 })
 ReachSec:Slider({
@@ -1838,11 +1840,11 @@ ReachSec:Slider({
 })
 ReachSec:Toggle({
     Title = "ESP Reach (Verde)",
-    Desc = "Mostra esfera verde ao redor da bola",
+    Desc = "Mostra esfera verde pequena na bola",
     Value = Config.mostrarESPReach,
     Callback = function(v)
         mostrarESPReach = v; Config.mostrarESPReach = v; SaveConfig()
-        if not v and espReach then espReach:Destroy(); espReach = nil end
+        if not v and espReachPart then espReachPart:Destroy(); espReachPart = nil end
     end
 })
 
@@ -2046,7 +2048,7 @@ if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Magnet corrigido + Rouba bola de qualquer player!",
+        Text = "Reach com hitbox separada + ESP corrigido!",
         Duration = 3
     })
 end)
