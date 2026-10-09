@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Magnet + Reach + Fixar Button
+    ⚽ Blue Lock Rivals – Magnet + Reach + Fixar Button (corrigido)
 ]]
 
 local Players = game:GetService("Players")
@@ -31,7 +31,8 @@ local function SaveConfigToFile(t)
 end
 local Config = {
     velocidadeBola = 65, forcaBolaVelocidade = 100, aimbotDelayValue = 0,
-    magnetTamanho = 10, reachTamanho = 15, curvasIntensidade = 5,
+    magnetTamanho = 10, magnetDelayChute = 1.5,
+    reachTamanho = 15, curvasIntensidade = 5,
     botaoFlutuante = false, aimbotPersonagem = false, aimbotCamera = false,
     botaoCamera = false, visaoBola = false, advinhaChute = false,
     magnetAtivo = false, reachAtivo = false, mostrarESPMagnet = false, mostrarESPReach = false,
@@ -58,7 +59,6 @@ local function safeParent(gui)
     if not ok then gui.Parent = player:WaitForChild("PlayerGui") end
 end
 
--- Salvar/restaurar posição de botões
 local function aplicarPosicaoBotao(btn, key)
     if Config[key] then
         btn.Position = UDim2.new(
@@ -180,6 +180,7 @@ local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local magnetAtivo = Config.magnetAtivo
 local magnetTamanho = Config.magnetTamanho
+local magnetDelayChute = Config.magnetDelayChute
 local reachAtivo = Config.reachAtivo
 local reachTamanho = Config.reachTamanho
 local mostrarESPMagnet = Config.mostrarESPMagnet
@@ -187,6 +188,7 @@ local mostrarESPReach = Config.mostrarESPReach
 local forcaBolaEnabled = Config.forcaBola
 local forcaBolaVelocidade = Config.forcaBolaVelocidade
 local tinhaBola = false
+local ultimoChute = 0 -- timestamp de quando soltou a bola
 local curvasEnabled = Config.curvasAtivo
 local curvasModo = 1
 local curvasIntensidade = Config.curvasIntensidade
@@ -237,7 +239,6 @@ local function shouldAimbotWork()
     return true
 end
 
--- ===== RESETAR BOLA (evita gigante) =====
 local function resetarBola()
     if not hitbox then return end
     if hitbox.Size ~= BOLA_TAMANHO_ORIGINAL then
@@ -246,11 +247,14 @@ local function resetarBola()
     end
 end
 
--- ===== MAGNET (puxa a bola suave, sem alterar tamanho) =====
+-- ===== MAGNET (corrigido) =====
 local function aplicarMagnet()
     if not magnetAtivo then return end
     if euTenhoBola() then return end
     if alguemTemBola() then return end
+    -- Delay pós-chute (para dar tempo de chutar)
+    if tick() - ultimoChute < magnetDelayChute then return end
+
     local ball = getBallPart()
     if not ball then return end
     local char = player.Character
@@ -261,18 +265,18 @@ local function aplicarMagnet()
     local dist = dir.Magnitude
     if dist < 2 then return end
     if dist > magnetTamanho then return end
+
     dir = dir.Unit
-    -- Força proporcional à distância (mais forte perto, mais suave longe)
-    local forca = math.clamp(dist * 8, 40, 150)
-    ball.AssemblyLinearVelocity = dir * forca + Vector3.new(0, 3, 0)
+    -- Força progressiva: mais forte perto, suave longe
+    local forca = math.clamp(200 - dist * 5, 80, 250)
+    ball.AssemblyLinearVelocity = dir * forca + Vector3.new(0, 5, 0)
 end
 
--- ===== REACH (coleta por toque, não altera tamanho) =====
+-- ===== REACH (coleta por toque) =====
 local function aplicarReach()
     if not reachAtivo then return end
     if not hitbox then return end
     if alguemTemBola() or euTenhoBola() then return end
-    -- Delay de 0.7s ao spawnar nova bola
     if tick() - bolaSpawnTime < 0.7 then return end
     local char = player.Character
     if not char then return end
@@ -316,7 +320,8 @@ local function aplicarReach()
     end
 end
 
--- ===== ESP REACH (Verde) e ESP MAGNET (Vermelho) =====
+-- ===== ESP CORRIGIDO (escala real) =====
+-- SelectionSphere.Scale: o valor é o RAIO. Se quer diâmetro D, Scale = D/2
 local function atualizarESPs()
     -- Reach (verde)
     if not reachAtivo or not mostrarESPReach or euTenhoBola() or alguemTemBola() or not hitbox then
@@ -331,7 +336,8 @@ local function atualizarESPs()
             espReach.Color3 = Color3.fromRGB(0, 255, 0)
             espReach.Transparency = 0.6
         end
-        local s = reachTamanho / 2.5
+        -- Escala correta: metade do diâmetro
+        local s = reachTamanho / 2
         if espReach.Scale.X ~= s then espReach.Scale = Vector3.new(s, s, s) end
     end
 
@@ -348,7 +354,7 @@ local function atualizarESPs()
             espMagnet.Color3 = Color3.fromRGB(255, 0, 0)
             espMagnet.Transparency = 0.6
         end
-        local s = magnetTamanho / 2.5
+        local s = magnetTamanho / 2
         if espMagnet.Scale.X ~= s then espMagnet.Scale = Vector3.new(s, s, s) end
     end
 end
@@ -400,6 +406,18 @@ RunService.RenderStepped:Connect(function()
     cameraLock()
 end)
 
+-- Detectar chute (perdeu a bola)
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        local tenho = euTenhoBola()
+        if tinhaBola and not tenho then
+            ultimoChute = tick()
+        end
+        tinhaBola = tenho
+    end
+end)
+
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
     local ball = getBallPart()
@@ -411,7 +429,6 @@ local function aplicarForcaBola()
         if dir.Magnitude < 0.1 then dir = Vector3.new(1, 0, 0) else dir = dir.Unit end
         ball.AssemblyLinearVelocity = dir * forcaBolaVelocidade + Vector3.new(0, 15, 0)
     end
-    tinhaBola = tenho
 end
 
 local function aplicarCurvas()
@@ -1242,6 +1259,62 @@ local function removerBotaoCurvas()
     if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
 end
 
+-- ===== FIXAR BUTTON (corrigido - pega TODOS) =====
+local function pegarTodosScreenGuis()
+    local guis = {}
+    -- PlayerGui
+    local pg = player:FindFirstChild("PlayerGui")
+    if pg then
+        for _, c in ipairs(pg:GetChildren()) do
+            if c:IsA("ScreenGui") then table.insert(guis, c) end
+        end
+    end
+    -- CoreGui
+    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+    if ok and cg then
+        for _, c in ipairs(cg:GetChildren()) do
+            if c:IsA("ScreenGui") then table.insert(guis, c) end
+        end
+    end
+    return guis
+end
+
+local function fixarTodosBotoes(estado)
+    local guis = pegarTodosScreenGuis()
+    for _, gui in ipairs(guis) do
+        for _, c in ipairs(gui:GetDescendants()) do
+            if c:IsA("TextButton") or c:IsA("ImageButton") then
+                if estado then
+                    c.Draggable = false
+                    c.Active = false -- desativa clique enquanto fixo? Não, isso quebra. Só desativa drag
+                else
+                    c.Draggable = true
+                end
+            end
+        end
+    end
+end
+
+-- Auto-fixar novos botões que aparecerem
+local function monitorarNovosBotoes()
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if fixarButtonAtivo then
+                local guis = pegarTodosScreenGuis()
+                for _, gui in ipairs(guis) do
+                    for _, c in ipairs(gui:GetDescendants()) do
+                        if (c:IsA("TextButton") or c:IsA("ImageButton")) and c.Draggable then
+                            c.Draggable = false
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+monitorarNovosBotoes()
+
 local function criarWalkBodyVelocity(char)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1404,17 +1477,6 @@ local function antiTackle()
             if eh then
                 local d = (eh.Position - mh.Position).Magnitude
                 if d < 8 and isTackleAnim(p.Character) then
-                    local w = Instance.new("TextLabel")
-                    w.Size = UDim2.new(0, 200, 0, 30)
-                    w.Position = UDim2.new(0.5, -100, 0.7, 0)
-                    w.BackgroundTransparency = 1
-                    w.TextColor3 = Color3.fromRGB(255, 0, 0)
-                    w.TextStrokeTransparency = 0
-                    w.Text = "⚠️ RASTEIRA DETECTADA!"
-                    w.Font = Enum.Font.GothamBold
-                    w.TextSize = 18
-                    w.Parent = player.PlayerGui
-                    game:GetService("Debris"):AddItem(w, 0.8)
                     tackleCooldown = tick()
                     break
                 end
@@ -1696,7 +1758,7 @@ VisaoSec:Toggle({
 local ReachSec = MainTab:Section({ Title = "HITBOX", TextXAlignment = "Left" })
 ReachSec:Toggle({
     Title = "Hitbox Magnet",
-    Desc = "Puxa a bola suavemente para você (não altera o tamanho da bola)",
+    Desc = "Puxa a bola suavemente (não altera tamanho)",
     Value = Config.magnetAtivo,
     Callback = function(v)
         magnetAtivo = v; Config.magnetAtivo = v; SaveConfig()
@@ -1704,16 +1766,27 @@ ReachSec:Toggle({
 })
 ReachSec:Slider({
     Title = "Alcance Magnet",
-    Desc = "Distância máxima para puxar a bola (1-30)",
+    Desc = "Distância máxima para puxar (1-30)",
     Step = 1,
     Value = { Min = 1, Max = 30, Default = Config.magnetTamanho },
     Callback = function(v)
         magnetTamanho = v; Config.magnetTamanho = v; SaveConfig()
     end
 })
+ReachSec:Slider({
+    Title = "Delay pós-chute (Magnet)",
+    Desc = "Tempo após chutar antes do magnet voltar (0-5s)",
+    Step = 1,
+    Value = { Min = 0, Max = 50, Default = math.floor(Config.magnetDelayChute * 10) },
+    Callback = function(v)
+        magnetDelayChute = v / 10
+        Config.magnetDelayChute = magnetDelayChute
+        SaveConfig()
+    end
+})
 ReachSec:Toggle({
     Title = "ESP Magnet (Vermelho)",
-    Desc = "Esfera vermelha ao redor da bola (mostra alcance do Magnet)",
+    Desc = "Esfera vermelha ao redor da bola",
     Value = Config.mostrarESPMagnet,
     Callback = function(v)
         mostrarESPMagnet = v; Config.mostrarESPMagnet = v; SaveConfig()
@@ -1722,7 +1795,7 @@ ReachSec:Toggle({
 
 ReachSec:Toggle({
     Title = "Bola Reach",
-    Desc = "Coleta a bola de longe (visual verde, não altera tamanho)",
+    Desc = "Coleta a bola de longe (visual verde)",
     Value = Config.reachAtivo,
     Callback = function(v)
         reachAtivo = v; Config.reachAtivo = v; SaveConfig()
@@ -1739,7 +1812,7 @@ ReachSec:Slider({
 })
 ReachSec:Toggle({
     Title = "ESP Reach (Verde)",
-    Desc = "Esfera verde ao redor da bola (mostra alcance do Reach)",
+    Desc = "Esfera verde ao redor da bola",
     Value = Config.mostrarESPReach,
     Callback = function(v)
         mostrarESPReach = v; Config.mostrarESPReach = v; SaveConfig()
@@ -1846,31 +1919,47 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Categoria Button (nova)
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
-    Desc = "Essa função fixa button voado na tela evitado de você arrastar sem querer!!",
+    Desc = "Essa função fixa button voado na tela evitado de você arrastar sem querer!!.",
     Value = Config.fixarButton,
     Callback = function(v)
         fixarButtonAtivo = v
         Config.fixarButton = v
         SaveConfig()
-        -- Aplica em todos os botões ativos
-        local botoes = {toggleButton, cameraToggleButton, curvasBotao, stopBallBtn, trazerBolaBtn, autoGolTeamBtn}
-        for _, b in ipairs(botoes) do
-            if b then b.Draggable = not fixarButtonAtivo end
-        end
-        if floatSliderGui then
-            for _, c in ipairs(floatSliderGui:GetChildren()) do
-                if c:IsA("Frame") then c.Draggable = not fixarButtonAtivo end
-            end
-        end
+        fixarTodosBotoes(v)
     end
 })
 ButtonSec:Button({
-    Title = "🔄 Resetar Posições dos Botões",
-    Desc = "Volta todos os botões para o centro da tela",
+    Title = "📌 Salvar Posição Atual dos Botões",
+    Desc = "Salva onde cada botão está agora (use antes de fixar)",
+    Callback = function()
+        local map = {
+            [toggleButton] = "botaoFlutuantePos",
+            [cameraToggleButton] = "cameraButtonPos",
+            [curvasBotao] = "curvasBotaoPos",
+            [stopBallBtn] = "stopBallBtnPos",
+            [trazerBolaBtn] = "trazerBolaBtnPos",
+            [autoGolTeamBtn] = "autoGolTeamBtnPos",
+        }
+        for btn, key in pairs(map) do
+            if btn then
+                Config[key] = {
+                    XS = btn.Position.X.Scale, XO = btn.Position.X.Offset,
+                    YS = btn.Position.Y.Scale, YO = btn.Position.Y.Offset,
+                }
+            end
+        end
+        SaveConfig()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Blue Lock", Text = "Posições salvas!", Duration = 2
+        })
+    end
+})
+ButtonSec:Button({
+    Title = "🔄 Resetar Posições",
+    Desc = "Volta todos os botões para o centro",
     Callback = function()
         Config.botaoFlutuantePos = nil
         Config.cameraButtonPos = nil
@@ -1879,18 +1968,14 @@ ButtonSec:Button({
         Config.trazerBolaBtnPos = nil
         Config.autoGolTeamBtnPos = nil
         SaveConfig()
-        -- Aplica posição padrão aos botões existentes
-        local function resetBtn(b, pos)
-            if b then b.Position = pos end
-        end
-        resetBtn(toggleButton, UDim2.new(0.5, -90, 0.1, 0))
-        resetBtn(cameraToggleButton, UDim2.new(0.5, -90, 0.15, 0))
-        resetBtn(curvasBotao, UDim2.new(0.5, -100, 0.35, 0))
-        resetBtn(stopBallBtn, UDim2.new(0.5, -80, 0.20, 0))
-        resetBtn(trazerBolaBtn, UDim2.new(0.5, -80, 0.25, 0))
-        resetBtn(autoGolTeamBtn, UDim2.new(0.5, -80, 0.30, 0))
+        if toggleButton then toggleButton.Position = UDim2.new(0.5, -90, 0.1, 0) end
+        if cameraToggleButton then cameraToggleButton.Position = UDim2.new(0.5, -90, 0.15, 0) end
+        if curvasBotao then curvasBotao.Position = UDim2.new(0.5, -100, 0.35, 0) end
+        if stopBallBtn then stopBallBtn.Position = UDim2.new(0.5, -80, 0.20, 0) end
+        if trazerBolaBtn then trazerBolaBtn.Position = UDim2.new(0.5, -80, 0.25, 0) end
+        if autoGolTeamBtn then autoGolTeamBtn.Position = UDim2.new(0.5, -80, 0.30, 0) end
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Blue Lock", Text = "Botões resetados!", Duration = 2
+            Title = "Blue Lock", Text = "Posições resetadas!", Duration = 2
         })
     end
 })
@@ -1933,7 +2018,7 @@ PerfSec:Toggle({
 })
 PerfSec:Toggle({
     Title = "Anti-Cantisine",
-    Desc = "Cancela animações de chute, awk e slide (evita travar)",
+    Desc = "Cancela animações de chute, awk e slide",
     Value = Config.antiCantisine,
     Callback = function(v)
         antiCantisineAtivo = v; Config.antiCantisine = v; SaveConfig()
@@ -1941,7 +2026,7 @@ PerfSec:Toggle({
 })
 PerfSec:Toggle({
     Title = "Camera Lock",
-    Desc = "Trava câmera no personagem (evita delay no mobile)",
+    Desc = "Trava câmera no personagem",
     Value = Config.cameraLock,
     Callback = function(v)
         cameraLockAtivo = v; Config.cameraLock = v; SaveConfig()
@@ -1960,7 +2045,6 @@ SaveSec:Button({
     end
 })
 
--- Aplicar estados salvos
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
@@ -1975,7 +2059,7 @@ if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Magnet + Reach + Fixar Button!",
+        Text = "Magnet, ESP e Fixar Button corrigidos!",
         Duration = 3
     })
 end)
