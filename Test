@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Magnet + Reach + ESP Unificado + Button Fix
+    ⚽ Blue Lock Rivals – Update Final
 ]]
 
 local Players = game:GetService("Players")
@@ -29,25 +29,72 @@ local function SaveConfigToFile(t)
     local ok, json = pcall(function() return HttpService:JSONEncode(t) end)
     if ok then pcall(function() writefile(CONFIG_FILE, json) end) end
 end
-
 local Config = {
     velocidadeBola = 65, forcaBolaVelocidade = 100, aimbotDelayValue = 0,
-    magnetTamanho = 10, bolaReachTamanho = 10, curvasIntensidade = 5,
+    reachBolaTamanho = 20, curvasIntensidade = 5,
     botaoFlutuante = false, aimbotPersonagem = false, aimbotCamera = false,
     botaoCamera = false, visaoBola = false, advinhaChute = false,
-    magnetAtivo = false, bolaReachAtivo = false, mostrarESP = false,
+    reachBola = false, mostrarESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
     stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
-    antiCantisine = false, cameraLock = false, fixarButton = false,
-    btnPositions = {},
+    antiCantisine = false, cameraLock = false,
+    buttonPositions = {}, fixaButton = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
+if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
+
+-- Controle de restauração de posição
+local restauraBtnPos = false
+task.spawn(function()
+    restauraBtnPos = true
+    task.wait(5)
+    restauraBtnPos = false
+end)
+
+local botoesRegistrados = {}
+local function registrarBotao(btn, nome)
+    table.insert(botoesRegistrados, {btn = btn, nome = nome})
+    if restauraBtnPos and Config.buttonPositions[nome] then
+        local p = Config.buttonPositions[nome]
+        pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
+    end
+    btn.Draggable = not Config.fixaButton
+    local arrastando = false
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            arrastando = true
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if arrastando then
+                arrastando = false
+                Config.buttonPositions[nome] = {
+                    x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
+                    y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
+                }
+                SaveConfig()
+            end
+        end
+    end)
+end
+
+local function atualizarFixaButton()
+    for i = #botoesRegistrados, 1, -1 do
+        local entry = botoesRegistrados[i]
+        if entry.btn and entry.btn.Parent then
+            entry.btn.Draggable = not Config.fixaButton
+        else
+            table.remove(botoesRegistrados, i)
+        end
+    end
+end
 
 local function safeParent(gui)
     local ok = pcall(function()
@@ -56,54 +103,6 @@ local function safeParent(gui)
         else gui.Parent = CoreGui end
     end)
     if not ok then gui.Parent = player:WaitForChild("PlayerGui") end
-end
-
--- Botões ativos e sistema de posição
-local botoesAtivos = {}
-
-local function salvarPosicao(nome, btn)
-    if not btn then return end
-    Config.btnPositions = Config.btnPositions or {}
-    Config.btnPositions[nome] = {
-        btn.Position.X.Scale, btn.Position.X.Offset,
-        btn.Position.Y.Scale, btn.Position.Y.Offset,
-    }
-    SaveConfig()
-end
-
-local function restaurarPosicao(nome, btn)
-    if not btn then return end
-    local pos = Config.btnPositions and Config.btnPositions[nome]
-    if pos then
-        btn.Position = UDim2.new(pos[1], pos[2], pos[3], pos[4])
-    end
-end
-
-local function configurarBotao(nome, btn)
-    if not btn then return end
-    registrarBotaoAtivo(nome, btn)
-    restaurarPosicao(nome, btn)
-    btn.Draggable = not Config.fixarButton
-    btn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            task.delay(0.1, function()
-                if btn and btn.Parent then salvarPosicao(nome, btn) end
-            end)
-        end
-    end)
-end
-
-local function registrarBotaoAtivo(nome, btn)
-    botoesAtivos[nome] = btn
-end
-
-local function aplicarFixarButton(estado)
-    for nome, btn in pairs(botoesAtivos) do
-        if btn and btn.Parent then
-            btn.Draggable = not estado
-        end
-    end
 end
 
 local WindUI
@@ -126,30 +125,28 @@ local bolaSpawnTime = 0
 
 local function atualizarReferenciaBola()
     local f = Workspace:FindFirstChild("Football")
-    if f then
-        if f ~= bola then
-            bola = f
-            local hb = f:FindFirstChild("Hitbox")
-            hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
-            bolaValida = true
-            bolaSpawnTime = tick()
-            return
-        end
+    if f and f ~= bola then
+        bola = f
+        local hb = f:FindFirstChild("Hitbox")
+        hitbox = (hb and hb:IsA("BasePart")) and hb or (f:IsA("Model") and f.PrimaryPart) or f
+        bolaValida = true
+        bolaSpawnTime = tick()
+        return
+    elseif f then
         bolaValida = true
         return
     end
     for _, c in ipairs(Workspace:GetChildren()) do
         if c:IsA("Model") and c.Name ~= "Football" then
             local f2 = c:FindFirstChild("Football")
-            if f2 then
-                if f2 ~= bola then
-                    bola = f2
-                    local hb = f2:FindFirstChild("Hitbox")
-                    hitbox = (hb and hb:IsA("BasePart")) and hb or (f2:IsA("Model") and f2.PrimaryPart) or f2
-                    bolaValida = true
-                    bolaSpawnTime = tick()
-                    return
-                end
+            if f2 and f2 ~= bola then
+                bola = f2
+                local hb = f2:FindFirstChild("Hitbox")
+                hitbox = (hb and hb:IsA("BasePart")) and hb or (f2:IsA("Model") and f2.PrimaryPart) or f2
+                bolaValida = true
+                bolaSpawnTime = tick()
+                return
+            elseif f2 then
                 bolaValida = true
                 return
             end
@@ -210,11 +207,9 @@ end
 
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
-local bolaReachAtivo = Config.bolaReachAtivo
-local bolaReachTamanho = Config.bolaReachTamanho
+local reachBolaAtivo = Config.reachBola
+local reachBolaDistancia = Config.reachBolaTamanho
 local mostrarESP = Config.mostrarESP
-local magnetAtivo = Config.magnetAtivo
-local magnetTamanho = Config.magnetTamanho
 local forcaBolaEnabled = Config.forcaBola
 local forcaBolaVelocidade = Config.forcaBolaVelocidade
 local tinhaBola = false
@@ -235,9 +230,7 @@ local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5
 local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayValue, false, 0
 local visaoBolaEnabled, advinhaChuteEnabled = Config.visaoBola, Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
-local gyro = nil
-local espSphereReach = nil
-local espSphereMagnet = nil
+local gyro, espSphere = nil, nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 local hitboxBloqueadaAte = 0
@@ -302,7 +295,7 @@ local function aplicarReachBola()
 
     hitboxBloqueada = false
 
-    if not bolaReachAtivo then
+    if not reachBolaAtivo then
         if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = hitboxOriginalSize
             hitbox.Transparency = hitboxOriginalTransparency
@@ -310,30 +303,10 @@ local function aplicarReachBola()
         return
     end
 
-    local t = Vector3.new(bolaReachTamanho, bolaReachTamanho, bolaReachTamanho)
+    local t = Vector3.new(reachBolaDistancia, reachBolaDistancia, reachBolaDistancia)
     if hitbox.Size ~= t or hitbox.Transparency ~= 1 then
         hitbox.Size = t
         hitbox.Transparency = 1
-    end
-end
-
--- MAGNET (não interfere no tamanho da bola)
-local function aplicarMagnet()
-    if not magnetAtivo then return end
-    if euTenhoBola() then return end
-    if alguemTemBola() then return end
-    if not hitbox or not bolaValida then return end
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local dist = (hrp.Position - hitbox.Position).Magnitude
-    if dist <= magnetTamanho then
-        if firetouchinterest then
-            for _ = 1, 3 do
-                firetouchinterest(hrp, hitbox, 0); task.wait(0.005); firetouchinterest(hrp, hitbox, 1)
-            end
-        end
     end
 end
 
@@ -613,31 +586,36 @@ local function criarSlideFlutuante()
     floatSliderGui.ResetOnSpawn = false
     safeParent(floatSliderGui)
     local main = Instance.new("Frame")
-    main.Name = "SlideMain"
     main.Size = UDim2.new(0, 400, 0, 75)
     main.Position = UDim2.new(0.5, -200, 1, -140)
     main.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     main.BackgroundTransparency = 0.15
     main.BorderSizePixel = 0
     main.Active = true
-    main.Draggable = not Config.fixarButton
+    main.Draggable = not Config.fixaButton
     main.Parent = floatSliderGui
     local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 10); mc.Parent = main
-    registrarBotaoAtivo("slideControle", main)
-    restaurarPosicao("slideControle", main)
+    if restauraBtnPos and Config.buttonPositions["SlideVelocidade"] then
+        local p = Config.buttonPositions["SlideVelocidade"]
+        pcall(function() main.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
+    end
+    table.insert(botoesRegistrados, {btn = main, nome = "SlideVelocidade"})
+    local arrastandoSlide = false
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            arrastandoSlide = true
+        end
+    end)
     main.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            task.delay(0.1, function()
-                if main and main.Parent then
-                    Config.btnPositions = Config.btnPositions or {}
-                    Config.btnPositions["slideControle"] = {
-                        main.Position.X.Scale, main.Position.X.Offset,
-                        main.Position.Y.Scale, main.Position.Y.Offset,
-                    }
-                    SaveConfig()
-                end
-            end)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if arrastandoSlide then
+                arrastandoSlide = false
+                Config.buttonPositions["SlideVelocidade"] = {
+                    x = main.Position.X.Scale, xo = main.Position.X.Offset,
+                    y = main.Position.Y.Scale, yo = main.Position.Y.Offset,
+                }
+                SaveConfig()
+            end
         end
     end)
     local title = Instance.new("TextLabel")
@@ -712,7 +690,11 @@ local function removerSlideFlutuante()
     if floatSliderGui then
         floatSliderGui:Destroy()
         floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
-        botoesAtivos["slideControle"] = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "SlideVelocidade" then
+                table.remove(botoesRegistrados, i)
+            end
+        end
     end
 end
 
@@ -765,18 +747,21 @@ local function criarBotaoFlutuante()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleControl)
     toggleButton = btn; controlScreenGui = sg
-    configurarBotao("controleBola", btn)
+    registrarBotao(btn, "ControlBall")
 end
 
 local function removerBotaoFlutuante()
     if isControlActive then toggleControl() end
-    if controlScreenGui then controlScreenGui:Destroy(); controlScreenGui = nil; toggleButton = nil end
-    botoesAtivos["controleBola"] = nil
+    if controlScreenGui then
+        controlScreenGui:Destroy(); controlScreenGui = nil; toggleButton = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "ControlBall" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function toggleCameraButton()
@@ -810,18 +795,21 @@ local function criarBotaoCameraFlutuante()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleCameraButton)
     cameraToggleButton = btn; cameraScreenGui = sg
-    configurarBotao("camera", btn)
+    registrarBotao(btn, "CameraAimbot")
 end
 
 local function removerBotaoCameraFlutuante()
     if cameraButtonActive then toggleCameraButton() end
-    if cameraScreenGui then cameraScreenGui:Destroy(); cameraScreenGui = nil; cameraToggleButton = nil end
-    botoesAtivos["camera"] = nil
+    if cameraScreenGui then
+        cameraScreenGui:Destroy(); cameraScreenGui = nil; cameraToggleButton = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "CameraAimbot" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function toggleStopBallBtn()
@@ -852,18 +840,21 @@ local function criarBotaoStopBall()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleStopBallBtn)
     stopBallBtn = btn; stopBallGUI = sg
-    configurarBotao("stopBall", btn)
+    registrarBotao(btn, "StopBall")
 end
 
 local function removerBotaoStopBall()
     if stopBallAtivo then toggleStopBallBtn() end
-    if stopBallGUI then stopBallGUI:Destroy(); stopBallGUI = nil; stopBallBtn = nil end
-    botoesAtivos["stopBall"] = nil
+    if stopBallGUI then
+        stopBallGUI:Destroy(); stopBallGUI = nil; stopBallBtn = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "StopBall" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function toggleTrazerBolaBtn()
@@ -893,18 +884,21 @@ local function criarBotaoTrazerBola()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleTrazerBolaBtn)
     trazerBolaBtn = btn; trazerBolaGUI = sg
-    configurarBotao("trazerBola", btn)
+    registrarBotao(btn, "TrazerBola")
 end
 
 local function removerBotaoTrazerBola()
     if trazerBolaAtivo then toggleTrazerBolaBtn() end
-    if trazerBolaGUI then trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBtn = nil end
-    botoesAtivos["trazerBola"] = nil
+    if trazerBolaGUI then
+        trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBtn = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "TrazerBola" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function atualizarBotaoTeam()
@@ -938,18 +932,21 @@ local function criarBotaoTeam()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleTeam)
     autoGolTeamBtn = btn; autoGolTeamGUI = sg
     atualizarBotaoTeam()
-    configurarBotao("timeAutoGol", btn)
+    registrarBotao(btn, "AutoGolTeam")
 end
 
 local function removerBotaoTeam()
-    if autoGolTeamGUI then autoGolTeamGUI:Destroy(); autoGolTeamGUI = nil; autoGolTeamBtn = nil end
-    botoesAtivos["timeAutoGol"] = nil
+    if autoGolTeamGUI then
+        autoGolTeamGUI:Destroy(); autoGolTeamGUI = nil; autoGolTeamBtn = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "AutoGolTeam" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function getInimigoComBola()
@@ -1167,49 +1164,18 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(cam, hrp.Position)
 end
 
--- ESP UNIFICADO (Magnet Vermelho + Reach Verde)
 local function atualizarESP()
-    if not mostrarESP then
-        if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
-        if espSphereMagnet then espSphereMagnet:Destroy(); espSphereMagnet = nil end
+    if alguemTemBola() or euTenhoBola() or not mostrarESP or not hitbox then
+        if espSphere then espSphere:Destroy(); espSphere = nil end
         return
     end
-
-    -- ESP do Reach (Verde) - na bola
-    if bolaReachAtivo and hitbox and not alguemTemBola() and not euTenhoBola() then
-        if not espSphereReach then
-            espSphereReach = Instance.new("SelectionSphere")
-            espSphereReach.Name = "ReachESPGreen"
-            espSphereReach.Adornee = hitbox
-            espSphereReach.Parent = hitbox
-            espSphereReach.Color3 = Color3.fromRGB(0, 255, 0)
-            espSphereReach.Transparency = 0.6
-        end
-        local s = bolaReachTamanho / 2.5
-        espSphereReach.Scale = Vector3.new(s, s, s)
-    else
-        if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
+    if not espSphere then
+        espSphere = Instance.new("SelectionSphere")
+        espSphere.Name = "ReachESP"; espSphere.Adornee = hitbox; espSphere.Parent = hitbox
+        espSphere.Color3 = Color3.fromRGB(0, 255, 0); espSphere.Transparency = 0.6
     end
-
-    -- ESP do Magnet (Vermelho) - no player
-    if magnetAtivo then
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            if not espSphereMagnet then
-                espSphereMagnet = Instance.new("SelectionSphere")
-                espSphereMagnet.Name = "MagnetESPRed"
-                espSphereMagnet.Parent = hrp
-                espSphereMagnet.Color3 = Color3.fromRGB(255, 0, 0)
-                espSphereMagnet.Transparency = 0.6
-            end
-            espSphereMagnet.Adornee = hrp
-            local s = magnetTamanho / 2.5
-            espSphereMagnet.Scale = Vector3.new(s, s, s)
-        end
-    else
-        if espSphereMagnet then espSphereMagnet:Destroy(); espSphereMagnet = nil end
-    end
+    local s = reachBolaDistancia / 2.5
+    espSphere.Scale = Vector3.new(s, s, s)
 end
 
 local function atualizarBotaoCurvas()
@@ -1245,18 +1211,21 @@ local function criarBotaoCurvas()
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 16
     btn.Active = true
-    btn.Draggable = true
     btn.Parent = sg
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleCurvasModo)
     curvasBotao = btn; curvasBotaoGUI = sg
     atualizarBotaoCurvas()
-    configurarBotao("curvas", btn)
+    registrarBotao(btn, "Curvas")
 end
 
 local function removerBotaoCurvas()
-    if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
-    botoesAtivos["curvas"] = nil
+    if curvasBotaoGUI then
+        curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil
+        for i = #botoesRegistrados, 1, -1 do
+            if botoesRegistrados[i].nome == "Curvas" then table.remove(botoesRegistrados, i) end
+        end
+    end
 end
 
 local function criarWalkBodyVelocity(char)
@@ -1289,6 +1258,17 @@ end
 player.CharacterAdded:Connect(function(char)
     walkAttachedCharacter = nil; walkBodyVelocity = nil
     if walkBoost then task.wait(0.5); criarWalkBodyVelocity(char); walkAttachedCharacter = char end
+    -- Recria botões ativos
+    restauraBtnPos = true
+    task.spawn(function() task.wait(3); restauraBtnPos = false end)
+    task.wait(1)
+    if Config.botaoFlutuante and not controlScreenGui then
+        criarBotaoFlutuante(); criarSlideFlutuante()
+    end
+    if Config.trazerBolaMostrar and not trazerBolaGUI then criarBotaoTrazerBola() end
+    if Config.stopBallMostrar and not stopBallGUI then criarBotaoStopBall() end
+    if Config.botaoCamera and not cameraScreenGui then criarBotaoCameraFlutuante() end
+    if Config.curvasAtivo and not curvasBotaoGUI then criarBotaoCurvas() end
 end)
 
 local function getAbilityController()
@@ -1552,7 +1532,10 @@ local function antiCantisine()
     if not humanoid then return end
     local animator = humanoid:FindFirstChildOfClass("Animator")
     if animator then
-        local allowList = {"idle", "walk", "run", "fall", "jump", "climb", "swim", "1804382913", "507771019"}
+        local allowList = {
+            "idle", "walk", "run", "fall", "jump", "climb", "swim",
+            "1804382913", "507771019", "1804361483", "1804361483",
+        }
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             if track.Animation then
                 local id = tostring(track.Animation.AnimationId):lower()
@@ -1560,19 +1543,28 @@ local function antiCantisine()
                 pcall(function() nomeAnim = track.Animation.Name:lower() end)
                 local essencial = false
                 for _, kw in ipairs(allowList) do
-                    if id:find(kw) or nomeAnim:find(kw) then essencial = true; break end
+                    if id:find(kw) or nomeAnim:find(kw) then
+                        essencial = true
+                        break
+                    end
                 end
                 if not essencial then pcall(function() track:Stop(0) end) end
             end
         end
     end
     if humanoid.WalkSpeed == 0 then humanoid.WalkSpeed = 16 end
-    if humanoid.JumpPower and humanoid.JumpPower == 0 and humanoid.UseJumpPower then humanoid.JumpPower = 50 end
-    if humanoid.JumpHeight and humanoid.JumpHeight == 0 and not humanoid.UseJumpPower then humanoid.JumpHeight = 7.2 end
+    if humanoid.JumpPower and humanoid.JumpPower == 0 and humanoid.UseJumpPower then
+        humanoid.JumpPower = 50
+    end
+    if humanoid.JumpHeight and humanoid.JumpHeight == 0 and not humanoid.UseJumpPower then
+        humanoid.JumpHeight = 7.2
+    end
     if humanoid.PlatformStand then humanoid.PlatformStand = false end
-    if humanoid:GetState() == Enum.HumanoidStateType.Physics then humanoid:ChangeState(Enum.HumanoidStateType.Running) end
-    if humanoid:GetState() == Enum.HumanoidStateType.FallingDown then humanoid:ChangeState(Enum.HumanoidStateType.Running) end
-    if humanoid:GetState() == Enum.HumanoidStateType.GettingUp then humanoid:ChangeState(Enum.HumanoidStateType.Running) end
+    local st = humanoid:GetState()
+    if st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.FallingDown
+        or st == Enum.HumanoidStateType.GettingUp then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
 end
 
 local function cameraLock()
@@ -1584,6 +1576,11 @@ local function cameraLock()
     if camera.CameraSubject ~= humanoid then camera.CameraSubject = humanoid end
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
 end
+
+RunService.RenderStepped:Connect(function()
+    antiCantisine()
+    cameraLock()
+end)
 
 RunService.Heartbeat:Connect(function()
     aplicarReachBola()
@@ -1599,12 +1596,9 @@ RunService.Heartbeat:Connect(function()
     aplicarStopBall()
     atualizarControleBola()
     checkAutoGol()
-    aplicarMagnet()
 end)
 
 RunService.RenderStepped:Connect(function()
-    antiCantisine()
-    cameraLock()
     if walkBoost and player.Character then
         local char = player.Character
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1626,7 +1620,6 @@ end)
 
 task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
 
--- ===== UI =====
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
@@ -1745,47 +1738,28 @@ VisaoSec:Toggle({
 
 local ReachSec = MainTab:Section({ Title = "HITBOX", TextXAlignment = "Left" })
 ReachSec:Toggle({
-    Title = "Hitbox Magnet",
-    Desc = "Coleta de longe com toques no player (Red ESP)",
-    Value = Config.magnetAtivo,
-    Callback = function(v)
-        magnetAtivo = v; Config.magnetAtivo = v; SaveConfig()
-    end
+    Title = "Hitbox da Bola",
+    Desc = "Aumenta hitbox (desativa quando alguém pega)",
+    Value = Config.reachBola,
+    Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
 })
 ReachSec:Slider({
-    Title = "Alcance do Magnet",
-    Desc = "Raio do Magnet (1-20) | Não altera tamanho da bola",
+    Title = "Tamanho da Hitbox",
+    Desc = "Tamanho (1-30)",
     Step = 1,
-    Value = { Min = 1, Max = 20, Default = Config.magnetTamanho },
+    Value = { Min = 1, Max = 30, Default = Config.reachBolaTamanho },
     Callback = function(v)
-        magnetTamanho = v; Config.magnetTamanho = v; SaveConfig()
+        reachBolaDistancia = v; Config.reachBolaTamanho = v; SaveConfig()
+        if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
     end
 })
 ReachSec:Toggle({
-    Title = "Bola Reach",
-    Desc = "Aumenta hitbox da bola (desativa quando alguém pega)",
-    Value = Config.bolaReachAtivo,
-    Callback = function(v) bolaReachAtivo = v; Config.bolaReachAtivo = v; SaveConfig() end
-})
-ReachSec:Slider({
-    Title = "Alcance do Reach",
-    Desc = "Tamanho da hitbox da bola (1-15)",
-    Step = 1,
-    Value = { Min = 1, Max = 15, Default = Config.bolaReachTamanho },
-    Callback = function(v)
-        bolaReachTamanho = v; Config.bolaReachTamanho = v; SaveConfig()
-    end
-})
-ReachSec:Toggle({
-    Title = "Mostrar ESP",
-    Desc = "Magnet (Vermelho no player) + Reach (Verde na bola)",
+    Title = "Mostrar Área ESP",
+    Desc = "Círculo verde ao redor da hitbox",
     Value = Config.mostrarESP,
     Callback = function(v)
         mostrarESP = v; Config.mostrarESP = v; SaveConfig()
-        if not v then
-            if espSphereReach then espSphereReach:Destroy(); espSphereReach = nil end
-            if espSphereMagnet then espSphereMagnet:Destroy(); espSphereMagnet = nil end
-        end
+        if not v and espSphere then espSphere:Destroy(); espSphere = nil end
     end
 })
 
@@ -1870,7 +1844,7 @@ DribleSec:Toggle({
     end
 })
 
--- ===== PLAYER =====
+-- ABA PLAYER
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
@@ -1887,20 +1861,19 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- ===== BUTTON =====
+-- Nova categoria Button
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
-    Desc = "Fixa botões voadores na tela evitando arrastar sem querer",
-    Value = Config.fixarButton,
+    Desc = "Essa função fixa button voado na tela evitando de você arrastar sem querer!!",
+    Value = Config.fixaButton,
     Callback = function(v)
-        Config.fixarButton = v
+        Config.fixaButton = v
         SaveConfig()
-        aplicarFixarButton(v)
+        atualizarFixaButton()
     end
 })
 
--- ===== DESEMPENHO =====
 local PerfTab = Window:Tab({ Title = "Desempenho", Icon = "activity" })
 local PerfSec = PerfTab:Section({ Title = "Performance", TextXAlignment = "Left" })
 PerfSec:Toggle({
@@ -1970,24 +1943,19 @@ SaveSec:Button({
     end
 })
 
--- Aplica estados salvos
 if Config.statsToggle then criarStatsGui() end
 if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fpsModeLevel) end
 if Config.pingMenos then aplicarPingMenos(true) end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
-
-task.wait(0.5)
-if Config.botaoFlutuante then criarBotaoFlutuante(); criarSlideFlutuante() end
-if Config.trazerBolaMostrar then criarBotaoTrazerBola() end
-if Config.stopBallMostrar then criarBotaoStopBall() end
-if Config.botaoCamera then criarBotaoCameraFlutuante() end
-if Config.curvasAtivo then criarBotaoCurvas() end
+if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
+if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
+if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Magnet + Reach + ESP Unificado aplicados!",
+        Text = "Atualização aplicada! Botões persistentes + Fixa Button",
         Duration = 3
     })
 end)
