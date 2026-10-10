@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Update Final
+    ⚽ Blue Lock Rivals – Versão 7
 ]]
 
 local Players = game:GetService("Players")
@@ -42,6 +42,7 @@ local Config = {
     stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
     antiCantisine = false, cameraLock = false,
     buttonPositions = {}, fixaButton = false,
+    botaoTeamMostrar = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -49,22 +50,30 @@ if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
--- Controle de restauração de posição
-local restauraBtnPos = false
-task.spawn(function()
-    restauraBtnPos = true
-    task.wait(5)
-    restauraBtnPos = false
-end)
-
+-- Sistema de posição dos botões
 local botoesRegistrados = {}
+
+local function aplicarPosicaoSalva(btn, nome)
+    if not Config.buttonPositions[nome] then return end
+    local p = Config.buttonPositions[nome]
+    pcall(function()
+        btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo)
+    end)
+end
+
+local function salvarPosicaoBotao(btn, nome)
+    Config.buttonPositions[nome] = {
+        x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
+        y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
+    }
+    SaveConfig()
+end
+
 local function registrarBotao(btn, nome)
-    table.insert(botoesRegistrados, {btn = btn, nome = nome})
-    if restauraBtnPos and Config.buttonPositions[nome] then
-        local p = Config.buttonPositions[nome]
-        pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
-    end
     btn.Draggable = not Config.fixaButton
+    aplicarPosicaoSalva(btn, nome)
+    table.insert(botoesRegistrados, {btn = btn, nome = nome})
+
     local arrastando = false
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -73,25 +82,29 @@ local function registrarBotao(btn, nome)
     end)
     btn.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if arrastando then
+            if arrastando and not Config.fixaButton then
                 arrastando = false
-                Config.buttonPositions[nome] = {
-                    x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
-                    y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
-                }
-                SaveConfig()
+                salvarPosicaoBotao(btn, nome)
             end
         end
     end)
 end
 
+local function limparRegistros()
+    local novaLista = {}
+    for _, entry in ipairs(botoesRegistrados) do
+        if entry.btn and entry.btn.Parent then
+            table.insert(novaLista, entry)
+        end
+    end
+    botoesRegistrados = novaLista
+end
+
 local function atualizarFixaButton()
-    for i = #botoesRegistrados, 1, -1 do
-        local entry = botoesRegistrados[i]
+    limparRegistros()
+    for _, entry in ipairs(botoesRegistrados) do
         if entry.btn and entry.btn.Parent then
             entry.btn.Draggable = not Config.fixaButton
-        else
-            table.remove(botoesRegistrados, i)
         end
     end
 end
@@ -114,7 +127,7 @@ if not loaded or not WindUI then
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivals", Icon = "rbxassetid://10723343321",
+    Title = "⚽ Blue Lock Rivals v7", Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso", Folder = "BlueLock",
     Size = UDim2.fromOffset(500, 800), Transparent = true, Theme = "Dark",
     Resizable = true, SideBarWidth = 200, HideSearchBar = true, ScrollBarEnabled = false,
@@ -592,32 +605,9 @@ local function criarSlideFlutuante()
     main.BackgroundTransparency = 0.15
     main.BorderSizePixel = 0
     main.Active = true
-    main.Draggable = not Config.fixaButton
     main.Parent = floatSliderGui
     local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 10); mc.Parent = main
-    if restauraBtnPos and Config.buttonPositions["SlideVelocidade"] then
-        local p = Config.buttonPositions["SlideVelocidade"]
-        pcall(function() main.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
-    end
-    table.insert(botoesRegistrados, {btn = main, nome = "SlideVelocidade"})
-    local arrastandoSlide = false
-    main.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            arrastandoSlide = true
-        end
-    end)
-    main.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if arrastandoSlide then
-                arrastandoSlide = false
-                Config.buttonPositions["SlideVelocidade"] = {
-                    x = main.Position.X.Scale, xo = main.Position.X.Offset,
-                    y = main.Position.Y.Scale, yo = main.Position.Y.Offset,
-                }
-                SaveConfig()
-            end
-        end
-    end)
+    registrarBotao(main, "SlideVelocidade")
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -20, 0, 22)
     title.Position = UDim2.new(0, 10, 0, 5)
@@ -1255,12 +1245,8 @@ local function ativarWalkSpeed(estado)
     end
 end
 
-player.CharacterAdded:Connect(function(char)
-    walkAttachedCharacter = nil; walkBodyVelocity = nil
-    if walkBoost then task.wait(0.5); criarWalkBodyVelocity(char); walkAttachedCharacter = char end
-    -- Recria botões ativos
-    restauraBtnPos = true
-    task.spawn(function() task.wait(3); restauraBtnPos = false end)
+-- RECRIA TODOS OS BOTÕES ATIVOS APÓS RESPAWN
+local function recriarTodosBotoes()
     task.wait(1)
     if Config.botaoFlutuante and not controlScreenGui then
         criarBotaoFlutuante(); criarSlideFlutuante()
@@ -1269,6 +1255,13 @@ player.CharacterAdded:Connect(function(char)
     if Config.stopBallMostrar and not stopBallGUI then criarBotaoStopBall() end
     if Config.botaoCamera and not cameraScreenGui then criarBotaoCameraFlutuante() end
     if Config.curvasAtivo and not curvasBotaoGUI then criarBotaoCurvas() end
+    if Config.botaoTeamMostrar and not autoGolTeamGUI then criarBotaoTeam() end
+end
+
+player.CharacterAdded:Connect(function(char)
+    walkAttachedCharacter = nil; walkBodyVelocity = nil
+    if walkBoost then task.wait(0.5); criarWalkBodyVelocity(char); walkAttachedCharacter = char end
+    task.spawn(recriarTodosBotoes)
 end)
 
 local function getAbilityController()
@@ -1534,7 +1527,7 @@ local function antiCantisine()
     if animator then
         local allowList = {
             "idle", "walk", "run", "fall", "jump", "climb", "swim",
-            "1804382913", "507771019", "1804361483", "1804361483",
+            "1804382913", "507771019", "1804361483",
         }
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             if track.Animation then
@@ -1802,8 +1795,9 @@ ExtrasSec:Toggle({
 ExtrasSec:Toggle({
     Title = "Botão Voador (Selecionar Time)",
     Desc = "Botão flutuante alterna Home/Away",
-    Value = false,
+    Value = Config.botaoTeamMostrar,
     Callback = function(v)
+        Config.botaoTeamMostrar = v; SaveConfig()
         if v then criarBotaoTeam() else removerBotaoTeam() end
     end
 })
@@ -1844,7 +1838,6 @@ DribleSec:Toggle({
     end
 })
 
--- ABA PLAYER
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
@@ -1861,7 +1854,6 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Nova categoria Button
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
@@ -1951,11 +1943,14 @@ if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
 if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
 if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
+if Config.botaoCamera then task.wait(0.5); criarBotaoCameraFlutuante() end
+if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
+if Config.botaoTeamMostrar then task.wait(0.5); criarBotaoTeam() end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Atualização aplicada! Botões persistentes + Fixa Button",
+        Text = "Bem-vindo à versão 7",
         Duration = 3
     })
 end)
