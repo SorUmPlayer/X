@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Update Final
+    ⚽ Blue Lock Rivals – Magnet + Reach
 ]]
 
 local Players = game:GetService("Players")
@@ -31,10 +31,10 @@ local function SaveConfigToFile(t)
 end
 local Config = {
     velocidadeBola = 65, forcaBolaVelocidade = 100, aimbotDelayValue = 0,
-    reachBolaTamanho = 20, curvasIntensidade = 5,
+    reachBolaTamanho = 20, magnetBolaTamanho = 20, curvasIntensidade = 5,
     botaoFlutuante = false, aimbotPersonagem = false, aimbotCamera = false,
     botaoCamera = false, visaoBola = false, advinhaChute = false,
-    reachBola = false, mostrarESP = false,
+    reachBola = false, magnetBola = false, mostrarESP = false, mostrarMagnetESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
@@ -49,7 +49,6 @@ if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
--- Controle de restauração de posição
 local restauraBtnPos = false
 task.spawn(function()
     restauraBtnPos = true
@@ -209,7 +208,10 @@ local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
 local reachBolaDistancia = Config.reachBolaTamanho
+local magnetBolaAtivo = Config.magnetBola
+local magnetBolaDistancia = Config.magnetBolaTamanho
 local mostrarESP = Config.mostrarESP
+local mostrarMagnetESP = Config.mostrarMagnetESP
 local forcaBolaEnabled = Config.forcaBola
 local forcaBolaVelocidade = Config.forcaBolaVelocidade
 local tinhaBola = false
@@ -230,7 +232,7 @@ local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5
 local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayValue, false, 0
 local visaoBolaEnabled, advinhaChuteEnabled = Config.visaoBola, Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
-local gyro, espSphere = nil, nil
+local gyro, espSphere, magnetEspSphere = nil, nil, nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 local hitboxBloqueadaAte = 0
@@ -263,7 +265,8 @@ local function shouldAimbotWork()
     return true
 end
 
-local function aplicarReachBola()
+-- ===== HITBOX REACH (VERDE) + MAGNET (VERMELHO) =====
+local function aplicarHitbox()
     if not hitbox then return end
     local agora = tick()
 
@@ -295,6 +298,16 @@ local function aplicarReachBola()
 
     hitboxBloqueada = false
 
+    -- Magnet tem prioridade (se ativo)
+    if magnetBolaAtivo then
+        local t = Vector3.new(magnetBolaDistancia, magnetBolaDistancia, magnetBolaDistancia)
+        if hitbox.Size ~= t or hitbox.Transparency ~= 1 then
+            hitbox.Size = t
+            hitbox.Transparency = 1
+        end
+        return
+    end
+
     if not reachBolaAtivo then
         if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = hitboxOriginalSize
@@ -308,6 +321,25 @@ local function aplicarReachBola()
         hitbox.Size = t
         hitbox.Transparency = 1
     end
+end
+
+-- ===== MAGNET (PUXA A BOLA) =====
+local function aplicarMagnetBola()
+    if not magnetBolaAtivo then return end
+    if euTenhoBola() then return end
+    if alguemTemBola() then return end
+    local ballPart = getBallPart()
+    if not ballPart then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local dir = hrp.Position - ballPart.Position
+    local dist = dir.Magnitude
+    if dist < 2 then return end
+    if dist > magnetBolaDistancia + 15 then return end
+    dir = dir.Unit
+    ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 18, 100, 280) + Vector3.new(0, 8, 0)
 end
 
 local function aplicarForcaBola()
@@ -1164,6 +1196,7 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(cam, hrp.Position)
 end
 
+-- ESP REACH (VERDE)
 local function atualizarESP()
     if alguemTemBola() or euTenhoBola() or not mostrarESP or not hitbox then
         if espSphere then espSphere:Destroy(); espSphere = nil end
@@ -1176,6 +1209,21 @@ local function atualizarESP()
     end
     local s = reachBolaDistancia / 2.5
     espSphere.Scale = Vector3.new(s, s, s)
+end
+
+-- ESP MAGNET (VERMELHO)
+local function atualizarMagnetESP()
+    if alguemTemBola() or euTenhoBola() or not mostrarMagnetESP or not hitbox then
+        if magnetEspSphere then magnetEspSphere:Destroy(); magnetEspSphere = nil end
+        return
+    end
+    if not magnetEspSphere then
+        magnetEspSphere = Instance.new("SelectionSphere")
+        magnetEspSphere.Name = "MagnetESP"; magnetEspSphere.Adornee = hitbox; magnetEspSphere.Parent = hitbox
+        magnetEspSphere.Color3 = Color3.fromRGB(255, 0, 0); magnetEspSphere.Transparency = 0.6
+    end
+    local s = magnetBolaDistancia / 2.5
+    magnetEspSphere.Scale = Vector3.new(s, s, s)
 end
 
 local function atualizarBotaoCurvas()
@@ -1258,7 +1306,6 @@ end
 player.CharacterAdded:Connect(function(char)
     walkAttachedCharacter = nil; walkBodyVelocity = nil
     if walkBoost then task.wait(0.5); criarWalkBodyVelocity(char); walkAttachedCharacter = char end
-    -- Recria botões ativos
     restauraBtnPos = true
     task.spawn(function() task.wait(3); restauraBtnPos = false end)
     task.wait(1)
@@ -1534,7 +1581,7 @@ local function antiCantisine()
     if animator then
         local allowList = {
             "idle", "walk", "run", "fall", "jump", "climb", "swim",
-            "1804382913", "507771019", "1804361483", "1804361483",
+            "1804382913", "507771019", "1804361483",
         }
         for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
             if track.Animation then
@@ -1583,15 +1630,17 @@ RunService.RenderStepped:Connect(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    aplicarReachBola()
+    aplicarHitbox()
     atualizarAimbotPersonagem()
     atualizarAimbotCamera()
     atualizarESP()
+    atualizarMagnetESP()
     atualizarVisaoBola()
     atualizarAdvinhaChute()
     aplicarForcaBola()
     aplicarCurvas()
     aplicarDrible()
+    aplicarMagnetBola()
     aplicarTrazerBola()
     aplicarStopBall()
     atualizarControleBola()
@@ -1736,30 +1785,58 @@ VisaoSec:Toggle({
     end
 })
 
+-- HITBOX (REACH + MAGNET)
 local ReachSec = MainTab:Section({ Title = "HITBOX", TextXAlignment = "Left" })
+
 ReachSec:Toggle({
-    Title = "Hitbox da Bola",
+    Title = "Hitbox Reach (Verde)",
     Desc = "Aumenta hitbox (desativa quando alguém pega)",
     Value = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end
 })
 ReachSec:Slider({
-    Title = "Tamanho da Hitbox",
-    Desc = "Tamanho (1-30)",
+    Title = "Tamanho do Reach",
+    Desc = "Tamanho (1-25)",
     Step = 1,
-    Value = { Min = 1, Max = 30, Default = Config.reachBolaTamanho },
+    Value = { Min = 1, Max = 25, Default = Config.reachBolaTamanho },
     Callback = function(v)
         reachBolaDistancia = v; Config.reachBolaTamanho = v; SaveConfig()
         if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
     end
 })
 ReachSec:Toggle({
-    Title = "Mostrar Área ESP",
+    Title = "Mostrar ESP (Verde)",
     Desc = "Círculo verde ao redor da hitbox",
     Value = Config.mostrarESP,
     Callback = function(v)
         mostrarESP = v; Config.mostrarESP = v; SaveConfig()
         if not v and espSphere then espSphere:Destroy(); espSphere = nil end
+    end
+})
+
+ReachSec:Toggle({
+    Title = "Hitbox Magnet (Vermelho)",
+    Desc = "Puxa a bola para você + ESP vermelho",
+    Value = Config.magnetBola,
+    Callback = function(v) magnetBolaAtivo = v; Config.magnetBola = v; SaveConfig() end
+})
+ReachSec:Slider({
+    Title = "Tamanho do Magnet",
+    Desc = "Tamanho (1-25)",
+    Step = 1,
+    Value = { Min = 1, Max = 25, Default = Config.magnetBolaTamanho },
+    Callback = function(v)
+        magnetBolaDistancia = v; Config.magnetBolaTamanho = v; SaveConfig()
+        if magnetEspSphere then magnetEspSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
+    end
+})
+ReachSec:Toggle({
+    Title = "Mostrar ESP (Vermelho)",
+    Desc = "Círculo vermelho ao redor da hitbox do magnet",
+    Value = Config.mostrarMagnetESP,
+    Callback = function(v)
+        mostrarMagnetESP = v; Config.mostrarMagnetESP = v; SaveConfig()
+        if not v and magnetEspSphere then magnetEspSphere:Destroy(); magnetEspSphere = nil end
     end
 })
 
@@ -1844,7 +1921,6 @@ DribleSec:Toggle({
     end
 })
 
--- ABA PLAYER
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
 PlayerSec:Slider({
@@ -1861,7 +1937,6 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
--- Nova categoria Button
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
@@ -1955,7 +2030,7 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Atualização aplicada! Botões persistentes + Fixa Button",
+        Text = "Magnet + Reach atualizados!",
         Duration = 3
     })
 end)
