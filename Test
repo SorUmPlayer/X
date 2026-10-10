@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Magnet + Reach (Fix)
+    ⚽ Blue Lock Rivals – Magnet + Reach (Estável)
 ]]
 
 local Players = game:GetService("Players")
@@ -62,26 +62,30 @@ local function registrarBotao(btn, nome)
     table.insert(botoesRegistrados, {btn = btn, nome = nome})
     if restauraBtnPos and Config.buttonPositions[nome] then
         local p = Config.buttonPositions[nome]
-        pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
+        if type(p) == "table" then
+            pcall(function() btn.Position = UDim2.new(p.x or 0, p.xo or 0, p.y or 0, p.yo or 0) end)
+        end
     end
     pcall(function() btn.Draggable = not Config.fixaButton end)
     local arrastando = false
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            arrastando = true
-        end
-    end)
-    btn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if arrastando then
-                arrastando = false
-                Config.buttonPositions[nome] = {
-                    x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
-                    y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
-                }
-                SaveConfig()
+    pcall(function()
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                arrastando = true
             end
-        end
+        end)
+        btn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if arrastando then
+                    arrastando = false
+                    Config.buttonPositions[nome] = {
+                        x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
+                        y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
+                    }
+                    SaveConfig()
+                end
+            end
+        end)
     end)
 end
 
@@ -120,18 +124,24 @@ local Window = WindUI:CreateWindow({
     Resizable = true, SideBarWidth = 200, HideSearchBar = true, ScrollBarEnabled = false,
 })
 
--- BOLA
-local bola, hitboxPart, bolaValida = nil, nil, false
+-- ============ BOLA ============
+local bola = nil
+local hitboxPart = nil
+local bolaValida = false
 local bolaSpawnTime = 0
 
 local function resolveHitbox(ballObj)
+    if not ballObj then return nil end
+    pcall(function()
+        if not ballObj.Parent then ballObj = nil end
+    end)
     if not ballObj then return nil end
     if ballObj:IsA("BasePart") then return ballObj end
     if ballObj:IsA("Model") then
         local hb = ballObj:FindFirstChild("Hitbox")
         if hb and hb:IsA("BasePart") then return hb end
         local pp = ballObj.PrimaryPart
-        if pp then return pp end
+        if pp and pp:IsA("BasePart") then return pp end
         return ballObj:FindFirstChildWhichIsA("BasePart")
     end
     return nil
@@ -155,32 +165,21 @@ local function atualizarReferenciaBola()
         bola = f
         bolaSpawnTime = tick()
     end
-    hitboxPart = resolveHitbox(bola)
-    bolaValida = (hitboxPart ~= nil)
+    local hp = resolveHitbox(bola)
+    if hp ~= hitboxPart then
+        hitboxPart = hp
+    end
+    bolaValida = (hitboxPart ~= nil and hitboxPart.Parent ~= nil)
 end
 
 Workspace.ChildAdded:Connect(atualizarReferenciaBola)
 Workspace.ChildRemoved:Connect(atualizarReferenciaBola)
 atualizarReferenciaBola()
-task.spawn(function() while true do task.wait(1); atualizarReferenciaBola() end end)
-
-local function getBall()
-    if bola and bola.Parent and bolaValida then return bola end
-    local f = Workspace:FindFirstChild("Football")
-    if f then return f end
-    for _, c in ipairs(Workspace:GetChildren()) do
-        if c:IsA("Model") and c.Name ~= "Football" and c.Name ~= "Ball" then
-            local f2 = c:FindFirstChild("Football")
-            if f2 then return f2 end
-        end
-    end
-    return nil
-end
+task.spawn(function() while true do task.wait(0.5); pcall(atualizarReferenciaBola) end end)
 
 local function getBallPart()
-    local b = getBall()
-    if not b then return nil end
-    return resolveHitbox(b)
+    if not hitboxPart or not hitboxPart.Parent then return nil end
+    return hitboxPart
 end
 
 local function euTenhoBola()
@@ -207,7 +206,7 @@ local function getMyTeam()
     return nil
 end
 
--- Variáveis
+-- ============ VARIÁVEIS ============
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
@@ -233,11 +232,13 @@ local isControlActive = false
 local controlScreenGui, toggleButton = nil, nil
 local cameraButtonActive, cameraScreenGui, cameraToggleButton = false, nil, nil
 local aimbotDelayValues = {0, 0.1, 0.2, 0.25, 0.40, 0.60, 0.70, 1.0, 2.0, 3.0, 5.0}
-local aimbotDelayValue, aimbotBlocked, aimbotBlockedUntil = Config.aimbotDelayValue, false, 0
+local aimbotDelayValue = Config.aimbotDelayValue
+local aimbotBlocked, aimbotBlockedUntil = false, 0
 local visaoBolaEnabled, advinhaChuteEnabled = Config.visaoBola, Config.advinhaChute
 local linhaVisao, linhaChute, circuloChute = nil, nil, nil
 local gyro = nil
-local espSphere, magnetEspSphere = nil, nil
+local espPart = nil
+local magnetEspPart = nil
 local hitboxOriginalSize = Vector3.new(1.4, 1.4, 1.4)
 local hitboxOriginalTransparency = 0
 local hitboxBloqueadaAte = 0
@@ -270,16 +271,15 @@ local function shouldAimbotWork()
     return true
 end
 
--- HITBOX (REACH + MAGNET) com proteção
+-- ============ HITBOX ============
 local function aplicarHitbox()
     local hp = hitboxPart
     if not hp or not hp.Parent then return end
     local agora = tick()
 
-    -- Spawn recente (0.5s) → força 1
     if agora - bolaSpawnTime < 0.5 then
         pcall(function()
-            if hp.Size ~= Vector3.new(1, 1, 1) or hp.Transparency ~= hitboxOriginalTransparency then
+            if hp.Size ~= Vector3.new(1, 1, 1) then
                 hp.Size = Vector3.new(1, 1, 1)
                 hp.Transparency = hitboxOriginalTransparency
             end
@@ -287,12 +287,11 @@ local function aplicarHitbox()
         return
     end
 
-    -- Alguém com a bola → força 1
     if alguemTemBola() then
         hitboxBloqueada = true
         hitboxBloqueadaAte = agora + 0.5
         pcall(function()
-            if hp.Size ~= Vector3.new(1, 1, 1) or hp.Transparency ~= hitboxOriginalTransparency then
+            if hp.Size ~= Vector3.new(1, 1, 1) then
                 hp.Size = Vector3.new(1, 1, 1)
                 hp.Transparency = hitboxOriginalTransparency
             end
@@ -300,7 +299,6 @@ local function aplicarHitbox()
         return
     end
 
-    -- Cooldown 0.5s após perder a bola
     if hitboxBloqueada and agora < hitboxBloqueadaAte then
         pcall(function()
             if hp.Size ~= Vector3.new(1, 1, 1) then
@@ -313,11 +311,10 @@ local function aplicarHitbox()
 
     hitboxBloqueada = false
 
-    -- Magnet tem prioridade
     if magnetBolaAtivo then
         local t = Vector3.new(magnetBolaDistancia, magnetBolaDistancia, magnetBolaDistancia)
         pcall(function()
-            if hp.Size ~= t or hp.Transparency ~= 1 then
+            if hp.Size ~= t then
                 hp.Size = t
                 hp.Transparency = 1
             end
@@ -327,7 +324,7 @@ local function aplicarHitbox()
 
     if not reachBolaAtivo then
         pcall(function()
-            if hp.Size ~= hitboxOriginalSize or hp.Transparency ~= hitboxOriginalTransparency then
+            if hp.Size ~= hitboxOriginalSize then
                 hp.Size = hitboxOriginalSize
                 hp.Transparency = hitboxOriginalTransparency
             end
@@ -337,14 +334,14 @@ local function aplicarHitbox()
 
     local t = Vector3.new(reachBolaDistancia, reachBolaDistancia, reachBolaDistancia)
     pcall(function()
-        if hp.Size ~= t or hp.Transparency ~= 1 then
+        if hp.Size ~= t then
             hp.Size = t
             hp.Transparency = 1
         end
     end)
 end
 
--- MAGNET (puxa a bola)
+-- ============ MAGNET ============
 local function aplicarMagnetBola()
     if not magnetBolaAtivo then return end
     if euTenhoBola() then return end
@@ -358,13 +355,17 @@ local function aplicarMagnetBola()
     local dir = hrp.Position - ballPart.Position
     local dist = dir.Magnitude
     if dist < 2 then return end
+    if dist ~= dist then return end
     if dist > magnetBolaDistancia + 20 then return end
-    dir = dir.Unit
+    local unit = dir.Unit
+    if unit.X ~= unit.X or unit.Y ~= unit.Y or unit.Z ~= unit.Z then return end
+    local forca = math.clamp(dist * 18, 100, 280)
     pcall(function()
-        ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 18, 100, 280) + Vector3.new(0, 8, 0)
+        ballPart.AssemblyLinearVelocity = unit * forca + Vector3.new(0, 8, 0)
     end)
 end
 
+-- ============ FORÇA ============
 local function aplicarForcaBola()
     if not forcaBolaEnabled then return end
     local ball = getBallPart()
@@ -379,6 +380,7 @@ local function aplicarForcaBola()
     tinhaBola = tenho
 end
 
+-- ============ CURVAS ============
 local function aplicarCurvas()
     if not curvasEnabled then return end
     local ball = getBallPart()
@@ -406,6 +408,7 @@ local function aplicarCurvas()
     pcall(function() ball.AssemblyLinearVelocity = vel + perp * lado * fator end)
 end
 
+-- ============ TRAZER BOLA ============
 local function aplicarTrazerBola()
     if not trazerBolaAtivo then return end
     if euTenhoBola() then return end
@@ -418,12 +421,14 @@ local function aplicarTrazerBola()
     local dir = hrp.Position - ballPart.Position
     local dist = dir.Magnitude
     if dist < 2 then return end
-    dir = dir.Unit
+    local unit = dir.Unit
+    local forca = math.clamp(dist * 15, 80, 250)
     pcall(function()
-        ballPart.AssemblyLinearVelocity = dir * math.clamp(dist * 15, 80, 250) + Vector3.new(0, 5, 0)
+        ballPart.AssemblyLinearVelocity = unit * forca + Vector3.new(0, 5, 0)
     end)
 end
 
+-- ============ STOP BALL ============
 local function aplicarStopBall()
     if not stopBallAtivo then return end
     if euTenhoBola() then return end
@@ -445,6 +450,7 @@ local function desativarStopBall()
     end
 end
 
+-- ============ AUTO GOL ============
 local function executarAutoGol()
     if autoGolRunning then return end
     autoGolRunning = true
@@ -515,6 +521,7 @@ local function checkAutoGol()
     executarAutoGol()
 end
 
+-- ============ DRIBLE ============
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -543,7 +550,7 @@ local function setupDrible()
         dribleSphere.Color = Color3.fromRGB(255, 0, 128)
         dribleSphere.Transparency = 0.6
         dribleSphere.CanCollide = false
-        dribleSphere.Anchored = false
+        dribleSphere.Anchored = true
         dribleSphere.CastShadow = false
         dribleSphere.Parent = workspace
     end
@@ -600,7 +607,6 @@ local function aplicarDrible()
     if dribleSphere then
         dribleSphere.Position = hrp.Position
         dribleSphere.Transparency = 0.6
-        dribleSphere.Parent = workspace
     end
     local now = tick()
     if now - dribleLastFired < dribleCooldown then return end
@@ -611,7 +617,7 @@ local function aplicarDrible()
                 local d = (th.Position - hrp.Position).Magnitude
                 if d <= dribleRadius and isLookingAtLocal(th, hrp) and isDribleAnimActive(p.Character) then
                     dribleLastFired = now
-                    if dribleEvent then dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3) end
+                    if dribleEvent then pcall(function() dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3) end) end
                     break
                 end
             end
@@ -623,7 +629,7 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- SLIDE FLUTUANTE
+-- ============ SLIDE FLUTUANTE ============
 local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
 
 local function atualizarSliderVisual(val)
@@ -657,7 +663,7 @@ local function criarSlideFlutuante()
     local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 10); mc.Parent = main
     if restauraBtnPos and Config.buttonPositions["SlideVelocidade"] then
         local p = Config.buttonPositions["SlideVelocidade"]
-        pcall(function() main.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
+        pcall(function() main.Position = UDim2.new(p.x or 0.5, p.xo or -200, p.y or 1, p.yo or -140) end)
     end
     table.insert(botoesRegistrados, {btn = main, nome = "SlideVelocidade"})
     local arrastandoSlide = false
@@ -758,6 +764,7 @@ local function removerSlideFlutuante()
     end
 end
 
+-- ============ CONTROLE DE BOLA ============
 local function resetCamera()
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         camera.CameraSubject = player.Character.Humanoid
@@ -1009,6 +1016,7 @@ local function removerBotaoTeam()
     end
 end
 
+-- ============ VISÃO DE JOGO ============
 local function getInimigoComBola()
     local my = getMyTeam()
     if not my then return nil end
@@ -1140,6 +1148,7 @@ local function atualizarAdvinhaChute()
     end
 end
 
+-- ============ CHAT ============
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -1173,6 +1182,7 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
+-- ============ AIMBOT ============
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     Config.aimbotPersonagem = estado
@@ -1224,58 +1234,71 @@ local function atualizarAimbotCamera()
     camera.CFrame = CFrame.new(cam, hrp.Position)
 end
 
--- ESP REACH (VERDE) — parented ao workspace com Adornee
+-- ============ ESP REACH (VERDE) = PART ForceField ============
 local function atualizarESP()
-    if alguemTemBola() or euTenhoBola() or not mostrarESP then
-        if espSphere then espSphere:Destroy(); espSphere = nil end
+    if not mostrarESP or alguemTemBola() or euTenhoBola() then
+        if espPart then espPart.Transparency = 1 end
         return
     end
     local hp = hitboxPart
     if not hp or not hp.Parent then
-        if espSphere then espSphere:Destroy(); espSphere = nil end
+        if espPart then espPart.Transparency = 1 end
         return
     end
-    if not espSphere or not espSphere.Parent then
-        if espSphere then espSphere:Destroy() end
-        espSphere = Instance.new("SelectionSphere")
-        espSphere.Name = "ReachESP"
-        espSphere.Color3 = Color3.fromRGB(0, 255, 0)
-        espSphere.Transparency = 0.6
-        espSphere.Parent = workspace
+    if not espPart or not espPart.Parent then
+        if espPart then espPart:Destroy() end
+        espPart = Instance.new("Part")
+        espPart.Name = "ReachESP"
+        espPart.Shape = Enum.PartType.Ball
+        espPart.Material = Enum.Material.ForceField
+        espPart.Color = Color3.fromRGB(0, 255, 0)
+        espPart.Transparency = 0.6
+        espPart.CanCollide = false
+        espPart.Anchored = true
+        espPart.CastShadow = false
+        espPart.Parent = workspace
     end
     pcall(function()
-        espSphere.Adornee = hp
-        local s = reachBolaDistancia / 2.5
-        espSphere.Scale = Vector3.new(s, s, s)
+        espPart.Position = hp.Position
+        local size = reachBolaDistancia
+        espPart.Size = Vector3.new(size, size, size)
+        espPart.Transparency = 0.6
     end)
 end
 
--- ESP MAGNET (VERMELHO) — parented ao workspace com Adornee
+-- ============ ESP MAGNET (VERMELHO) = PART ForceField ============
 local function atualizarMagnetESP()
-    if alguemTemBola() or euTenhoBola() or not mostrarMagnetESP then
-        if magnetEspSphere then magnetEspSphere:Destroy(); magnetEspSphere = nil end
+    if not mostrarMagnetESP or alguemTemBola() or euTenhoBola() then
+        if magnetEspPart then magnetEspPart.Transparency = 1 end
         return
     end
     local hp = hitboxPart
     if not hp or not hp.Parent then
-        if magnetEspSphere then magnetEspSphere:Destroy(); magnetEspSphere = nil end
+        if magnetEspPart then magnetEspPart.Transparency = 1 end
         return
     end
-    if not magnetEspSphere or not magnetEspSphere.Parent then
-        if magnetEspSphere then magnetEspSphere:Destroy() end
-        magnetEspSphere = Instance.new("SelectionSphere")
-        magnetEspSphere.Name = "MagnetESP"
-        magnetEspSphere.Color3 = Color3.fromRGB(255, 0, 0)
-        magnetEspSphere.Transparency = 0.6
-        magnetEspSphere.Parent = workspace
+    if not magnetEspPart or not magnetEspPart.Parent then
+        if magnetEspPart then magnetEspPart:Destroy() end
+        magnetEspPart = Instance.new("Part")
+        magnetEspPart.Name = "MagnetESP"
+        magnetEspPart.Shape = Enum.PartType.Ball
+        magnetEspPart.Material = Enum.Material.ForceField
+        magnetEspPart.Color = Color3.fromRGB(255, 0, 0)
+        magnetEspPart.Transparency = 0.6
+        magnetEspPart.CanCollide = false
+        magnetEspPart.Anchored = true
+        magnetEspPart.CastShadow = false
+        magnetEspPart.Parent = workspace
     end
     pcall(function()
-        magnetEspSphere.Adornee = hp
-        local s = magnetBolaDistancia / 2.5
-        magnetEspSphere.Scale = Vector3.new(s, s, s)
+        magnetEspPart.Position = hp.Position
+        local size = magnetBolaDistancia
+        magnetEspPart.Size = Vector3.new(size, size, size)
+        magnetEspPart.Transparency = 0.6
     end)
 end
 
+-- ============ BOTÃO CURVAS ============
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -1326,6 +1349,7 @@ local function removerBotaoCurvas()
     end
 end
 
+-- ============ WALKSPEED ============
 local function criarWalkBodyVelocity(char)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1368,6 +1392,7 @@ player.CharacterAdded:Connect(function(char)
     if Config.curvasAtivo and not curvasBotaoGUI then criarBotaoCurvas() end
 end)
 
+-- ============ NO COOLDOWN ============
 local function getAbilityController()
     local c = ReplicatedStorage:FindFirstChild("Controllers")
     if c then return c:FindFirstChild("AbilityController") end
@@ -1426,7 +1451,7 @@ local function iniciarLoopNoCooldown()
     if noCooldownLoopActive then return end
     noCooldownLoopActive = true
     task.spawn(function()
-        while noCooldownAtivo do aplicarNoCooldown(); task.wait(0.25) end
+        while noCooldownAtivo do pcall(aplicarNoCooldown); task.wait(0.25) end
         noCooldownLoopActive = false
     end)
 end
@@ -1447,7 +1472,7 @@ local function conectarEventoHabilidade()
     if not ev then return end
     abilityEventConn = ev.OnClientEvent:Connect(function(...)
         if noCooldownAtivo then
-            task.spawn(function() task.wait(0.05); aplicarNoCooldown() end)
+            task.spawn(function() task.wait(0.05); pcall(aplicarNoCooldown) end)
         end
     end)
 end
@@ -1457,7 +1482,7 @@ local function ativarNoCooldown(estado)
     Config.noCooldown = estado
     SaveConfig()
     if estado then
-        aplicarNoCooldown()
+        pcall(aplicarNoCooldown)
         iniciarLoopNoCooldown()
         conectarEventoHabilidade()
     else
@@ -1468,6 +1493,7 @@ local function ativarNoCooldown(estado)
     end
 end
 
+-- ============ ANTI-TACKLE ============
 local tackleAnimIds = {"rasteira", "tackle", "slide", "17996440171"}
 local tackleCooldown = 0
 
@@ -1517,8 +1543,9 @@ local function antiTackle()
     end
 end
 
-task.spawn(function() while true do task.wait(0.1); antiTackle() end end)
+task.spawn(function() while true do task.wait(0.1); pcall(antiTackle) end end)
 
+-- ============ PERFORMANCE ============
 local statsLabel, statsGui = nil, nil
 
 local function criarStatsGui()
@@ -1706,8 +1733,9 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
+task.spawn(function() while true do pcall(atualizarStats); task.wait(0.5) end end)
 
+-- ============ UI ============
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
@@ -1847,7 +1875,7 @@ ReachSec:Toggle({
     Value = Config.mostrarESP,
     Callback = function(v)
         mostrarESP = v; Config.mostrarESP = v; SaveConfig()
-        if not v and espSphere then espSphere:Destroy(); espSphere = nil end
+        if not v and espPart then espPart.Transparency = 1 end
     end
 })
 
@@ -1872,7 +1900,7 @@ ReachSec:Toggle({
     Value = Config.mostrarMagnetESP,
     Callback = function(v)
         mostrarMagnetESP = v; Config.mostrarMagnetESP = v; SaveConfig()
-        if not v and magnetEspSphere then magnetEspSphere:Destroy(); magnetEspSphere = nil end
+        if not v and magnetEspPart then magnetEspPart.Transparency = 1 end
     end
 })
 
@@ -2066,7 +2094,7 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Magnet + Reach corrigidos!",
+        Text = "Script carregado!",
         Duration = 3
     })
 end)
