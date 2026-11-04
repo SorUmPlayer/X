@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Versão 8 (Drible anti-lag)
+    ⚽ Blue Lock Rivals – Versão 9
 ]]
 
 local Players = game:GetService("Players")
@@ -36,18 +36,20 @@ local Config = {
     botaoCamera = false, visaoBola = false, advinhaChute = false,
     reachBola = false, mostrarESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
-    dribleTolerancia = 0,
+    dribleTolerancia = 0, infinityDrible = false,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
     stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
     antiCantisine = false, cameraLock = false,
     buttonPositions = {}, fixaButton = false,
-    botaoTeamMostrar = false,
+    botaoTeamMostrar = false, mostraTeclas = false,
+    hotkeys = {},
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
 if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
+if type(Config.hotkeys) ~= "table" then Config.hotkeys = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
@@ -113,7 +115,7 @@ if not loaded or not WindUI then
 end
 
 local Window = WindUI:CreateWindow({
-    Title = "⚽ Blue Lock Rivals v8", Icon = "rbxassetid://10723343321",
+    Title = "⚽ Blue Lock Rivals v9", Icon = "rbxassetid://10723343321",
     Author = "Sor_Gostoso", Folder = "BlueLock",
     Size = UDim2.fromOffset(500, 800), Transparent = true, Theme = "Dark",
     Resizable = true, SideBarWidth = 200, HideSearchBar = true, ScrollBarEnabled = false,
@@ -222,6 +224,8 @@ local dribleTolerancia = Config.dribleTolerancia or 0
 local dribleSphere, dribleLastFired = nil, 0
 local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
+local infinityDribleAtivo = Config.infinityDrible or false
+local infinityDribleLoop = nil
 local velocidadeBola = Config.controleBolaVelocidade
 local isControlActive = false
 local controlScreenGui, toggleButton = nil, nil
@@ -251,7 +255,169 @@ local autoGolCooldown = 3
 local autoGolTeamGUI, autoGolTeamBtn = nil, nil
 local antiCantisineAtivo = Config.antiCantisine
 local cameraLockAtivo = Config.cameraLock
+local mostraTeclasGUI, mostraTeclasLabel = nil, nil
 
+-- ===== INFINITY DRIBLE =====
+local function ativarInfinityDrible(estado)
+    infinityDribleAtivo = estado
+    Config.infinityDrible = estado
+    SaveConfig()
+    if estado then
+        setupDrible()
+        if not infinityDribleLoop then
+            infinityDribleLoop = task.spawn(function()
+                while infinityDribleAtivo do
+                    if dribleEvent then
+                        pcall(function()
+                            dribleEvent:FireServer("fbc7892b8f694cfd98d7ef93bc018abe", 3)
+                        end)
+                    end
+                    task.wait(0.15)
+                end
+                infinityDribleLoop = nil
+            end)
+        end
+    end
+end
+
+-- ===== MOSTRA TECLAS =====
+local hotkeyNomes = {
+    aimbot = "Aimbot",
+    trazerBola = "Trazer Bola",
+    controleBola = "Controle de Bola",
+    stopBall = "Stop Ball",
+    forcaBola = "Força da Bola",
+    curvas = "Curva",
+}
+
+local function atualizarMostraTeclas()
+    if not mostraTeclasLabel then return end
+    local linhas = {}
+    for funcao, nome in pairs(hotkeyNomes) do
+        local key = Config.hotkeys[funcao]
+        if key and key ~= "" then
+            table.insert(linhas, nome .. " = " .. key)
+        end
+    end
+    if #linhas == 0 then
+        mostraTeclasLabel.Text = "Nenhuma tecla configurada"
+    else
+        mostraTeclasLabel.Text = table.concat(linhas, "\n")
+    end
+end
+
+local function criarMostraTeclas()
+    if mostraTeclasGUI then return end
+    mostraTeclasGUI = Instance.new("ScreenGui")
+    mostraTeclasGUI.Name = "MostraTeclasGui"
+    mostraTeclasGUI.ResetOnSpawn = false
+    safeParent(mostraTeclasGUI)
+    mostraTeclasLabel = Instance.new("TextLabel")
+    mostraTeclasLabel.Size = UDim2.new(0, 260, 0, 250)
+    mostraTeclasLabel.Position = UDim2.new(1, -270, 0, 10)
+    mostraTeclasLabel.BackgroundTransparency = 1
+    mostraTeclasLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    mostraTeclasLabel.Font = Enum.Font.GothamBold
+    mostraTeclasLabel.TextSize = 14
+    mostraTeclasLabel.TextXAlignment = Enum.TextXAlignment.Right
+    mostraTeclasLabel.TextYAlignment = Enum.TextYAlignment.Top
+    mostraTeclasLabel.Text = ""
+    mostraTeclasLabel.Parent = mostraTeclasGUI
+    atualizarMostraTeclas()
+end
+
+local function removerMostraTeclas()
+    if mostraTeclasGUI then
+        mostraTeclasGUI:Destroy()
+        mostraTeclasGUI, mostraTeclasLabel = nil, nil
+    end
+end
+
+-- ===== HOTKEY ACTIONS =====
+local function hotkeyAimbot()
+    local novo = not aimbotCamera
+    aimbotCamera = novo
+    Config.aimbotCamera = novo
+    ativarAimbotPersonagem(novo)
+    SaveConfig()
+    if cameraToggleButton then
+        if novo then
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            cameraToggleButton.Text = "Aimbot Cam [ON]"
+            cameraButtonActive = true
+        else
+            cameraToggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            cameraToggleButton.Text = "Aimbot Cam [OFF]"
+            cameraButtonActive = false
+        end
+    end
+end
+
+local function hotkeyTrazerBola()
+    if not trazerBolaGUI then
+        Config.trazerBolaMostrar = true
+        SaveConfig()
+        criarBotaoTrazerBola()
+    end
+    toggleTrazerBolaBtn()
+end
+
+local function hotkeyControleBola()
+    if not controlScreenGui then
+        Config.botaoFlutuante = true
+        SaveConfig()
+        criarBotaoFlutuante()
+        criarSlideFlutuante()
+    end
+    toggleControl()
+end
+
+local function hotkeyStopBall()
+    if not stopBallGUI then
+        Config.stopBallMostrar = true
+        SaveConfig()
+        criarBotaoStopBall()
+    end
+    toggleStopBallBtn()
+end
+
+local function hotkeyForcaBola()
+    forcaBolaEnabled = not forcaBolaEnabled
+    Config.forcaBola = forcaBolaEnabled
+    SaveConfig()
+end
+
+local function hotkeyCurvas()
+    curvasEnabled = not curvasEnabled
+    Config.curvasAtivo = curvasEnabled
+    SaveConfig()
+    if curvasEnabled then criarBotaoCurvas() else removerBotaoCurvas() end
+end
+
+local hotkeyActions = {
+    aimbot = hotkeyAimbot,
+    trazerBola = hotkeyTrazerBola,
+    controleBola = hotkeyControleBola,
+    stopBall = hotkeyStopBall,
+    forcaBola = hotkeyForcaBola,
+    curvas = hotkeyCurvas,
+}
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    local tecla = input.KeyCode.Name:upper()
+    for funcao, key in pairs(Config.hotkeys) do
+        if key and key ~= "" and key == tecla then
+            if hotkeyActions[funcao] then
+                pcall(hotkeyActions[funcao])
+            end
+            break
+        end
+    end
+end)
+
+-- ===== SHOULD AIMBOT =====
 local function shouldAimbotWork()
     if euTenhoBola() then
         aimbotBlocked = true; aimbotBlockedUntil = tick() + aimbotDelayValue; return false
@@ -518,7 +684,6 @@ local function isDribleAnimActive(char)
     return false
 end
 
--- Tolerância de olhar: 0 = normal, 5 = sem precisar olhar
 local toleranciaDots = {0.5, 0.3, 0.1, -0.3, -0.7, -2}
 local function isLookingAtLocal(th, lh)
     if dribleTolerancia >= 5 then return true end
@@ -1055,6 +1220,7 @@ local function atualizarAdvinhaChute()
     end
 end
 
+-- ===== CHAT COMANDOS (inclui teclas) =====
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -1067,6 +1233,34 @@ local function onChatMessage(msg)
             end
         end
     end
+
+    if lower:match("^tecla ") then
+        local partes = {}
+        for p in msg:gmatch("%S+") do table.insert(partes, p) end
+        if #partes >= 3 then
+            local funcao = partes[2]:lower()
+            local tecla = partes[3]:upper()
+            if hotkeyNomes[funcao] then
+                if tecla == "OFF" or tecla == "REMOVER" then
+                    Config.hotkeys[funcao] = ""
+                    SaveConfig()
+                    atualizarMostraTeclas()
+                    player:Chat(hotkeyNomes[funcao] .. " removida.")
+                else
+                    Config.hotkeys[funcao] = tecla
+                    SaveConfig()
+                    atualizarMostraTeclas()
+                    player:Chat(hotkeyNomes[funcao] .. " = " .. tecla)
+                end
+            else
+                player:Chat("Função inválida. Use: aimbot, trazerBola, controleBola, stopBall, forcaBola, curvas")
+            end
+        else
+            player:Chat("Use: tecla [funcao] [tecla]")
+        end
+        return
+    end
+
     local n1 = msg:match("^velocidade%s+(%d+)")
     local n2 = msg:match("^(%d+)$")
     local num = n1 or n2
@@ -1240,6 +1434,7 @@ local function recriarTodosBotoes()
     if Config.botaoCamera and not cameraScreenGui then criarBotaoCameraFlutuante() end
     if Config.curvasAtivo and not curvasBotaoGUI then criarBotaoCurvas() end
     if Config.botaoTeamMostrar and not autoGolTeamGUI then criarBotaoTeam() end
+    if Config.mostraTeclas and not mostraTeclasGUI then criarMostraTeclas() end
 end
 
 player.CharacterAdded:Connect(function(char)
@@ -1817,6 +2012,12 @@ DribleSec:Slider({
         SaveConfig()
     end
 })
+DribleSec:Toggle({
+    Title = "Infinity Drible",
+    Desc = "Dispara o drible continuamente (ignora cooldown)",
+    Value = Config.infinityDrible,
+    Callback = function(v) ativarInfinityDrible(v) end
+})
 
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 local PlayerSec = PlayerTab:Section({ Title = "Player", TextXAlignment = "Left" })
@@ -1843,6 +2044,27 @@ ButtonSec:Toggle({
         Config.fixaButton = v
         SaveConfig()
         atualizarFixaButton()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla (Chat)",
+    Desc = "Use: tecla aimbot H | trazerBola T | controleBola C | stopBall B | forcaBola F | curvas V",
+    Value = "",
+    Placeholder = "tecla aimbot H",
+    Callback = function(txt)
+        if txt and txt ~= "" then
+            onChatMessage(txt)
+        end
+    end
+})
+ButtonSec:Toggle({
+    Title = "Mostra Teclas",
+    Desc = "Painel vermelho no canto superior direito com as teclas ativas",
+    Value = Config.mostraTeclas,
+    Callback = function(v)
+        Config.mostraTeclas = v
+        SaveConfig()
+        if v then criarMostraTeclas() else removerMostraTeclas() end
     end
 })
 
@@ -1926,11 +2148,13 @@ if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
 if Config.botaoCamera then task.wait(0.5); criarBotaoCameraFlutuante() end
 if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
 if Config.botaoTeamMostrar then task.wait(0.5); criarBotaoTeam() end
+if Config.mostraTeclas then task.wait(0.5); criarMostraTeclas() end
+if Config.infinityDrible then task.wait(2); ativarInfinityDrible(true) end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Bem-vindo à versão 8",
+        Text = "Versão 9 – Infinity Drible + Hotkeys",
         Duration = 3
     })
 end)
