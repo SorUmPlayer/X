@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Versão 9 (Infinity Drible)
+    ⚽ Blue Lock Rivals – Versão 9 (Keybinds)
 ]]
 
 local Players = game:GetService("Players")
@@ -36,7 +36,7 @@ local Config = {
     botaoCamera = false, visaoBola = false, advinhaChute = false,
     reachBola = false, mostrarESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
-    dribleTolerancia = 0, infinityDrible = false,
+    dribleTolerancia = 0,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
@@ -44,6 +44,9 @@ local Config = {
     antiCantisine = false, cameraLock = false,
     buttonPositions = {}, fixaButton = false,
     botaoTeamMostrar = false,
+    teclasToggle = false,
+    aimbotKey = "", trazerBolaKey = "", controleBolaKey = "",
+    stopBallKey = "", forcaBolaKey = "", curvaKey = "",
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -222,10 +225,6 @@ local dribleTolerancia = Config.dribleTolerancia or 0
 local dribleSphere, dribleLastFired = nil, 0
 local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
-local infinityDribleAtivo = Config.infinityDrible
-local infinityDribleConexao = nil
-local infinityDribleHooks = {}
-local dribbleRemoteEvent = nil
 local velocidadeBola = Config.controleBolaVelocidade
 local isControlActive = false
 local controlScreenGui, toggleButton = nil, nil
@@ -255,6 +254,14 @@ local autoGolCooldown = 3
 local autoGolTeamGUI, autoGolTeamBtn = nil, nil
 local antiCantisineAtivo = Config.antiCantisine
 local cameraLockAtivo = Config.cameraLock
+
+-- Referências dos toggles para sincronizar com keybind
+local refAimbotPersonagem = nil
+local refTrazerBola = nil
+local refControleBola = nil
+local refStopBall = nil
+local refForcaBola = nil
+local refCurvas = nil
 
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -565,124 +572,6 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- INFINITY DRIBLE (hook agressivo)
-local function getAbilityController()
-    local c = ReplicatedStorage:FindFirstChild("Controllers")
-    if c then return c:FindFirstChild("AbilityController") end
-    return nil
-end
-
-local function hookDribleModulo(mod)
-    if type(mod) ~= "table" then return end
-    for _, fn in ipairs({"AbilityCooldown","SetCooldown","StartCooldown","Cooldown","ApplyCooldown",
-                         "DribbleCooldown","SetDribbleCooldown","StartDribbleCooldown","StartDribbleTimer"}) do
-        local orig = mod[fn]
-        if type(orig) == "function" and not infinityDribleHooks[fn] then
-            mod[fn] = function(self, ...)
-                local args = {...}
-                if type(args[1]) == "number" then args[1] = 0 end
-                if type(args[2]) == "number" then args[2] = 0 end
-                return orig(self, table.unpack(args))
-            end
-            infinityDribleHooks[fn] = { mod = mod, original = orig }
-        end
-    end
-    if mod.legacy then
-        for k, v in pairs(mod.legacy) do
-            if type(v) == "number" then mod.legacy[k] = 0 end
-        end
-    end
-    for k, v in pairs(mod) do
-        if type(v) == "number" and type(k) == "string" then
-            local lk = k:lower()
-            if lk:find("cooldown") or lk:find("cd") or lk:find("recharge") or lk:find("reload") or lk:find("dribble") then
-                mod[k] = 0
-            end
-        end
-        if type(v) == "table" and type(k) == "string" then
-            local lk = k:lower()
-            if lk:find("cooldown") or lk:find("cd") or lk:find("dribble") then
-                for kk, _ in pairs(v) do v[kk] = 0 end
-            end
-        end
-    end
-end
-
-local function aplicarInfinityDrible()
-    local ac = getAbilityController()
-    if ac then
-        local ok, mod = pcall(require, ac)
-        if ok then hookDribleModulo(mod) end
-    end
-    local controllers = ReplicatedStorage:FindFirstChild("Controllers")
-    if controllers then
-        for _, nome in ipairs({"DribbleController","BallController","SkillController","AbilityController"}) do
-            local ctrl = controllers:FindFirstChild(nome)
-            if ctrl then
-                local ok, mod = pcall(require, ctrl)
-                if ok then hookDribleModulo(mod) end
-            end
-        end
-    end
-end
-
-local function iniciarInfinityDrible()
-    if infinityDribleConexao then return end
-    aplicarInfinityDrible()
-    infinityDribleConexao = task.spawn(function()
-        while infinityDribleAtivo do
-            aplicarInfinityDrible()
-            task.wait(0.1)
-        end
-        infinityDribleConexao = nil
-    end)
-end
-
-local function pararInfinityDrible()
-    for fn, info in pairs(infinityDribleHooks) do
-        if info.mod and info.original then info.mod[fn] = info.original end
-    end
-    infinityDribleHooks = {}
-end
-
-local function ativarInfinityDrible(estado)
-    infinityDribleAtivo = estado
-    Config.infinityDrible = estado
-    SaveConfig()
-    if estado then iniciarInfinityDrible() else pararInfinityDrible() end
-end
-
--- Listener no RemoteEvent do Dribble (reaplica hook após uso)
-pcall(function()
-    local pk = ReplicatedStorage:FindFirstChild("Packages")
-    if pk then
-        local knit = pk:FindFirstChild("Knit")
-        if knit then
-            local sv = knit:FindFirstChild("Services")
-            if sv then
-                local bs = sv:FindFirstChild("BallService")
-                if bs then
-                    local re = bs:FindFirstChild("RE")
-                    if re then
-                        dribbleRemoteEvent = re:FindFirstChild("Dribble")
-                        if dribbleRemoteEvent then
-                            dribbleRemoteEvent.OnClientEvent:Connect(function()
-                                if infinityDribleAtivo then
-                                    task.spawn(function()
-                                        task.wait(0.05)
-                                        aplicarInfinityDrible()
-                                    end)
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- CONTROLE DE BOLA
 local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
 
 local function atualizarSliderVisual(val)
@@ -787,7 +676,9 @@ local function removerSlideFlutuante()
         floatSliderGui:Destroy()
         floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
         for i = #botoesRegistrados, 1, -1 do
-            if botoesRegistrados[i].nome == "SlideVelocidade" then table.remove(botoesRegistrados, i) end
+            if botoesRegistrados[i].nome == "SlideVelocidade" then
+                table.remove(botoesRegistrados, i)
+            end
         end
     end
 end
@@ -1367,6 +1258,12 @@ player.CharacterAdded:Connect(function(char)
     task.spawn(recriarTodosBotoes)
 end)
 
+local function getAbilityController()
+    local c = ReplicatedStorage:FindFirstChild("Controllers")
+    if c then return c:FindFirstChild("AbilityController") end
+    return nil
+end
+
 local function zerarCooldownsDoModulo(mod)
     if type(mod) ~= "table" then return end
     if mod.legacy then
@@ -1700,12 +1597,124 @@ end)
 
 task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
 
+-- ===== SISTEMA DE TECLAS (KEYBINDS) =====
+local function teclaParaKeyCode(tecla)
+    if not tecla or tecla == "" then return nil end
+    local ok, kc = pcall(function() return Enum.KeyCode[tecla:upper()] end)
+    if ok and kc then return kc end
+    return nil
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if UserInputService:GetFocusedTextBox() then return end
+    local kc = input.KeyCode
+    if not kc or kc == Enum.KeyCode.Unknown then return end
+    local kname = kc.Name
+
+    if Config.aimbotKey ~= "" and kname == Config.aimbotKey:upper() then
+        ativarAimbotPersonagem(not aimbotPersonagem)
+        if refAimbotPersonagem then pcall(function() refAimbotPersonagem:Set(aimbotPersonagem) end) end
+    end
+    if Config.trazerBolaKey ~= "" and kname == Config.trazerBolaKey:upper() then
+        trazerBolaAtivo = not trazerBolaAtivo
+        if trazerBolaBtn then
+            if trazerBolaAtivo then
+                trazerBolaBtn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+                trazerBolaBtn.Text = "Trazer Bola [ON]"
+            else
+                trazerBolaBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+                trazerBolaBtn.Text = "Trazer Bola [OFF]"
+            end
+        end
+        if refTrazerBola then pcall(function() refTrazerBola:Set(trazerBolaAtivo) end) end
+    end
+    if Config.controleBolaKey ~= "" and kname == Config.controleBolaKey:upper() then
+        toggleControl()
+        if refControleBola then pcall(function() refControleBola:Set(isControlActive) end) end
+    end
+    if Config.stopBallKey ~= "" and kname == Config.stopBallKey:upper() then
+        toggleStopBallBtn()
+        if refStopBall then pcall(function() refStopBall:Set(stopBallAtivo) end) end
+    end
+    if Config.forcaBolaKey ~= "" and kname == Config.forcaBolaKey:upper() then
+        forcaBolaEnabled = not forcaBolaEnabled
+        Config.forcaBola = forcaBolaEnabled
+        SaveConfig()
+        if refForcaBola then pcall(function() refForcaBola:Set(forcaBolaEnabled) end) end
+    end
+    if Config.curvaKey ~= "" and kname == Config.curvaKey:upper() then
+        curvasEnabled = not curvasEnabled
+        Config.curvasAtivo = curvasEnabled
+        SaveConfig()
+        if curvasEnabled then
+            if not curvasBotaoGUI then criarBotaoCurvas() end
+        else
+            if curvasBotaoGUI then removerBotaoCurvas() end
+        end
+        if refCurvas then pcall(function() refCurvas:Set(curvasEnabled) end) end
+    end
+end)
+
+-- Overlay "Mostrar Teclas"
+local teclasGui, teclasLabel = nil, nil
+
+local function atualizarTeclasLabel()
+    if not teclasLabel then return end
+    local linhas = {}
+    if Config.aimbotKey ~= "" then table.insert(linhas, "Aimbot = " .. Config.aimbotKey) end
+    if Config.trazerBolaKey ~= "" then table.insert(linhas, "Trazer Bola = " .. Config.trazerBolaKey) end
+    if Config.controleBolaKey ~= "" then table.insert(linhas, "Controle Bola = " .. Config.controleBolaKey) end
+    if Config.stopBallKey ~= "" then table.insert(linhas, "Stop Ball = " .. Config.stopBallKey) end
+    if Config.forcaBolaKey ~= "" then table.insert(linhas, "Força Bola = " .. Config.forcaBolaKey) end
+    if Config.curvaKey ~= "" then table.insert(linhas, "Curva = " .. Config.curvaKey) end
+    if #linhas == 0 then
+        teclasLabel.Text = "🎮 TECLAS\nNenhuma tecla configurada"
+    else
+        teclasLabel.Text = "🎮 TECLAS\n" .. table.concat(linhas, "\n")
+    end
+end
+
+local function criarTeclasGui()
+    if teclasGui then return end
+    teclasGui = Instance.new("ScreenGui")
+    teclasGui.Name = "TeclasGui"
+    teclasGui.ResetOnSpawn = false
+    safeParent(teclasGui)
+    teclasLabel = Instance.new("TextLabel")
+    teclasLabel.Size = UDim2.new(0, 220, 0, 40)
+    teclasLabel.Position = UDim2.new(1, -230, 0, 10)
+    teclasLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    teclasLabel.BackgroundTransparency = 0.3
+    teclasLabel.BorderSizePixel = 0
+    teclasLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    teclasLabel.Font = Enum.Font.GothamBold
+    teclasLabel.TextSize = 14
+    teclasLabel.TextXAlignment = Enum.TextXAlignment.Left
+    teclasLabel.TextYAlignment = Enum.TextYAlignment.Top
+    teclasLabel.Text = ""
+    teclasLabel.Parent = teclasGui
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingTop = UDim.new(0, 6)
+    padding.Parent = teclasLabel
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = teclasLabel
+    atualizarTeclasLabel()
+end
+
+local function destruirTeclasGui()
+    if teclasGui then teclasGui:Destroy(); teclasGui = nil; teclasLabel = nil end
+end
+
+-- ===== UI =====
 local MainTab = Window:Tab({ Title = "Blue Lock", Icon = "home" })
 
 local BlueLockSec = MainTab:Section({ Title = "Controle de Bola", TextXAlignment = "Left" })
 BlueLockSec:Input({
     Title = "Velocidade da Bola",
-    Desc = "0-200 | Use chat 'velocidade N' ou só 'N'",
+    Desc = "0-200 | Chat: 'velocidade N' ou só 'N'",
     Value = tostring(Config.controleBolaVelocidade),
     Placeholder = "0-200",
     Callback = function(txt)
@@ -1743,7 +1752,7 @@ BlueLockSec:Toggle({
 })
 
 local AimbotSec = MainTab:Section({ Title = "Aimbot", TextXAlignment = "Left" })
-AimbotSec:Toggle({
+refAimbotPersonagem = AimbotSec:Toggle({
     Title = "Aimbot Personagem",
     Desc = "Corpo vira para a bola",
     Value = Config.aimbotPersonagem,
@@ -1839,7 +1848,7 @@ ReachSec:Toggle({
 })
 
 local ExtrasSec = MainTab:Section({ Title = "Extras", TextXAlignment = "Left" })
-ExtrasSec:Toggle({
+refForcaBola = ExtrasSec:Toggle({
     Title = "Força da Bola",
     Desc = "Chute potente sempre",
     Value = Config.forcaBola,
@@ -1891,7 +1900,7 @@ ExtrasSec:Toggle({
 })
 
 local CurvasSec = MainTab:Section({ Title = "Curvas", TextXAlignment = "Left" })
-CurvasSec:Toggle({
+refCurvas = CurvasSec:Toggle({
     Title = "Bola com curvas",
     Desc = "Ativa curvas (botão flutuante)",
     Value = Config.curvasAtivo,
@@ -1921,7 +1930,7 @@ DribleSec:Toggle({
 })
 DribleSec:Slider({
     Title = "Tolerância de Olhar",
-    Desc = "0=Normal | 5=Sem precisar olhar",
+    Desc = "0=Normal | 5=Sem olhar",
     Step = 1,
     Value = { Min = 0, Max = 5, Default = Config.dribleTolerancia },
     Callback = function(v)
@@ -1929,12 +1938,6 @@ DribleSec:Slider({
         Config.dribleTolerancia = v
         SaveConfig()
     end
-})
-DribleSec:Toggle({
-    Title = "Infinity Drible",
-    Desc = "Drible sem cooldown (spam)",
-    Value = Config.infinityDrible,
-    Callback = function(v) ativarInfinityDrible(v) end
 })
 
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
@@ -1953,6 +1956,7 @@ PlayerSec:Toggle({
     Callback = function(v) ativarWalkSpeed(v) end
 })
 
+-- Categoria Button com teclas
 local ButtonSec = PlayerTab:Section({ Title = "Button", TextXAlignment = "Left" })
 ButtonSec:Toggle({
     Title = "Fixa Button",
@@ -1962,6 +1966,84 @@ ButtonSec:Toggle({
         Config.fixaButton = v
         SaveConfig()
         atualizarFixaButton()
+    end
+})
+
+ButtonSec:Input({
+    Title = "Tecla Aimbot",
+    Desc = "Ex: H (PC apenas)",
+    Value = Config.aimbotKey,
+    Placeholder = "H",
+    Callback = function(txt)
+        Config.aimbotKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla Trazer Bola",
+    Desc = "Ex: F",
+    Value = Config.trazerBolaKey,
+    Placeholder = "F",
+    Callback = function(txt)
+        Config.trazerBolaKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla Controle Bola",
+    Desc = "Ex: G",
+    Value = Config.controleBolaKey,
+    Placeholder = "G",
+    Callback = function(txt)
+        Config.controleBolaKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla Stop Ball",
+    Desc = "Ex: X",
+    Value = Config.stopBallKey,
+    Placeholder = "X",
+    Callback = function(txt)
+        Config.stopBallKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla Força da Bola",
+    Desc = "Ex: B",
+    Value = Config.forcaBolaKey,
+    Placeholder = "B",
+    Callback = function(txt)
+        Config.forcaBolaKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Input({
+    Title = "Tecla Curva",
+    Desc = "Ex: C",
+    Value = Config.curvaKey,
+    Placeholder = "C",
+    Callback = function(txt)
+        Config.curvaKey = txt:upper()
+        SaveConfig()
+        atualizarTeclasLabel()
+    end
+})
+ButtonSec:Button({
+    Title = "Mostrar Teclas",
+    Desc = "Mostra quais teclas estão ativas no canto superior direito (vermelho)",
+    Callback = function()
+        if teclasGui then
+            destruirTeclasGui()
+        else
+            criarTeclasGui()
+        end
     end
 })
 
@@ -2039,7 +2121,6 @@ if Config.fpsModeAtivo and Config.fpsModeLevel > 0 then aplicarFpsMode(Config.fp
 if Config.pingMenos then aplicarPingMenos(true) end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
-if Config.infinityDrible then task.wait(2); ativarInfinityDrible(true) end
 if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
 if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
 if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
@@ -2050,7 +2131,7 @@ if Config.botaoTeamMostrar then task.wait(0.5); criarBotaoTeam() end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Bem-vindo à versão 9 (Infinity Drible)",
+        Text = "Bem-vindo à versão 9 (Keybinds)",
         Duration = 3
     })
 end)
