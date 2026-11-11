@@ -45,8 +45,15 @@ local Config = {
     Delay = 0.2
 }
 
--- Criar Interface Nativa (ScreenGui)
-local PlayerGui = (syn and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+-- Criar Interface Nativa (ScreenGui) de forma segura
+local PlayerGui = nil
+pcall(function()
+    PlayerGui = (syn and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+end)
+
+if not PlayerGui then
+    PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 if PlayerGui:FindFirstChild("MultiToolGui") then
     PlayerGui.MultiToolGui:Destroy()
@@ -76,7 +83,7 @@ MainCorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - Fugitivos (Fix GodMode)"
+Title.Text = "Painel - Fugitivos (Fix Execução)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -200,7 +207,7 @@ CreateInput("Dano do NPC", "Ex: 13.65", Config.KillauraDamage, function(text)
 end)
 CreateInput("Distância Máxima", "Ex: 50", Config.KillauraDistance, function(text)
     local num = tonumber(text)
-    if num then Config.Distance = num end
+    if num then Config.KillauraDistance = num end
 end)
 CreateToggle("Kill Aura NPCs", function(state)
     Config.KillauraEnabled = state
@@ -234,7 +241,7 @@ CreateToggle("Ativar Speed Boost", function(state)
     Config.SpeedEnabled = state
 end)
 
-CreateSectionHeader("--- 6. GOD MODE (Anti-Dano Fugitivos) ---")
+CreateSectionHeader("--- 6. GOD MODE (Anti-Dano) ---")
 CreateToggle("Ativar God Mode", function(state)
     Config.GodModeEnabled = state
 end)
@@ -295,7 +302,7 @@ task.spawn(function()
     end
 end)
 
--- Loop 2: TP Cash (Teleporta, coleta e FICA no local)
+-- Loop 2: TP Cash
 task.spawn(function()
     while true do
         task.wait(0.3)
@@ -322,12 +329,12 @@ task.spawn(function()
                         DamageEvent:FireServer("Cash", "Collect", cashObj)
                     end
                 end
-            end
+            end)
         end
     end
 end)
 
--- Loop 3: Quebrar Máquinas de forma segura
+-- Loop 3: Quebrar Máquinas
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -451,42 +458,17 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Loop 6: God Mode Reforçado para Fugitivos (Anula Dano e Reseta Hitbox/Health Server-Side)
+-- Loop 6: God Mode Seguro (Evita quebras de script)
 RunService.Stepped:Connect(function()
     if Config.GodModeEnabled then
-        local character = LocalPlayer.Character
-        if character then
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                -- Força a vida máxima e bloqueia o estado de morte
+        local humanoid = GetHumanoid()
+        if humanoid then
+            pcall(function()
                 humanoid.Health = humanoid.MaxHealth
-                pcall(function()
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-                end)
-            end
-            
-            -- Desativa a colisão das partes do corpo para que tiros e ataques físicos dos NPCs passem direto por você
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    pcall(function()
-                        part.CanCollide = false
-                    end)
-                end
-            end
-        end
-    else
-        local character = LocalPlayer.Character
-        if character then
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                pcall(function()
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-                end)
-            end
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            end)
         end
     end
 end)
 
-print("[MultiTool] Painel atualizado com God Mode Avançado para Fugitivos!")
+print("[MultiTool] Painel carregado com sucesso!")
