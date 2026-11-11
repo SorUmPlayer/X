@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (v10 – Auto GK + Button Save)
+    ⚽ Blue Lock Rivals – Airflow UI (v12 – Auto GK Instantâneo)
 ]]
 
 local Players = game:GetService("Players")
@@ -10,13 +10,13 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
+local Stats = game:GetService("Stats")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"))()
 
--- ========== AUTO SAVE ==========
 local CONFIG_FILE = "BlueLock_Airflow.json"
 local function LoadConfig()
     if not isfile then return {} end
@@ -38,14 +38,17 @@ local Config = {
     botaoCamera = false, visaoBola = false, advinhaChute = false,
     reachBola = false, mostrarESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
-    dribleTolerancia = 0,
+    dribleTolerancia = 0, dribleInfinito = false,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
     stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
     antiCantisine = false, cameraLock = false,
-    autoGkAtivo = false, gkLargura = 10, gkTamanho = 5,
+    autoGkAtivo = false, gkLargura = 20, gkTamanho = 20, gkPrevisao = 0,
     buttonPositions = {},
+    teclaAimbot = "", teclaTrazerBola = "", teclaControleBola = "",
+    teclaStopBall = "", teclaForcaBola = "", teclaCurva = "",
+    mostrarHUDTeclas = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -53,9 +56,7 @@ if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
--- ========== SISTEMA DE POSIÇÃO DOS BOTÕES ==========
 local botoesRegistrados = {}
-
 local function registrarBotao(btn, nome)
     if not btn then return end
     if Config.buttonPositions[nome] then
@@ -83,7 +84,6 @@ local function registrarBotao(btn, nome)
     table.insert(botoesRegistrados, {btn = btn, nome = nome})
 end
 
--- ========== BOLA ==========
 local bola, hitbox, bolaValida = nil, nil, false
 local bolaSpawnTime = 0
 
@@ -169,7 +169,6 @@ local function getMyTeam()
     return nil
 end
 
--- ========== VARIÁVEIS ==========
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
@@ -185,6 +184,7 @@ local curvasBotaoGUI, curvasBotao = nil, nil
 local curvasTimer, curvasIntervalo, curvasDirecaoAtual = 0, 1.0, 1
 local dribleEnabled = Config.dribleAtivo
 local dribleTolerancia = Config.dribleTolerancia or 0
+local dribleInfinito = Config.dribleInfinito or false
 local dribleSphere, dribleLastFired = nil, 0
 local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
@@ -221,13 +221,13 @@ local cameraLockAtivo = Config.cameraLock
 local autoGkAtivo = Config.autoGkAtivo
 local gkLargura = Config.gkLargura
 local gkTamanho = Config.gkTamanho
+local gkPrevisao = Config.gkPrevisao or 0
 local gkRange1Raio = 150
-local gkCooldown = 0.3
+local gkCooldown = 0.15
 local gkUltimoPulo = 0
 local gkCirculoVisual = nil
 local gkTrianguloVisual = nil
 
--- ========== FUNÇÕES AUXILIARES ==========
 local function shouldAimbotWork()
     if euTenhoBola() then
         aimbotBlocked = true; aimbotBlockedUntil = tick() + aimbotDelayValue; return false
@@ -426,7 +426,6 @@ local function checkAutoGol()
     executarAutoGol()
 end
 
--- Drible
 local function setupDrible()
     if not dribleEvent then
         pcall(function()
@@ -518,7 +517,8 @@ local function aplicarDrible()
         dribleSphere.Parent = workspace
     end
     local now = tick()
-    if now - dribleLastFired < dribleCooldown then return end
+    local cdEfetivo = dribleInfinito and 0.01 or dribleCooldown
+    if now - dribleLastFired < cdEfetivo then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local th = p.Character:FindFirstChild("HumanoidRootPart")
@@ -538,7 +538,6 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
--- Controle de Bola (Slide Flutuante)
 local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
 
 local function atualizarSliderVisual(val)
@@ -881,7 +880,6 @@ local function removerBotaoTeam()
     if autoGolTeamGUI then autoGolTeamGUI:Destroy(); autoGolTeamGUI = nil; autoGolTeamBtn = nil end
 end
 
--- Botão Curvas (faltava definir)
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
@@ -929,7 +927,6 @@ local function removerBotaoCurvas()
     if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
 end
 
--- Visão
 local function getInimigoComBola()
     local my = getMyTeam()
     if not my then return nil end
@@ -1061,7 +1058,6 @@ local function atualizarAdvinhaChute()
     end
 end
 
--- Chat
 local function onChatMessage(msg)
     local lower = msg:lower()
     if lower:match("^força da bola") then
@@ -1095,7 +1091,6 @@ local function setupChatCommand()
 end
 setupChatCommand()
 
--- Aimbot
 local function ativarAimbotPersonagem(estado)
     aimbotPersonagem = estado
     Config.aimbotPersonagem = estado
@@ -1161,7 +1156,6 @@ local function atualizarESP()
     espSphere.Scale = Vector3.new(s, s, s)
 end
 
--- Auto GK
 local function criarVisuaisAutoGk()
     if not gkCirculoVisual then
         gkCirculoVisual = Instance.new("Part")
@@ -1217,18 +1211,27 @@ local function atualizarVisuaisAutoGk()
     end
 end
 
-local function ballEstaNoTriangulo()
+-- Previsão com gkPrevisao (0 = instantâneo)
+local function bolaVaiEntrarNoTriangulo(leadTime)
     local char = player.Character
     if not char then return false end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
     local ballPart = getBallPart()
     if not ballPart then return false end
-    local relativo = hrp.CFrame:PointToObjectSpace(ballPart.Position)
+    
+    if leadTime <= 0 then
+        -- Instantâneo: verifica posição atual
+        local relativo = hrp.CFrame:PointToObjectSpace(ballPart.Position)
+        return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
+    end
+    
+    local vel = ballPart.AssemblyLinearVelocity
+    local posFutura = ballPart.Position + (vel * leadTime)
+    local relativo = hrp.CFrame:PointToObjectSpace(posFutura)
     return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
 end
 
--- AUTO GK CORRIGIDO: prevê posição futura e teleporta
 local function fazerPuloAutoGk()
     local agora = tick()
     if agora - gkUltimoPulo < gkCooldown then return end
@@ -1244,37 +1247,22 @@ local function fazerPuloAutoGk()
     if not ballPart then return end
     
     local vel = ballPart.AssemblyLinearVelocity
-    local speed = vel.Magnitude
+    local posAlvo = ballPart.Position
+    if gkPrevisao > 0 and vel.Magnitude > 5 then
+        posAlvo = ballPart.Position + (vel * gkPrevisao)
+    end
     
-    if speed > 8 then
-        -- Bola em movimento: prevê onde estará e teleporta
-        local distToBall = (hrp.Position - ballPart.Position).Magnitude
-        -- Tempo pra bola percorrer até o jogador
-        local timeToReach = distToBall / math.max(speed, 1)
-        -- Lead: um pouco menos que timeToReach (para estarmos na frente)
-        local leadTime = math.clamp(timeToReach * 0.6, 0.08, 0.4)
-        
-        local posFutura = ballPart.Position + (vel * leadTime)
-        local velDir = vel.Unit
-        
-        -- Fica 2.5 studs ANTES do ponto de interceptação (a bola vem em nós)
-        local standPos = posFutura - velDir * 2.5
-        standPos = Vector3.new(standPos.X, hrp.Position.Y, standPos.Z)
-        
-        hrp.CFrame = CFrame.new(standPos, standPos + velDir)
-    else
-        -- Bola parada/lenta: só olha
-        local direcao = Vector3.new(ballPart.Position.X - hrp.Position.X, 0, ballPart.Position.Z - hrp.Position.Z)
-        if direcao.Magnitude > 0.1 then
-            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + direcao.Unit)
-        end
+    -- Só rotaciona (sem teleportar)
+    local direcao = Vector3.new(posAlvo.X - hrp.Position.X, 0, posAlvo.Z - hrp.Position.Z)
+    if direcao.Magnitude > 0.1 then
+        hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + direcao.Unit)
     end
     
     hum.Jump = true
     pcall(function()
         local vim = game:GetService("VirtualInputManager")
         vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-        task.wait(0.05)
+        task.wait(0.03)
         vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
     end)
 end
@@ -1282,11 +1270,10 @@ end
 local function processarAutoGk()
     if not autoGkAtivo then return end
     if alguemTemBola() or euTenhoBola() then return end
-    if not ballEstaNoTriangulo() then return end
+    if not bolaVaiEntrarNoTriangulo(gkPrevisao) then return end
     fazerPuloAutoGk()
 end
 
--- No Cooldown
 local function getAbilityController()
     local c = ReplicatedStorage:FindFirstChild("Controllers")
     if c then return c:FindFirstChild("AbilityController") end
@@ -1387,7 +1374,6 @@ local function ativarNoCooldown(estado)
     end
 end
 
--- Anti-Cantisine & Camera Lock
 local function antiCantisine()
     if not antiCantisineAtivo then return end
     local char = player.Character
@@ -1431,7 +1417,6 @@ local function cameraLock()
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
 end
 
--- WalkSpeed
 local function criarWalkBodyVelocity(char)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1476,473 +1461,94 @@ player.CharacterAdded:Connect(function(char)
     end)
 end)
 
--- ========== UI – AIRFLOW ==========
-local Window = Airflow:CreateWindow({
-    Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v10",
-    Icon = "wind",
-    Theme = "Midnight",
-    ToggleUIKeybind = "RightShift",
-    ConfigurationSaving = { Enabled = true, FolderName = "BlueLockAirflow" },
-    Home = { Name = "Home", Desc = "Sessão", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
-})
-
-local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funções", Icon = "home" })
-
-MainTab:CreateSection("Controle de Bola")
-
-MainTab:CreateInput({
-    Name = "Velocidade da Bola",
-    Desc = "0-200 | Chat: 'velocidade N' ou só 'N'",
-    PlaceholderText = "0-200",
-    CurrentValue = tostring(Config.controleBolaVelocidade),
-    Callback = function(txt)
-        local v = tonumber(txt)
-        if v then atualizarSliderVisual(v) end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Controle de Bola",
-    Desc = "Botão + Slide flutuante",
-    Flag = "controleBola",
-    CurrentValue = Config.botaoFlutuante,
-    Callback = function(v)
-        Config.botaoFlutuante = v
-        SaveConfig()
-        if v then
-            criarBotaoFlutuante()
-            criarSlideFlutuante()
-        else
-            removerBotaoFlutuante()
-            removerSlideFlutuante()
+local keyConnections = {}
+local function aplicarTecla(nomeFuncao, tecla, callback)
+    if keyConnections[nomeFuncao] then
+        keyConnections[nomeFuncao]:Disconnect()
+        keyConnections[nomeFuncao] = nil
+    end
+    if not tecla or tecla == "" then return end
+    local keyCode = Enum.KeyCode[tecla:upper()]
+    if not keyCode then return end
+    keyConnections[nomeFuncao] = UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == keyCode then
+            callback()
         end
-    end,
-})
+    end)
+end
 
-MainTab:CreateToggle({
-    Name = "Botão (Trazer Bola)",
-    Desc = "Puxa a bola até você",
-    Flag = "trazerBola",
-    CurrentValue = Config.trazerBolaMostrar,
-    Callback = function(v)
-        Config.trazerBolaMostrar = v
-        SaveConfig()
-        if v then criarBotaoTrazerBola() else removerBotaoTrazerBola() end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Botão (Stop Ball)",
-    Desc = "Para a bola no ar",
-    Flag = "stopBall",
-    CurrentValue = Config.stopBallMostrar,
-    Callback = function(v)
-        Config.stopBallMostrar = v
-        SaveConfig()
-        if v then criarBotaoStopBall() else removerBotaoStopBall() end
-    end,
-})
-
-MainTab:CreateSection("Aimbot")
-
-MainTab:CreateToggle({
-    Name = "Aimbot Personagem",
-    Desc = "Corpo vira para a bola",
-    Flag = "aimbotPersonagem",
-    CurrentValue = Config.aimbotPersonagem,
-    Callback = function(v) ativarAimbotPersonagem(v) end,
-})
-
-MainTab:CreateToggle({
-    Name = "Aimbot Câmera",
-    Desc = "Câmera segue a bola",
-    Flag = "aimbotCamera",
-    CurrentValue = Config.aimbotCamera,
-    Callback = function(v)
-        aimbotCamera = v
-        Config.aimbotCamera = v
-        SaveConfig()
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Botão (Câmera)",
-    Desc = "Botão flutuante da câmera",
-    Flag = "botaoCamera",
-    CurrentValue = Config.botaoCamera,
-    Callback = function(v)
-        Config.botaoCamera = v
-        SaveConfig()
-        if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
-    end,
-})
-
-MainTab:CreateSlider({
-    Name = "Delay do Aimbot",
-    Desc = "0=instantâneo | 10=5s",
-    Range = { 0, 10 },
-    Increment = 1,
-    CurrentValue = Config.aimbotDelayValue,
-    Callback = function(v)
-        aimbotDelayValue = aimbotDelayValues[v] or 0
-        Config.aimbotDelayValue = v
-        SaveConfig()
-    end,
-})
-
-MainTab:CreateSection("Visão de Jogo")
-
-MainTab:CreateToggle({
-    Name = "Visão da bola",
-    Desc = "Linha verde do inimigo",
-    Flag = "visaoBola",
-    CurrentValue = Config.visaoBola,
-    Callback = function(v)
-        visaoBolaEnabled = v
-        Config.visaoBola = v
-        SaveConfig()
-        if not v and linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Advinha Chute",
-    Desc = "Trajetória + círculo",
-    Flag = "advinhaChute",
-    CurrentValue = Config.advinhaChute,
-    Callback = function(v)
-        advinhaChuteEnabled = v
-        Config.advinhaChute = v
-        SaveConfig()
-        if not v then
-            if linhaChute then linhaChute:Destroy(); linhaChute = nil end
-            if circuloChute then circuloChute:Destroy(); circuloChute = nil end
+local teclasGui = nil
+local teclasLabel = nil
+local function atualizarHUDTeclas()
+    if not Config.mostrarHUDTeclas then
+        if teclasGui then teclasGui.Enabled = false end
+        return
+    end
+    if not teclasGui then
+        teclasGui = Instance.new("ScreenGui")
+        teclasGui.Name = "TeclasGui"
+        teclasGui.ResetOnSpawn = false
+        teclasGui.Parent = CoreGui
+        teclasLabel = Instance.new("TextLabel")
+        teclasLabel.Size = UDim2.new(0, 280, 0, 200)
+        teclasLabel.Position = UDim2.new(1, -300, 0, 20)
+        teclasLabel.BackgroundTransparency = 1
+        teclasLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        teclasLabel.Font = Enum.Font.GothamBold
+        teclasLabel.TextSize = 18
+        teclasLabel.TextXAlignment = Enum.TextXAlignment.Right
+        teclasLabel.TextYAlignment = Enum.TextYAlignment.Top
+        teclasLabel.Text = ""
+        teclasLabel.Parent = teclasGui
+    end
+    teclasGui.Enabled = true
+    local texto = ""
+    local pares = {
+        {"Aimbot", Config.teclaAimbot},
+        {"Trazer Bola", Config.teclaTrazerBola},
+        {"Controlar Bola", Config.teclaControleBola},
+        {"Stop Ball", Config.teclaStopBall},
+        {"Força Bola", Config.teclaForcaBola},
+        {"Curva", Config.teclaCurva},
+    }
+    for _, t in ipairs(pares) do
+        if t[2] and t[2] ~= "" then
+            texto = texto .. t[1] .. " = " .. t[2] .. "\n"
         end
-    end,
-})
-
-MainTab:CreateSection("HITBOX")
-
-MainTab:CreateToggle({
-    Name = "Hitbox da Bola",
-    Desc = "Aumenta hitbox (desativa com posse)",
-    Flag = "hitboxBola",
-    CurrentValue = Config.reachBola,
-    Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end,
-})
-
-MainTab:CreateSlider({
-    Name = "Tamanho da Hitbox",
-    Desc = "1=normal | 30=grande",
-    Range = { 1, 30 },
-    Increment = 1,
-    CurrentValue = Config.reachBolaTamanho,
-    Callback = function(v)
-        reachBolaDistancia = v
-        Config.reachBolaTamanho = v
-        SaveConfig()
-        if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Mostrar Área (ESP)",
-    Desc = "Círculo verde na hitbox",
-    Flag = "mostrarESP",
-    CurrentValue = Config.mostrarESP,
-    Callback = function(v)
-        mostrarESP = v
-        Config.mostrarESP = v
-        SaveConfig()
-        if not v and espSphere then espSphere:Destroy(); espSphere = nil end
-    end,
-})
-
-MainTab:CreateSection("Extras")
-
-MainTab:CreateToggle({
-    Name = "Força da Bola",
-    Desc = "Chute potente sempre",
-    Flag = "forcaBola",
-    CurrentValue = Config.forcaBola,
-    Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end,
-})
-
-MainTab:CreateSlider({
-    Name = "Força Máxima",
-    Desc = "10-200",
-    Range = { 10, 200 },
-    Increment = 1,
-    CurrentValue = Config.forcaBolaVelocidade,
-    Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end,
-})
-
-MainTab:CreateButton({
-    Name = "Stamina Infinita",
-    Desc = "Stamina sempre no máximo",
-    Callback = function()
-        task.spawn(function()
-            while true do
-                if player:FindFirstChild("PlayerStats") and player.PlayerStats:FindFirstChild("Stamina") then
-                    player.PlayerStats.Stamina.Value = 100
-                end
-                task.wait()
-            end
-        end)
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Auto Gol",
-    Desc = "Pega a bola, faz o gol e volta (3s cd)",
-    Flag = "autoGol",
-    CurrentValue = Config.autoGolToggle,
-    Callback = function(v)
-        autoGolToggle = v
-        Config.autoGolToggle = v
-        SaveConfig()
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "Botão (Time)",
-    Desc = "Alterna Home/Away",
-    Flag = "botaoTime",
-    CurrentValue = Config.botaoTeamMostrar,
-    Callback = function(v)
-        Config.botaoTeamMostrar = v
-        SaveConfig()
-        if v then criarBotaoTeam() else removerBotaoTeam() end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "No Cooldown",
-    Desc = "Habilidades sem cooldown",
-    Flag = "noCooldown",
-    CurrentValue = Config.noCooldown,
-    Callback = function(v) ativarNoCooldown(v) end,
-})
-
-MainTab:CreateSection("Auto GK")
-
-MainTab:CreateToggle({
-    Name = "Auto GK",
-    Desc = "Prevê e intercepta a bola (Q)",
-    Flag = "autoGk",
-    CurrentValue = Config.autoGkAtivo,
-    Callback = function(v)
-        autoGkAtivo = v
-        Config.autoGkAtivo = v
-        SaveConfig()
-        if v then criarVisuaisAutoGk() else destruirVisuaisAutoGk() end
-    end,
-})
-
-MainTab:CreateSlider({
-    Name = "Largura",
-    Desc = "Largura do triângulo (5-20)",
-    Range = { 5, 20 },
-    Increment = 1,
-    CurrentValue = Config.gkLargura,
-    Callback = function(v) gkLargura = v; Config.gkLargura = v; SaveConfig() end,
-})
-
-MainTab:CreateSlider({
-    Name = "Tamanho",
-    Desc = "Profundidade do triângulo (5-20)",
-    Range = { 5, 20 },
-    Increment = 1,
-    CurrentValue = Config.gkTamanho,
-    Callback = function(v) gkTamanho = v; Config.gkTamanho = v; SaveConfig() end,
-})
-
-MainTab:CreateSection("Curvas")
-
-MainTab:CreateToggle({
-    Name = "Bola com curvas",
-    Desc = "Ativa curvas (botão flutuante)",
-    Flag = "curvas",
-    CurrentValue = Config.curvasAtivo,
-    Callback = function(v)
-        curvasEnabled = v
-        Config.curvasAtivo = v
-        SaveConfig()
-        if v then criarBotaoCurvas() else removerBotaoCurvas() end
-    end,
-})
-
-MainTab:CreateSlider({
-    Name = "Intensidade",
-    Desc = "1=fraca | 10=forte",
-    Range = { 1, 10 },
-    Increment = 1,
-    CurrentValue = Config.curvasIntensidade,
-    Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end,
-})
-
-MainTab:CreateSection("Drible")
-
-MainTab:CreateToggle({
-    Name = "Drible",
-    Desc = "Círculo rosa (raio 70)",
-    Flag = "drible",
-    CurrentValue = Config.dribleAtivo,
-    Callback = function(v)
-        dribleEnabled = v
-        Config.dribleAtivo = v
-        SaveConfig()
-        if v then setupDrible()
-        else if dribleSphere then dribleSphere.Transparency = 1 end end
-    end,
-})
-
-MainTab:CreateSlider({
-    Name = "Tolerância de Olhar",
-    Desc = "0=Normal | 5=Sem olhar",
-    Range = { 0, 5 },
-    Increment = 1,
-    CurrentValue = Config.dribleTolerancia,
-    Callback = function(v)
-        dribleTolerancia = v
-        Config.dribleTolerancia = v
-        SaveConfig()
-    end,
-})
-
-local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
-PlayerTab:CreateSection("Player")
-
-PlayerTab:CreateSlider({
-    Name = "Speed",
-    Desc = "Recomendado: 40",
-    Range = { 20, 250 },
-    Increment = 1,
-    CurrentValue = Config.walkSpeedValue,
-    Callback = function(v) walkSpeedValue = v; Config.walkSpeedValue = v; SaveConfig() end,
-})
-
-PlayerTab:CreateToggle({
-    Name = "Ativar Speed",
-    Desc = "Boost de velocidade",
-    Flag = "walkSpeed",
-    CurrentValue = Config.walkSpeedAtivo,
-    Callback = function(v) ativarWalkSpeed(v) end,
-})
-
-PlayerTab:CreateToggle({
-    Name = "Fixa Button",
-    Desc = "Trava botões (não arrasta)",
-    Flag = "fixaButton",
-    CurrentValue = Config.fixaButton,
-    Callback = function(v)
-        Config.fixaButton = v
-        SaveConfig()
-    end,
-})
-
-local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
-PerfTab:CreateSection("Performance")
-
-PerfTab:CreateToggle({
-    Name = "Mostrar FPS/Ping",
-    Desc = "Canto inferior direito",
-    Flag = "stats",
-    CurrentValue = Config.statsToggle,
-    Callback = function(v)
-        Config.statsToggle = v
-        SaveConfig()
-    end,
-})
-
-PerfTab:CreateToggle({
-    Name = "Modo FPS++",
-    Desc = "Remove sombras e partículas",
-    Flag = "fpsMode",
-    CurrentValue = Config.fpsModeAtivo,
-    Callback = function(v)
-        Config.fpsModeAtivo = v
-        SaveConfig()
-        if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
-    end,
-})
-
-PerfTab:CreateSlider({
-    Name = "Nível FPS++",
-    Desc = "0=off | 3=máximo",
-    Range = { 0, 3 },
-    Increment = 1,
-    CurrentValue = Config.fpsModeLevel,
-    Callback = function(v)
-        Config.fpsModeLevel = v
-        SaveConfig()
-        if Config.fpsModeAtivo then aplicarFpsMode(v) end
-    end,
-})
-
-PerfTab:CreateToggle({
-    Name = "Ping -10",
-    Desc = "Reduz qualidade gráfica",
-    Flag = "pingMenos",
-    CurrentValue = Config.pingMenos,
-    Callback = function(v) aplicarPingMenos(v) end,
-})
-
-PerfTab:CreateToggle({
-    Name = "Anti-Cantisine",
-    Desc = "Cancela animações de stun",
-    Flag = "antiCantisine",
-    CurrentValue = Config.antiCantisine,
-    Callback = function(v)
-        antiCantisineAtivo = v
-        Config.antiCantisine = v
-        SaveConfig()
-    end,
-})
-
-PerfTab:CreateToggle({
-    Name = "Camera Lock",
-    Desc = "Câmera sempre no personagem",
-    Flag = "cameraLock",
-    CurrentValue = Config.cameraLock,
-    Callback = function(v)
-        cameraLockAtivo = v
-        Config.cameraLock = v
-        SaveConfig()
-    end,
-})
-
--- FPS/Ping functions (necessárias)
-local statsLabel, statsGui = nil, nil
-local function criarStatsGui()
-    if statsGui then return end
-    statsGui = Instance.new("ScreenGui")
-    statsGui.Name = "StatsGui"; statsGui.ResetOnSpawn = false
-    statsGui.Parent = CoreGui
-    statsLabel = Instance.new("TextLabel")
-    statsLabel.Size = UDim2.new(0, 250, 0, 60)
-    statsLabel.Position = UDim2.new(1, -260, 1, -70)
-    statsLabel.BackgroundTransparency = 1
-    statsLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    statsLabel.Font = Enum.Font.GothamBold
-    statsLabel.TextSize = 14
-    statsLabel.TextXAlignment = Enum.TextXAlignment.Right
-    statsLabel.TextYAlignment = Enum.TextYAlignment.Bottom
-    statsLabel.Text = "FPS: --\nPING: --"
-    statsLabel.Parent = statsGui
+    end
+    if texto == "" then texto = "Nenhuma tecla configurada" end
+    teclasLabel.Text = texto
 end
-local function destruirStatsGui()
-    if statsGui then statsGui:Destroy(); statsGui = nil; statsLabel = nil end
+
+local function teclaAimbotCallback()
+    ativarAimbotPersonagem(not aimbotPersonagem)
+    aimbotCamera = aimbotPersonagem
+    Config.aimbotCamera = aimbotCamera
+    SaveConfig()
 end
-local function atualizarStats()
-    if not statsLabel then return end
-    local fps = math.floor(1 / RunService.RenderStepped:Wait())
-    local ping = 0
-    pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-    statsLabel.Text = string.format("FPS: %d\nPING: %d ms", fps, ping)
+local function teclaTrazerBolaCallback() toggleTrazerBolaBtn() end
+local function teclaControleBolaCallback()
+    Config.botaoFlutuante = not Config.botaoFlutuante
+    SaveConfig()
+    if Config.botaoFlutuante then
+        criarBotaoFlutuante(); criarSlideFlutuante()
+    else
+        removerBotaoFlutuante(); removerSlideFlutuante()
+    end
 end
-task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
+local function teclaStopBallCallback() toggleStopBallBtn() end
+local function teclaForcaBolaCallback()
+    forcaBolaEnabled = not forcaBolaEnabled
+    Config.forcaBola = forcaBolaEnabled
+    SaveConfig()
+end
+local function teclaCurvaCallback()
+    curvasEnabled = not curvasEnabled
+    Config.curvasAtivo = curvasEnabled
+    SaveConfig()
+    if curvasEnabled then criarBotaoCurvas() else removerBotaoCurvas() end
+end
 
 local function aplicarFpsMode(level)
     if level == 0 then return end
@@ -1972,6 +1578,415 @@ local function aplicarPingMenos(estado)
     end
 end
 
+-- ========== UI – AIRFLOW ==========
+local Window = Airflow:CreateWindow({
+    Name = "Blue Lock Rivals",
+    LoadingSubtitle = "v12",
+    Icon = "wind",
+    Theme = "Midnight",
+    ToggleUIKeybind = "RightShift",
+    ConfigurationSaving = { Enabled = true, FolderName = "BlueLockAirflow" },
+    Home = { Name = "Home", Desc = "Sessão", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
+})
+
+local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funções", Icon = "home" })
+
+MainTab:CreateSection("Controle de Bola")
+MainTab:CreateInput({
+    Name = "Velocidade da Bola",
+    Desc = "0-200 | Chat: 'velocidade N' ou só 'N'",
+    PlaceholderText = "0-200",
+    CurrentValue = tostring(Config.controleBolaVelocidade),
+    Callback = function(txt)
+        local v = tonumber(txt)
+        if v then atualizarSliderVisual(v) end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Controle de Bola",
+    Desc = "Botão + Slide flutuante",
+    Flag = "controleBola",
+    CurrentValue = Config.botaoFlutuante,
+    Callback = function(v)
+        Config.botaoFlutuante = v; SaveConfig()
+        if v then criarBotaoFlutuante(); criarSlideFlutuante()
+        else removerBotaoFlutuante(); removerSlideFlutuante() end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Botão (Trazer Bola)",
+    Desc = "Puxa a bola até você",
+    Flag = "trazerBola",
+    CurrentValue = Config.trazerBolaMostrar,
+    Callback = function(v)
+        Config.trazerBolaMostrar = v; SaveConfig()
+        if v then criarBotaoTrazerBola() else removerBotaoTrazerBola() end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Botão (Stop Ball)",
+    Desc = "Para a bola no ar",
+    Flag = "stopBall",
+    CurrentValue = Config.stopBallMostrar,
+    Callback = function(v)
+        Config.stopBallMostrar = v; SaveConfig()
+        if v then criarBotaoStopBall() else removerBotaoStopBall() end
+    end,
+})
+
+MainTab:CreateSection("Aimbot")
+MainTab:CreateToggle({
+    Name = "Aimbot Personagem",
+    Desc = "Corpo vira para a bola",
+    Flag = "aimbotPersonagem",
+    CurrentValue = Config.aimbotPersonagem,
+    Callback = function(v) ativarAimbotPersonagem(v) end,
+})
+MainTab:CreateToggle({
+    Name = "Aimbot Câmera",
+    Desc = "Câmera segue a bola",
+    Flag = "aimbotCamera",
+    CurrentValue = Config.aimbotCamera,
+    Callback = function(v) aimbotCamera = v; Config.aimbotCamera = v; SaveConfig() end,
+})
+MainTab:CreateToggle({
+    Name = "Botão (Câmera)",
+    Desc = "Botão flutuante da câmera",
+    Flag = "botaoCamera",
+    CurrentValue = Config.botaoCamera,
+    Callback = function(v)
+        Config.botaoCamera = v; SaveConfig()
+        if v then criarBotaoCameraFlutuante() else removerBotaoCameraFlutuante() end
+    end,
+})
+MainTab:CreateSlider({
+    Name = "Delay do Aimbot",
+    Desc = "0=instantâneo | 10=5s",
+    Range = { 0, 10 }, Increment = 1,
+    CurrentValue = Config.aimbotDelayValue,
+    Callback = function(v)
+        aimbotDelayValue = aimbotDelayValues[v] or 0
+        Config.aimbotDelayValue = v; SaveConfig()
+    end,
+})
+
+MainTab:CreateSection("Visão de Jogo")
+MainTab:CreateToggle({
+    Name = "Visão da bola",
+    Desc = "Linha verde do inimigo",
+    Flag = "visaoBola",
+    CurrentValue = Config.visaoBola,
+    Callback = function(v)
+        visaoBolaEnabled = v; Config.visaoBola = v; SaveConfig()
+        if not v and linhaVisao then linhaVisao:Destroy(); linhaVisao = nil end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Advinha Chute",
+    Desc = "Trajetória + círculo",
+    Flag = "advinhaChute",
+    CurrentValue = Config.advinhaChute,
+    Callback = function(v)
+        advinhaChuteEnabled = v; Config.advinhaChute = v; SaveConfig()
+        if not v then
+            if linhaChute then linhaChute:Destroy(); linhaChute = nil end
+            if circuloChute then circuloChute:Destroy(); circuloChute = nil end
+        end
+    end,
+})
+
+MainTab:CreateSection("HITBOX")
+MainTab:CreateToggle({
+    Name = "Hitbox da Bola",
+    Desc = "Aumenta hitbox (desativa com posse)",
+    Flag = "hitboxBola",
+    CurrentValue = Config.reachBola,
+    Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end,
+})
+MainTab:CreateSlider({
+    Name = "Tamanho da Hitbox",
+    Desc = "1=normal | 30=grande",
+    Range = { 1, 30 }, Increment = 1,
+    CurrentValue = Config.reachBolaTamanho,
+    Callback = function(v)
+        reachBolaDistancia = v; Config.reachBolaTamanho = v; SaveConfig()
+        if espSphere then espSphere.Scale = Vector3.new(v/2.5, v/2.5, v/2.5) end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Mostrar Área (ESP)",
+    Desc = "Círculo verde na hitbox",
+    Flag = "mostrarESP",
+    CurrentValue = Config.mostrarESP,
+    Callback = function(v)
+        mostrarESP = v; Config.mostrarESP = v; SaveConfig()
+        if not v and espSphere then espSphere:Destroy(); espSphere = nil end
+    end,
+})
+
+MainTab:CreateSection("Extras")
+MainTab:CreateToggle({
+    Name = "Força da Bola",
+    Desc = "Chute potente sempre",
+    Flag = "forcaBola",
+    CurrentValue = Config.forcaBola,
+    Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end,
+})
+MainTab:CreateSlider({
+    Name = "Força Máxima",
+    Desc = "10-200",
+    Range = { 10, 200 }, Increment = 1,
+    CurrentValue = Config.forcaBolaVelocidade,
+    Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end,
+})
+MainTab:CreateButton({
+    Name = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
+    Callback = function()
+        task.spawn(function()
+            while true do
+                if player:FindFirstChild("PlayerStats") and player.PlayerStats:FindFirstChild("Stamina") then
+                    player.PlayerStats.Stamina.Value = 100
+                end
+                task.wait()
+            end
+        end)
+    end,
+})
+MainTab:CreateToggle({
+    Name = "Auto Gol",
+    Desc = "Pega a bola, faz o gol e volta (3s cd)",
+    Flag = "autoGol",
+    CurrentValue = Config.autoGolToggle,
+    Callback = function(v) autoGolToggle = v; Config.autoGolToggle = v; SaveConfig() end,
+})
+MainTab:CreateToggle({
+    Name = "Botão (Time)",
+    Desc = "Alterna Home/Away",
+    Flag = "botaoTime",
+    CurrentValue = Config.botaoTeamMostrar,
+    Callback = function(v)
+        Config.botaoTeamMostrar = v; SaveConfig()
+        if v then criarBotaoTeam() else removerBotaoTeam() end
+    end,
+})
+MainTab:CreateToggle({
+    Name = "No Cooldown",
+    Desc = "Habilidades sem cooldown",
+    Flag = "noCooldown",
+    CurrentValue = Config.noCooldown,
+    Callback = function(v) ativarNoCooldown(v) end,
+})
+
+MainTab:CreateSection("Auto GK")
+MainTab:CreateToggle({
+    Name = "Auto GK",
+    Desc = "Prevê e PULA (Q) sem teleportar",
+    Flag = "autoGk",
+    CurrentValue = Config.autoGkAtivo,
+    Callback = function(v)
+        autoGkAtivo = v; Config.autoGkAtivo = v; SaveConfig()
+        if v then criarVisuaisAutoGk() else destruirVisuaisAutoGk() end
+    end,
+})
+MainTab:CreateSlider({
+    Name = "Largura",
+    Desc = "5-50 (cobre o gol inteiro)",
+    Range = { 5, 50 }, Increment = 1,
+    CurrentValue = Config.gkLargura,
+    Callback = function(v) gkLargura = v; Config.gkLargura = v; SaveConfig() end,
+})
+MainTab:CreateSlider({
+    Name = "Tamanho",
+    Desc = "5-50 (profundidade)",
+    Range = { 5, 50 }, Increment = 1,
+    CurrentValue = Config.gkTamanho,
+    Callback = function(v) gkTamanho = v; Config.gkTamanho = v; SaveConfig() end,
+})
+MainTab:CreateSlider({
+    Name = "Previsão (segundos)",
+    Desc = "0=instantâneo | 1=1s de antecedência",
+    Range = { 0, 1 }, Increment = 0.05,
+    CurrentValue = Config.gkPrevisao,
+    Callback = function(v) gkPrevisao = v; Config.gkPrevisao = v; SaveConfig() end,
+})
+
+MainTab:CreateSection("Curvas")
+MainTab:CreateToggle({
+    Name = "Bola com curvas",
+    Desc = "Ativa curvas (botão flutuante)",
+    Flag = "curvas",
+    CurrentValue = Config.curvasAtivo,
+    Callback = function(v)
+        curvasEnabled = v; Config.curvasAtivo = v; SaveConfig()
+        if v then criarBotaoCurvas() else removerBotaoCurvas() end
+    end,
+})
+MainTab:CreateSlider({
+    Name = "Intensidade",
+    Desc = "1=fraca | 10=forte",
+    Range = { 1, 10 }, Increment = 1,
+    CurrentValue = Config.curvasIntensidade,
+    Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end,
+})
+
+MainTab:CreateSection("Drible")
+MainTab:CreateToggle({
+    Name = "Drible",
+    Desc = "Círculo rosa (raio 70)",
+    Flag = "drible",
+    CurrentValue = Config.dribleAtivo,
+    Callback = function(v)
+        dribleEnabled = v; Config.dribleAtivo = v; SaveConfig()
+        if v then setupDrible()
+        else if dribleSphere then dribleSphere.Transparency = 1 end end
+    end,
+})
+MainTab:CreateSlider({
+    Name = "Tolerância de Olhar",
+    Desc = "0=Normal | 5=Sem olhar",
+    Range = { 0, 5 }, Increment = 1,
+    CurrentValue = Config.dribleTolerancia,
+    Callback = function(v) dribleTolerancia = v; Config.dribleTolerancia = v; SaveConfig() end,
+})
+MainTab:CreateToggle({
+    Name = "Infinity Drible",
+    Desc = "Remove o cooldown do Drible",
+    Flag = "infinityDrible",
+    CurrentValue = Config.dribleInfinito,
+    Callback = function(v) dribleInfinito = v; Config.dribleInfinito = v; SaveConfig() end,
+})
+
+local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
+PlayerTab:CreateSection("Player")
+PlayerTab:CreateSlider({
+    Name = "Speed", Desc = "Recomendado: 40",
+    Range = { 20, 250 }, Increment = 1,
+    CurrentValue = Config.walkSpeedValue,
+    Callback = function(v) walkSpeedValue = v; Config.walkSpeedValue = v; SaveConfig() end,
+})
+PlayerTab:CreateToggle({
+    Name = "Ativar Speed", Desc = "Boost de velocidade",
+    Flag = "walkSpeed",
+    CurrentValue = Config.walkSpeedAtivo,
+    Callback = function(v) ativarWalkSpeed(v) end,
+})
+PlayerTab:CreateToggle({
+    Name = "Fixa Button", Desc = "Trava botões (não arrasta)",
+    Flag = "fixaButton",
+    CurrentValue = Config.fixaButton,
+    Callback = function(v) Config.fixaButton = v; SaveConfig() end,
+})
+
+PlayerTab:CreateSection("Ativação rápida (PC)")
+PlayerTab:CreateInput({
+    Name = "Tecla Aimbot", Desc = "Ex: H",
+    PlaceholderText = "Ex: H", CurrentValue = Config.teclaAimbot,
+    Callback = function(txt)
+        Config.teclaAimbot = txt:upper(); SaveConfig()
+        aplicarTecla("Aimbot", Config.teclaAimbot, teclaAimbotCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateInput({
+    Name = "Tecla Trazer Bola", Desc = "Ex: T",
+    PlaceholderText = "Ex: T", CurrentValue = Config.teclaTrazerBola,
+    Callback = function(txt)
+        Config.teclaTrazerBola = txt:upper(); SaveConfig()
+        aplicarTecla("TrazerBola", Config.teclaTrazerBola, teclaTrazerBolaCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateInput({
+    Name = "Tecla Controlar Bola", Desc = "Ex: C",
+    PlaceholderText = "Ex: C", CurrentValue = Config.teclaControleBola,
+    Callback = function(txt)
+        Config.teclaControleBola = txt:upper(); SaveConfig()
+        aplicarTecla("ControleBola", Config.teclaControleBola, teclaControleBolaCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateInput({
+    Name = "Tecla Stop Ball", Desc = "Ex: X",
+    PlaceholderText = "Ex: X", CurrentValue = Config.teclaStopBall,
+    Callback = function(txt)
+        Config.teclaStopBall = txt:upper(); SaveConfig()
+        aplicarTecla("StopBall", Config.teclaStopBall, teclaStopBallCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateInput({
+    Name = "Tecla Força Bola", Desc = "Ex: F",
+    PlaceholderText = "Ex: F", CurrentValue = Config.teclaForcaBola,
+    Callback = function(txt)
+        Config.teclaForcaBola = txt:upper(); SaveConfig()
+        aplicarTecla("ForcaBola", Config.teclaForcaBola, teclaForcaBolaCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateInput({
+    Name = "Tecla Curva", Desc = "Ex: K",
+    PlaceholderText = "Ex: K", CurrentValue = Config.teclaCurva,
+    Callback = function(txt)
+        Config.teclaCurva = txt:upper(); SaveConfig()
+        aplicarTecla("Curva", Config.teclaCurva, teclaCurvaCallback)
+        atualizarHUDTeclas()
+    end,
+})
+PlayerTab:CreateButton({
+    Name = "Mostra Teclas",
+    Desc = "Mostra as teclas no canto superior direito (vermelho)",
+    Callback = function()
+        Config.mostrarHUDTeclas = not Config.mostrarHUDTeclas
+        SaveConfig()
+        atualizarHUDTeclas()
+    end,
+})
+
+local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
+PerfTab:CreateSection("Performance")
+PerfTab:CreateToggle({
+    Name = "Mostrar FPS/Ping", Desc = "Canto inferior direito",
+    Flag = "stats", CurrentValue = Config.statsToggle,
+    Callback = function(v) Config.statsToggle = v; SaveConfig() end,
+})
+PerfTab:CreateToggle({
+    Name = "Modo FPS++", Desc = "Remove sombras e partículas",
+    Flag = "fpsMode", CurrentValue = Config.fpsModeAtivo,
+    Callback = function(v)
+        Config.fpsModeAtivo = v; SaveConfig()
+        if v then aplicarFpsMode(Config.fpsModeLevel) else aplicarFpsMode(0) end
+    end,
+})
+PerfTab:CreateSlider({
+    Name = "Nível FPS++", Desc = "0=off | 3=máximo",
+    Range = { 0, 3 }, Increment = 1,
+    CurrentValue = Config.fpsModeLevel,
+    Callback = function(v)
+        Config.fpsModeLevel = v; SaveConfig()
+        if Config.fpsModeAtivo then aplicarFpsMode(v) end
+    end,
+})
+PerfTab:CreateToggle({
+    Name = "Ping -10", Desc = "Reduz qualidade gráfica",
+    Flag = "pingMenos", CurrentValue = Config.pingMenos,
+    Callback = function(v) aplicarPingMenos(v) end,
+})
+PerfTab:CreateToggle({
+    Name = "Anti-Cantisine", Desc = "Cancela animações de stun",
+    Flag = "antiCantisine", CurrentValue = Config.antiCantisine,
+    Callback = function(v)
+        antiCantisineAtivo = v; Config.antiCantisine = v; SaveConfig()
+    end,
+})
+PerfTab:CreateToggle({
+    Name = "Camera Lock", Desc = "Câmera sempre no personagem",
+    Flag = "cameraLock", CurrentValue = Config.cameraLock,
+    Callback = function(v)
+        cameraLockAtivo = v; Config.cameraLock = v; SaveConfig()
+    end,
+})
+
 -- ========== LOOP PRINCIPAL ==========
 RunService.Heartbeat:Connect(function()
     aplicarReachBola()
@@ -1988,10 +2003,11 @@ RunService.Heartbeat:Connect(function()
     atualizarControleBola()
     checkAutoGol()
     atualizarVisuaisAutoGk()
-    processarAutoGk()
 end)
 
+-- RenderStepped: Auto GK (antes da física) + Anti-Cantisine + WalkSpeed
 RunService.RenderStepped:Connect(function()
+    processarAutoGk()
     antiCantisine()
     cameraLock()
     if walkBoost and player.Character then
@@ -2015,7 +2031,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ========== APLICAR ESTADOS SALVOS ==========
-if Config.statsToggle then criarStatsGui() end
 if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
 if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
 if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
@@ -2026,10 +2041,18 @@ if Config.autoGkAtivo then task.wait(0.5); criarVisuaisAutoGk() end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 
+aplicarTecla("Aimbot", Config.teclaAimbot, teclaAimbotCallback)
+aplicarTecla("TrazerBola", Config.teclaTrazerBola, teclaTrazerBolaCallback)
+aplicarTecla("ControleBola", Config.teclaControleBola, teclaControleBolaCallback)
+aplicarTecla("StopBall", Config.teclaStopBall, teclaStopBallCallback)
+aplicarTecla("ForcaBola", Config.teclaForcaBola, teclaForcaBolaCallback)
+aplicarTecla("Curva", Config.teclaCurva, teclaCurvaCallback)
+atualizarHUDTeclas()
+
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals v10",
-        Text = "Auto GK prevê interceptação + botões salvam posição",
+        Title = "Blue Lock Rivals v12",
+        Text = "Auto GK instantâneo (0s) + slider de previsão",
         Duration = 3
     })
 end)
