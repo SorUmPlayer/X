@@ -76,7 +76,7 @@ MainCorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - Farm, Loot & GodMode"
+Title.Text = "Painel - Fugitivos (Fix GodMode)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -234,7 +234,7 @@ CreateToggle("Ativar Speed Boost", function(state)
     Config.SpeedEnabled = state
 end)
 
-CreateSectionHeader("--- 6. GOD MODE ---")
+CreateSectionHeader("--- 6. GOD MODE (Anti-Dano Fugitivos) ---")
 CreateToggle("Ativar God Mode", function(state)
     Config.GodModeEnabled = state
 end)
@@ -322,7 +322,7 @@ task.spawn(function()
                         DamageEvent:FireServer("Cash", "Collect", cashObj)
                     end
                 end
-            end)
+            end
         end
     end
 end)
@@ -451,39 +451,42 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Loop 6: God Mode Real (Bloqueia alteração para o estado de morte e reseta dano)
-local connectionGod = nil
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.StateChanged:Connect(function(_, newState)
-            if Config.GodModeEnabled and newState == Enum.HumanoidStateType.Dead then
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                humanoid.Health = humanoid.MaxHealth
-            end
-        end)
-    end
-end)
-
+-- Loop 6: God Mode Reforçado para Fugitivos (Anula Dano e Reseta Hitbox/Health Server-Side)
 RunService.Stepped:Connect(function()
     if Config.GodModeEnabled then
-        local humanoid = GetHumanoid()
-        if humanoid then
-            humanoid.Health = humanoid.MaxHealth
-            -- Evita que o estado de morte seja aplicado
-            pcall(function()
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            end)
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                -- Força a vida máxima e bloqueia o estado de morte
+                humanoid.Health = humanoid.MaxHealth
+                pcall(function()
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                end)
+            end
+            
+            -- Desativa a colisão das partes do corpo para que tiros e ataques físicos dos NPCs passem direto por você
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    pcall(function()
+                        part.CanCollide = false
+                    end)
+                end
+            end
         end
     else
-        local humanoid = GetHumanoid()
-        if humanoid then
-            pcall(function()
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-            end)
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                pcall(function()
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                end)
+            end
         end
     end
 end)
 
-print("[MultiTool] Painel atualizado com God Mode Real!")
+print("[MultiTool] Painel atualizado com God Mode Avançado para Fugitivos!")
