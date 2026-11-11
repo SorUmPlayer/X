@@ -5,8 +5,6 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
-print("[MultiTool] Iniciando script...")
-
 -- Caminhos seguros dos Eventos
 local FlowClient = ReplicatedStorage:WaitForChild("FlowClient", 5)
 local ClientRunner = FlowClient and FlowClient:WaitForChild("ClientRunner", 5)
@@ -22,28 +20,33 @@ end
 
 -- Configurações e Estados
 local Config = {
+    -- Kill Aura
     KillauraEnabled = false,
     KillauraDamage = 13.65,
     KillauraDistance = 50,
+    
+    -- TP Cash
     CashEnabled = false,
+    
+    -- Quebrar Máquinas / Prédios
     TemplateEnabled = false,
     TemplateDamage = 1000,
+    
+    -- TP Loot com Retorno e Desativação Automática
     LootEnabled = false,
+    
+    -- SpeedWalkBoost
     SpeedEnabled = false,
     SpeedValue = 32,
+    
+    -- God Mode
     GodModeEnabled = false,
+    
     Delay = 0.2
 }
 
--- Criar Interface Nativa (ScreenGui) com proteção
-local successGui, PlayerGui = pcall(function()
-    return (syn and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
-end)
-
-if not successGui or not PlayerGui then
-    warn("[MultiTool] ERRO: Não foi possível acessar o PlayerGui/CoreGui.")
-    return
-end
+-- Criar Interface Nativa (ScreenGui)
+local PlayerGui = (syn and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
 
 if PlayerGui:FindFirstChild("MultiToolGui") then
     PlayerGui.MultiToolGui:Destroy()
@@ -54,29 +57,11 @@ ScreenGui.Name = "MultiToolGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
--- --- BOTÃO FLUTUANTE "S" PARA MINIMIZAR ---
-local MinButton = Instance.new("TextButton")
-MinButton.Name = "MinimizeButton"
-MinButton.Size = UDim2.new(0, 45, 0, 45)
-MinButton.Position = UDim2.new(0, 20, 0, 20)
-MinButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-MinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinButton.Text = "S"
-MinButton.TextSize = 20
-MinButton.Font = Enum.Font.GothamBold
-MinButton.Active = true
-MinButton.Draggable = true
-MinButton.Parent = ScreenGui
-
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(1, 0)
-MinCorner.Parent = MinButton
-
 -- Janela Principal (Flutuante e Arrastável)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -240)
+MainFrame.Size = UDim2.new(0, 300, 0, 520)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -260)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -87,17 +72,11 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
-local isMinimized = false
-MinButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    MainFrame.Visible = not isMinimized
-end)
-
 -- Título
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - Ultimate Farm & God"
+Title.Text = "Painel - Farm, Loot & GodMode"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -120,6 +99,7 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 10)
 UIList.Parent = ScrollFrame
 
+-- Função para criar Títulos de Seção
 local function CreateSectionHeader(text)
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(1, -20, 0, 25)
@@ -132,6 +112,7 @@ local function CreateSectionHeader(text)
     Label.Parent = ScrollFrame
 end
 
+-- Função para criar Inputs
 local function CreateInput(name, placeholder, defaultValue, callback)
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, -20, 0, 50)
@@ -169,8 +150,10 @@ local function CreateInput(name, placeholder, defaultValue, callback)
     end)
 end
 
-local LootToggleSetState = nil
+-- Referências para atualizar o texto do botão de loot externamente se necessário
+local LootButtonUpdate = nil
 
+-- Função para criar Botões de Toggle
 local function CreateToggle(name, callback)
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Size = UDim2.new(1, -20, 0, 36)
@@ -186,7 +169,8 @@ local function CreateToggle(name, callback)
     ButtonCorner.Parent = ToggleButton
 
     local state = false
-    local function updateVisual(newState)
+    
+    local function SetState(newState)
         state = newState
         if state then
             ToggleButton.Text = name .. ": [LIGADO]"
@@ -198,16 +182,17 @@ local function CreateToggle(name, callback)
         callback(state)
     end
 
-    ToggleButton.MouseButton1Click:Connect(function()
-        updateVisual(not state)
-    end)
-
-    if name == "TP Loot" then
-        LootToggleSetState = updateVisual
+    if name == "TP Loot (Auto Desliga)" then
+        LootButtonUpdate = SetState
     end
+
+    ToggleButton.MouseButton1Click:Connect(function()
+        SetState(not state)
+    end)
 end
 
 -- --- CONSTRUÇÃO DA UI ---
+
 CreateSectionHeader("--- 1. KILL AURA (NPCs) ---")
 CreateInput("Dano do NPC", "Ex: 13.65", Config.KillauraDamage, function(text)
     local num = tonumber(text)
@@ -215,48 +200,65 @@ CreateInput("Dano do NPC", "Ex: 13.65", Config.KillauraDamage, function(text)
 end)
 CreateInput("Distância Máxima", "Ex: 50", Config.KillauraDistance, function(text)
     local num = tonumber(text)
-    if num then Config.KillauraDistance = num end
+    if num then Config.Distance = num end
 end)
-CreateToggle("Kill Aura NPCs", function(state) Config.KillauraEnabled = state end)
+CreateToggle("Kill Aura NPCs", function(state)
+    Config.KillauraEnabled = state
+end)
 
 CreateSectionHeader("--- 2. TP CASH (workspace.Cash) ---")
-CreateToggle("TP Cash", function(state) Config.CashEnabled = state end)
+CreateToggle("TP Cash (Fica no local)", function(state)
+    Config.CashEnabled = state
+end)
 
 CreateSectionHeader("--- 3. QUEBRAR MÁQUINAS (Seguro) ---")
 CreateInput("Dano nas Máquinas", "Ex: 1000", Config.TemplateDamage, function(text)
     local num = tonumber(text)
     if num then Config.TemplateDamage = num end
 end)
-CreateToggle("Quebrar Máquinas", function(state) Config.TemplateEnabled = state end)
+CreateToggle("Quebrar Máquinas (Mapa)", function(state)
+    Config.TemplateEnabled = state
+end)
 
-CreateSectionHeader("--- 4. TP LOOT (Retorno Automático) ---")
-CreateToggle("TP Loot", function(state) Config.LootEnabled = state end)
+CreateSectionHeader("--- 4. TP LOOT (Com Retorno Automático) ---")
+CreateToggle("TP Loot (Auto Desliga)", function(state)
+    Config.LootEnabled = state
+end)
 
 CreateSectionHeader("--- 5. SPEED WALK BOOST ---")
 CreateInput("Velocidade (WalkSpeed)", "Ex: 32", Config.SpeedValue, function(text)
     local num = tonumber(text)
     if num then Config.SpeedValue = num end
 end)
-CreateToggle("Ativar Speed", function(state) Config.SpeedEnabled = state end)
+CreateToggle("Ativar Speed Boost", function(state)
+    Config.SpeedEnabled = state
+end)
 
 CreateSectionHeader("--- 6. GOD MODE ---")
-CreateToggle("God Mode (Imortal)", function(state) Config.GodModeEnabled = state end)
+CreateToggle("Ativar God Mode", function(state)
+    Config.GodModeEnabled = state
+end)
 
 
--- --- LOOPS DE EXECUÇÃO ---
+-- --- LÓGICA DE EXECUÇÃO (LOOPS) ---
+
 local function GetHRP()
     local character = LocalPlayer.Character
-    if character then return character:FindFirstChild("HumanoidRootPart") end
+    if character then
+        return character:FindFirstChild("HumanoidRootPart")
+    end
     return nil
 end
 
 local function GetHumanoid()
     local character = LocalPlayer.Character
-    if character then return character:FindFirstChildOfClass("Humanoid") end
+    if character then
+        return character:FindFirstChildOfClass("Humanoid")
+    end
     return nil
 end
 
--- Kill Aura
+-- Loop 1: Kill Aura em workspace.NPCs
 task.spawn(function()
     while true do
         task.wait(Config.Delay)
@@ -275,10 +277,15 @@ task.spawn(function()
                             local inRange = true
                             if targetHrp then
                                 local dist = (playerPos - targetHrp.Position).Magnitude
-                                if dist > Config.KillauraDistance then inRange = false end
+                                if dist > Config.KillauraDistance then
+                                    inRange = false
+                                end
                             end
+
                             if inRange then
-                                pcall(function() DamageEvent:FireServer("NPCs", "Damage", desc, Config.KillauraDamage) end)
+                                pcall(function()
+                                    DamageEvent:FireServer("NPCs", "Damage", desc, Config.KillauraDamage)
+                                end)
                             end
                         end
                     end
@@ -288,7 +295,7 @@ task.spawn(function()
     end
 end)
 
--- TP Cash
+-- Loop 2: TP Cash (Teleporta, coleta e FICA no local)
 task.spawn(function()
     while true do
         task.wait(0.3)
@@ -296,10 +303,18 @@ task.spawn(function()
             pcall(function()
                 local hrp = GetHRP()
                 local cashFolder = workspace:FindFirstChild("Cash")
+
                 if hrp and cashFolder then
                     for _, cashObj in ipairs(cashFolder:GetChildren()) do
                         if not Config.CashEnabled then break end
-                        local part = cashObj:IsA("BasePart") and cashObj or (cashObj:IsA("Model") and (cashObj.PrimaryPart or cashObj:FindFirstChildWhichIsA("BasePart")))
+
+                        local part = nil
+                        if cashObj:IsA("BasePart") then
+                            part = cashObj
+                        elseif cashObj:IsA("Model") then
+                            part = cashObj.PrimaryPart or cashObj:FindFirstChildWhichIsA("BasePart")
+                        end
+
                         if part then
                             hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
                             task.wait(0.1)
@@ -312,13 +327,14 @@ task.spawn(function()
     end
 end)
 
--- Quebrar Máquinas
+-- Loop 3: Quebrar Máquinas de forma segura
 task.spawn(function()
     while true do
         task.wait(0.4)
         if Config.TemplateEnabled and DamageEvent then
             local map = workspace:FindFirstChild("Map")
             local buildings = map and map:FindFirstChild("Buildings")
+
             if buildings then
                 local count = 0
                 for _, desc in ipairs(buildings:GetDescendants()) do
@@ -329,7 +345,16 @@ task.spawn(function()
                             count = 0
                             task.wait(0.2)
                         end
-                        pcall(function() DamageEvent:FireServer("DamageToOpen", "Damage", desc, Config.TemplateDamage, "melee") end)
+                        
+                        pcall(function()
+                            DamageEvent:FireServer(
+                                "DamageToOpen",
+                                "Damage",
+                                desc,
+                                Config.TemplateDamage,
+                                "melee"
+                            )
+                        end)
                     end
                 end
             end
@@ -337,65 +362,113 @@ task.spawn(function()
     end
 end)
 
--- TP Loot
+-- Loop 4: TP Loot com controle de itens já passados e retorno garantido ao finalizar ou desligar
 task.spawn(function()
+    local processedLoots = {}
+    local originalPos = nil
+    
     while true do
-        task.wait(0.3)
+        task.wait(0.2)
         if Config.LootEnabled and FunctionEvent then
-            pcall(function()
-                local hrp = GetHRP()
-                local lootFolder = workspace:FindFirstChild("Loot")
-                if hrp and lootFolder then
-                    local items = lootFolder:GetChildren()
-                    if #items > 0 then
-                        local originalPos = hrp.CFrame
-                        for _, item in ipairs(items) do
-                            if not Config.LootEnabled then break end
-                            if not item.Parent then continue end
+            local hrp = GetHRP()
+            local lootFolder = workspace:FindFirstChild("Loot")
 
-                            local handle = item:IsA("Tool") and item:FindFirstChild("Handle") or (item.Name == "Handle" and item:IsA("BasePart") and item) or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart"))) or (item:IsA("BasePart") and item)
-                            if handle then
-                                hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
-                                task.wait(0.15)
-                            end
-                            pcall(function() FunctionEvent:InvokeServer("Loot", "LootEquip", handle or item) end)
+            if hrp and lootFolder then
+                -- Salva a posição original apenas na primeira ativação do ciclo
+                if not originalPos then
+                    originalPos = hrp.CFrame
+                end
+
+                local items = lootFolder:GetChildren()
+                local foundNewItem = false
+
+                for _, item in ipairs(items) do
+                    if not Config.LootEnabled then break end
+
+                    -- Verifica se o loot já foi passado/processado
+                    if not processedLoots[item] then
+                        foundNewItem = true
+                        processedLoots[item] = true
+
+                        local handle = nil
+                        if item:IsA("Tool") then
+                            handle = item:FindFirstChild("Handle")
+                        elseif item.Name == "Handle" and item:IsA("BasePart") then
+                            handle = item
+                        elseif item:IsA("Model") then
+                            handle = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                        elseif item:IsA("BasePart") then
+                            handle = item
+                        end
+
+                        if handle then
+                            hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
                             task.wait(0.15)
                         end
-                        if originalPos then hrp.CFrame = originalPos end
+
+                        pcall(function()
+                            FunctionEvent:InvokeServer("Loot", "LootEquip", handle or item)
+                        end)
+                        task.wait(0.1)
                     end
                 end
 
-                if Config.LootEnabled then
+                -- Se não encontrou nenhum item novo (todos já foram passados ou pasta vazia), desliga sozinho e retorna
+                if #items == 0 or not foundNewItem then
                     Config.LootEnabled = false
-                    if LootToggleSetState then LootToggleSetState(false) end
+                    if LootButtonUpdate then
+                        LootButtonUpdate(false)
+                    end
+                    if originalPos and hrp then
+                        hrp.CFrame = originalPos
+                    end
+                    originalPos = nil
+                    processedLoots = {}
+                end
+            end
+        else
+            -- Se o usuário desativou manualmente o botão no meio do processo
+            if originalPos then
+                local hrp = GetHRP()
+                if hrp then
+                    hrp.CFrame = originalPos
+                end
+                originalPos = nil
+                processedLoots = {}
+            end
+        end
+    end
+end)
+
+-- Loop 5: SpeedWalkBoost
+RunService.Stepped:Connect(function()
+    if Config.SpeedEnabled then
+        local humanoid = GetHumanoid()
+        if humanoid then
+            humanoid.WalkSpeed = Config.SpeedValue
+        end
+    else
+        local humanoid = GetHumanoid()
+        if humanoid and humanoid.WalkSpeed ~= 16 then
+            humanoid.WalkSpeed = 16
+        end
+    end
+end)
+
+-- Loop 6: God Mode (Imortalidade)
+RunService.Stepped:Connect(function()
+    if Config.GodModeEnabled then
+        local humanoid = GetHumanoid()
+        if humanoid then
+            -- Mantém a vida sempre cheia e evita dano por Health
+            humanoid.Health = humanoid.MaxHealth
+            pcall(function()
+                if humanoid:FindFirstChild("PreventJointBreak") == nil then
+                    -- Previne que o corpo quebre/morra por instâncias físicas
                 end
             end)
         end
     end
 end)
 
--- Speed
-RunService.Stepped:Connect(function()
-    if Config.SpeedEnabled then
-        local humanoid = GetHumanoid()
-        if humanoid then humanoid.WalkSpeed = Config.SpeedValue end
-    else
-        local humanoid = GetHumanoid()
-        if humanoid and humanoid.WalkSpeed ~= 16 then humanoid.WalkSpeed = 16 end
-    end
-end)
-
--- God Mode
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if Config.GodModeEnabled then
-            pcall(function()
-                local humanoid = GetHumanoid()
-                if humanoid then humanoid.Health = humanoid.MaxHealth end
-            end)
-        end
-    end
-end)
-
-print("[MultiTool] Interface e funções carregadas com sucesso!")
+print("[MultiTool] Painel atualizado com sucesso!")
