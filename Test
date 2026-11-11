@@ -32,12 +32,15 @@ local Config = {
     TemplateEnabled = false,
     TemplateDamage = 1000,
     
-    -- TP Loot com Retorno
+    -- TP Loot com Retorno Inteligente
     LootEnabled = false,
     
     -- SpeedWalkBoost
     SpeedEnabled = false,
     SpeedValue = 32,
+    
+    -- God Mode
+    GodModeEnabled = false,
     
     Delay = 0.2
 }
@@ -57,8 +60,8 @@ ScreenGui.Parent = PlayerGui
 -- Janela Principal (Flutuante e Arrastável)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 460)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -230)
+MainFrame.Size = UDim2.new(0, 300, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -240)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -73,11 +76,35 @@ MainCorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - TP Cash, Loot & Speed"
+Title.Text = "Painel - Ultimate Farm & God"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
 Title.Parent = MainFrame
+
+-- --- BOTÃO FLUTUANTE "S" PARA MINIMIZAR ---
+local MinButton = Instance.new("TextButton")
+MinButton.Name = "MinimizeButton"
+MinButton.Size = UDim2.new(0, 40, 0, 40)
+MinButton.Position = UDim2.new(0, 20, 0, 20)
+MinButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+MinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinButton.Text = "S"
+MinButton.TextSize = 18
+MinButton.Font = Enum.Font.GothamBold
+MinButton.Active = true
+MinButton.Draggable = true
+MinButton.Parent = ScreenGui
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(1, 0) -- Deixa o botão redondo
+MinCorner.Parent = MinButton
+
+local isMinimized = false
+MinButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    MainFrame.Visible = not isMinimized
+end)
 
 -- ScrollingFrame para caber todas as opções com rolagem
 local ScrollFrame = Instance.new("ScrollingFrame")
@@ -85,7 +112,7 @@ ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
 ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 640)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 720)
 ScrollFrame.ScrollBarThickness = 4
 ScrollFrame.Parent = MainFrame
 
@@ -147,6 +174,9 @@ local function CreateInput(name, placeholder, defaultValue, callback)
     end)
 end
 
+-- Referência global para guardar a função do botão de Loot (para poder desativar via script)
+local LootToggleSetState = nil
+
 -- Função para criar Botões de Toggle
 local function CreateToggle(name, callback)
     local ToggleButton = Instance.new("TextButton")
@@ -163,8 +193,9 @@ local function CreateToggle(name, callback)
     ButtonCorner.Parent = ToggleButton
 
     local state = false
-    ToggleButton.MouseButton1Click:Connect(function()
-        state = not state
+    
+    local function updateVisual(newState)
+        state = newState
         if state then
             ToggleButton.Text = name .. ": [LIGADO]"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
@@ -173,7 +204,15 @@ local function CreateToggle(name, callback)
             ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         end
         callback(state)
+    end
+
+    ToggleButton.MouseButton1Click:Connect(function()
+        updateVisual(not state)
     end)
+
+    if name == "TP Loot" then
+        LootToggleSetState = updateVisual
+    end
 end
 
 -- --- CONSTRUÇÃO DA UI ---
@@ -192,7 +231,7 @@ CreateToggle("Kill Aura NPCs", function(state)
 end)
 
 CreateSectionHeader("--- 2. TP CASH (workspace.Cash) ---")
-CreateToggle("TP Cash (Fica no local)", function(state)
+CreateToggle("TP Cash", function(state)
     Config.CashEnabled = state
 end)
 
@@ -201,12 +240,12 @@ CreateInput("Dano nas Máquinas", "Ex: 1000", Config.TemplateDamage, function(te
     local num = tonumber(text)
     if num then Config.TemplateDamage = num end
 end)
-CreateToggle("Quebrar Máquinas (Mapa)", function(state)
+CreateToggle("Quebrar Máquinas", function(state)
     Config.TemplateEnabled = state
 end)
 
-CreateSectionHeader("--- 4. TP LOOT (workspace.Loot + Retorno) ---")
-CreateToggle("TP Loot (Retorna ao desligar)", function(state)
+CreateSectionHeader("--- 4. TP LOOT (Retorno Automático) ---")
+CreateToggle("TP Loot", function(state)
     Config.LootEnabled = state
 end)
 
@@ -215,8 +254,13 @@ CreateInput("Velocidade (WalkSpeed)", "Ex: 32", Config.SpeedValue, function(text
     local num = tonumber(text)
     if num then Config.SpeedValue = num end
 end)
-CreateToggle("Ativar Speed Boost", function(state)
+CreateToggle("Ativar Speed", function(state)
     Config.SpeedEnabled = state
+end)
+
+CreateSectionHeader("--- 6. GOD MODE ---")
+CreateToggle("God Mode (Imortal)", function(state)
+    Config.GodModeEnabled = state
 end)
 
 
@@ -296,7 +340,6 @@ task.spawn(function()
                         end
 
                         if part then
-                            -- Teleporta para o cash e fica lá
                             hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
                             task.wait(0.1)
                         end
@@ -343,9 +386,8 @@ task.spawn(function()
     end
 end)
 
--- Loop 4: TP Loot (Salva coordenada, vai até o loot, invoca o evento e RETORNA à coordenada original)
+-- Loop 4: TP Loot (Passa por cada loot único, e ao terminar tudo ou desligar, retorna à posição original exata)
 task.spawn(function()
-    local wasRunning = false
     while true do
         task.wait(0.3)
         if Config.LootEnabled and FunctionEvent then
@@ -353,48 +395,53 @@ task.spawn(function()
                 local hrp = GetHRP()
                 local lootFolder = workspace:FindFirstChild("Loot")
 
-                if hrp and lootFolder and #lootFolder:GetChildren() > 0 then
-                    -- Salva a posição original exata onde ativou/estava antes de começar a pegar os loots
-                    local originalPos = hrp.CFrame
-                    wasRunning = true
+                if hrp and lootFolder then
+                    local items = lootFolder:GetChildren()
+                    if #items > 0 then
+                        -- Salva a posição exata ANTES de começar a ir atrás dos loots
+                        local originalPos = hrp.CFrame
 
-                    for _, item in ipairs(lootFolder:GetChildren()) do
-                        if not Config.LootEnabled then break end
+                        for _, item in ipairs(items) do
+                            if not Config.LootEnabled then break end
+                            if not item.Parent then continue --> se o item já sumiu/foi pego, pula para o próximo
 
-                        local handle = nil
-                        if item:IsA("Tool") then
-                            handle = item:FindFirstChild("Handle")
-                        elseif item.Name == "Handle" and item:IsA("BasePart") then
-                            handle = item
-                        elseif item:IsA("Model") then
-                            handle = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-                        elseif item:IsA("BasePart") then
-                            handle = item
+                            local handle = nil
+                            if item:IsA("Tool") then
+                                handle = item:FindFirstChild("Handle")
+                            elseif item.Name == "Handle" and item:IsA("BasePart") then
+                                handle = item
+                            elseif item:IsA("Model") then
+                                handle = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                            elseif item:IsA("BasePart") then
+                                handle = item
+                            end
+
+                            if handle then
+                                hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
+                                task.wait(0.15)
+                            end
+
+                            pcall(function()
+                                FunctionEvent:InvokeServer("Loot", "LootEquip", handle or item)
+                            end)
+                            task.wait(0.15)
                         end
 
-                        if handle then
-                            -- Teleporta para o loot
-                            hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
-                            task.wait(0.1)
+                        -- Retorna rigorosamente para a coordenada de onde partiu
+                        if originalPos then
+                            hrp.CFrame = originalPos
                         end
-
-                        pcall(function()
-                            FunctionEvent:InvokeServer("Loot", "LootEquip", handle or item)
-                        end)
-                        task.wait(0.1)
                     end
+                end
 
-                    -- Retorna para a coordenada original após limpar o loot atual
-                    if originalPos and Config.LootEnabled then
-                        hrp.CFrame = originalPos
+                -- Terminou de passar por todos os itens ou a pasta está vazia: desliga a opção automaticamente
+                if Config.LootEnabled then
+                    Config.LootEnabled = false
+                    if LootToggleSetState then
+                        LootToggleSetState(false)
                     end
                 end
             end)
-        else
-            -- Se foi desativado pelo usuário, garante o retorno imediato à posição se ele foi alterada
-            if wasRunning then
-                wasRunning = false
-            end
         end
     end
 end)
@@ -409,10 +456,24 @@ RunService.Stepped:Connect(function()
     else
         local humanoid = GetHumanoid()
         if humanoid and humanoid.WalkSpeed ~= 16 then
-            -- Retorna à velocidade padrão (geralmente 16) se desativado
             humanoid.WalkSpeed = 16
         end
     end
 end)
 
-print("[MultiTool] Painel Completo atualizado com sucesso!")
+-- Loop 6: God Mode (Mantém a vida sempre cheia)
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if Config.GodModeEnabled then
+            pcall(function()
+                local humanoid = GetHumanoid()
+                if humanoid then
+                    humanoid.Health = humanoid.MaxHealth
+                end
+            end)
+        end
+    end
+end)
+
+print("[MultiTool] Versão Completa Avançada carregada com sucesso!")
