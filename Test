@@ -4,15 +4,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Caminho seguro do Evento principal
+-- Caminhos seguros dos Eventos
 local FlowClient = ReplicatedStorage:WaitForChild("FlowClient", 5)
 local ClientRunner = FlowClient and FlowClient:WaitForChild("ClientRunner", 5)
 local DamageEvent = ClientRunner and ClientRunner:WaitForChild("Event", 5)
+local FunctionEvent = ClientRunner and ClientRunner:WaitForChild("Function", 5)
 
 if not DamageEvent then
-    pcall(function()
-        DamageEvent = ReplicatedStorage.FlowClient.ClientRunner.Event
-    end)
+    pcall(function() DamageEvent = ReplicatedStorage.FlowClient.ClientRunner.Event end)
+end
+if not FunctionEvent then
+    pcall(function() FunctionEvent = ReplicatedStorage.FlowClient.ClientRunner.Function end)
 end
 
 -- Configurações e Estados
@@ -22,12 +24,15 @@ local Config = {
     KillauraDamage = 13.65,
     KillauraDistance = 50,
     
-    -- Cash
+    -- Cash & Teleport
     CashEnabled = false,
     
     -- Template1 (Máquinas)
     TemplateEnabled = false,
     TemplateDamage = 1000,
+    
+    -- Loot Aura
+    LootEnabled = false,
     
     Delay = 0.2
 }
@@ -47,8 +52,8 @@ ScreenGui.Parent = PlayerGui
 -- Janela Principal (Flutuante e Arrastável)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 300, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -210)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -63,19 +68,19 @@ MainCorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - Auto Farm"
+Title.Text = "Painel - Auto Farm & Loot"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
 Title.Parent = MainFrame
 
--- ScrollingFrame para caber todas as opções com organização
+-- ScrollingFrame para caber todas as opções com rolagem
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
 ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 460)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 560)
 ScrollFrame.ScrollBarThickness = 4
 ScrollFrame.Parent = MainFrame
 
@@ -182,20 +187,26 @@ CreateToggle("Kill Aura NPCs", function(state)
     Config.KillauraEnabled = state
 end)
 
--- 2. Seção Coletar Cash
-CreateSectionHeader("--- 2. COLETAR CASH ---")
-CreateToggle("Auto Coletar Cash", function(state)
+-- 2. Seção Coletar Cash com TP
+CreateSectionHeader("--- 2. COLETAR CASH (Com TP) ---")
+CreateToggle("Auto Coletar Cash + TP", function(state)
     Config.CashEnabled = state
 end)
 
--- 3. Seção Quebrar Template1
-CreateSectionHeader("--- 3. QUEBRAR MÁQUINAS (Template1) ---")
+-- 3. Seção Quebrar Máquinas Universal
+CreateSectionHeader("--- 3. QUEBRAR MÁQUINAS (Universal) ---")
 CreateInput("Dano nas Máquinas", "Ex: 1000", Config.TemplateDamage, function(text)
     local num = tonumber(text)
     if num then Config.TemplateDamage = num end
 end)
-CreateToggle("Quebrar Template1", function(state)
+CreateToggle("Quebrar Tudo (Mapa)", function(state)
     Config.TemplateEnabled = state
+end)
+
+-- 4. Seção Loot Aura (Novo)
+CreateSectionHeader("--- 4. LOOT AURA (Pega Tudo) ---")
+CreateToggle("Auto Loot Aura", function(state)
+    Config.LootEnabled = state
 end)
 
 
@@ -206,6 +217,14 @@ local function GetPlayerPosition()
     if character then
         local hrp = character:FindFirstChild("HumanoidRootPart")
         if hrp then return hrp.Position end
+    end
+    return nil
+end
+
+local function GetHRP()
+    local character = LocalPlayer.Character
+    if character then
+        return character:FindFirstChild("HumanoidRootPart")
     end
     return nil
 end
@@ -246,27 +265,48 @@ task.spawn(function()
     end
 end)
 
--- Loop 2: Coletar Cash de QUALQUER DISTÂNCIA (Otimizado)
+-- Loop 2: Coletar Cash com Teleporte Instantâneo
 task.spawn(function()
     while true do
-        task.wait(0.05) -- Loop mais rápido para capturar o cash instantaneamente
+        task.wait(0.2)
         if Config.CashEnabled and DamageEvent then
             pcall(function()
-                -- Varredura profunda em getnilinstances (pega instâncias independentemente da distância/streaming)
+                local hrp = GetHRP()
+                local originalPos = hrp and hrp.CFrame
+                local allCash = {}
+                
                 for _, obj in ipairs(getnilinstances()) do
-                    if not Config.CashEnabled then break end
-                    if obj.Name == "Cash" or obj.Name:lower():find("cash") then
-                        DamageEvent:FireServer("Cash", "Collect", obj)
+                    if obj.Name == "Cash" or obj.Name:lower().find("cash") then
+                        table.insert(allCash, obj)
                     end
                 end
-            end)
 
-            pcall(function()
-                -- Varredura no Workspace geral
                 for _, obj in ipairs(workspace:GetDescendants()) do
-                    if not Config.CashEnabled then break end
                     if obj.Name == "Cash" then
-                        DamageEvent:FireServer("Cash", "Collect", obj)
+                        table.insert(allCash, obj)
+                    end
+                end
+
+                for _, cashObj in ipairs(allCash) do
+                    if not Config.CashEnabled then break end
+                    
+                    local targetPart = nil
+                    if cashObj:IsA("BasePart") then
+                        targetPart = cashObj
+                    elseif cashObj:IsA("Model") then
+                        targetPart = cashObj.PrimaryPart or cashObj:FindFirstChildWhichIsA("BasePart")
+                    end
+
+                    if hrp and targetPart then
+                        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
+                        task.wait(0.05)
+                        DamageEvent:FireServer("Cash", "Collect", cashObj)
+                        task.wait(0.05)
+                        if originalPos then
+                            hrp.CFrame = originalPos
+                        end
+                    else
+                        DamageEvent:FireServer("Cash", "Collect", cashObj)
                     end
                 end
             end)
@@ -274,33 +314,68 @@ task.spawn(function()
     end
 end)
 
--- Loop 3: Quebrar Máquinas na pasta Template1
+-- Loop 3: Quebrar Máquinas Universal em workspace.Map.Buildings
 task.spawn(function()
     while true do
         task.wait(Config.Delay)
         if Config.TemplateEnabled and DamageEvent then
-            local templateFolder = workspace:FindFirstChild("Map") 
-                and workspace.Map:FindFirstChild("Buildings") 
-                and workspace.Map.Buildings:FindFirstChild("GasStation") 
-                and workspace.Map.Buildings.GasStation:FindFirstChild("Templates") 
-                and workspace.Map.Buildings.GasStation.Templates:FindFirstChild("Template1")
+            local map = workspace:FindFirstChild("Map")
+            local buildings = map and map:FindFirstChild("Buildings")
 
-            if templateFolder then
-                for _, child in ipairs(templateFolder:GetChildren()) do
+            if buildings then
+                for _, desc in ipairs(buildings:GetDescendants()) do
                     if not Config.TemplateEnabled then break end
-                    pcall(function()
-                        DamageEvent:FireServer(
-                            "DamageToOpen",
-                            "Damage",
-                            child,
-                            Config.TemplateDamage,
-                            "melee"
-                        )
-                    end)
+                    if desc:IsA("BasePart") or desc:IsA("Model") then
+                        pcall(function()
+                            DamageEvent:FireServer(
+                                "DamageToOpen",
+                                "Damage",
+                                desc,
+                                Config.TemplateDamage,
+                                "melee"
+                            )
+                        end)
+                    end
                 end
             end
         end
     end
 end)
 
-print("[MultiTool] Painel carregado com sucesso!")
+-- Loop 4: Loot Aura (Varre itens no mundo, mochilas e pastas de loot para pegar tudo)
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if Config.LootEnabled and FunctionEvent then
+            pcall(function()
+                -- 1. Varre itens que estão no Workspace (ex: drops no chão)
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if not Config.LootEnabled then break end
+                    if obj:IsA("Tool") or obj.Name == "Handle" or obj:IsA("Model") then
+                        local handle = obj:IsA("Tool") and obj:FindFirstChild("Handle") or (obj.Name == "Handle" and obj) or obj:FindFirstChild("Handle")
+                        if handle then
+                            pcall(function()
+                                FunctionEvent:InvokeServer("Loot", "LootEquip", handle)
+                            end)
+                        end
+                    end
+                end
+
+                -- 2. Varre inventários/pastas de loot disponíveis no jogo
+                for _, obj in ipairs(getnilinstances()) do
+                    if not Config.LootEnabled then break end
+                    if obj:IsA("Tool") or obj:IsA("BasePart") then
+                        local handle = obj:IsA("Tool") and obj:FindFirstChild("Handle") or (obj:IsA("BasePart") and obj)
+                        if handle then
+                            pcall(function()
+                                FunctionEvent:InvokeServer("Loot", "LootEquip", handle)
+                            end)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+print("[MultiTool] Painel Completo com Loot Aura carregado com sucesso!")
