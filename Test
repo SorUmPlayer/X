@@ -1,30 +1,20 @@
--- Carregamento robusto da WindUI compatível com múltiplos executores
-local success, WindUI = pcall(function()
-    local url = "https://raw.githubusercontent.com/FootagesDropdown/WindUI/main/main.lua"
-    local req = (syn and syn.request) or request or (http and http.request) or http_request
-    
-    if req then
-        local response = req({Url = url, Method = "GET"})
-        if response and response.Body then
-            return loadstring(response.Body)()
-        end
-    end
-    
-    return loadstring(game:HttpGet(url))()
-end)
-
-if not success or not WindUI then
-    warn("[KillAura] ERRO: O executor bloqueou o carregamento da WindUI ou não suporta loadstring.")
-    return
-end
-
 -- Serviços
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Caminho do Evento
-local DamageEvent = ReplicatedStorage:WaitForChild("FlowClient"):WaitForChild("ClientRunner"):WaitForChild("Event")
+-- Caminho seguro do Evento
+local FlowClient = ReplicatedStorage:WaitForChild("FlowClient", 5)
+local ClientRunner = FlowClient and FlowClient:WaitForChild("ClientRunner", 5)
+local DamageEvent = ClientRunner and ClientRunner:WaitForChild("Event", 5)
+
+if not DamageEvent then
+    warn("[KillAura] AVISO: Evento não encontrado imediatamente, tentando caminho alternativo...")
+    pcall(function()
+        DamageEvent = ReplicatedStorage.FlowClient.ClientRunner.Event
+    end)
+end
 
 -- Configurações e Estado
 local Config = {
@@ -34,7 +24,134 @@ local Config = {
     Delay = 0.2
 }
 
--- Obter posição do jogador
+-- Criar Interface Nativa (ScreenGui)
+local PlayerGui = (syn and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+
+if PlayerGui:FindFirstChild("NormalKillAuraGui") then
+    PlayerGui.NormalKillAuraGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NormalKillAuraGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Janela Principal (Flutuante e Arrastável)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 280, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -125)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+-- Título
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.Text = "Kill Aura - NPCs"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+-- Container de Elementos
+local Container = Instance.new("UIListLayout")
+Container.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Container.VerticalAlignment = Enum.VerticalAlignment.Top
+Container.SortOrder = Enum.SortOrder.LayoutOrder
+Container.Padding = UDim.new(0, 10)
+Container.Parent = MainFrame
+
+-- Ajustar Padding do Topo para o título
+local TopPadding = Instance.new("UIPadding")
+TopPadding.PaddingTop = UDim.new(0, 45)
+TopPadding.PaddingLeft = UDim.new(0, 15)
+TopPadding.PaddingRight = UDim.new(0, 15)
+TopPadding.Parent = MainFrame
+
+-- Função auxiliar para criar caixas de texto (Input)
+FuncCreateInput = function(name, placeholder, defaultValue, callback)
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 50)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.Parent = MainFrame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 20)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Wrapper
+
+    local TextBox = Instance.new("TextBox")
+    TextBox.Size = UDim2.new(1, 0, 0, 26)
+    TextBox.Position = UDim2.new(0, 0, 0, 22)
+    TextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextBox.Text = tostring(defaultValue)
+    TextBox.PlaceholderText = placeholder
+    TextBox.TextSize = 13
+    TextBox.Font = Enum.Font.Gotham
+    TextBox.ClearTextOnFocus = false
+    TextBox.Parent = Wrapper
+
+    local BoxCorner = Instance.new("UICorner")
+    BoxCorner.CornerRadius = UDim.new(0, 6)
+    BoxCorner.Parent = TextBox
+
+    TextBox.FocusLost:Connect(function()
+        callback(TextBox.Text)
+    end)
+end
+
+-- Criar Input de Dano
+FuncCreateInput("Dano", "Digite o dano...", Config.Damage, function(text)
+    local num = tonumber(text)
+    if num then Config.Damage = num end
+end)
+
+-- Criar Input de Distância
+FuncCreateInput("Distância Máxima (Studs)", "Digite a distância...", Config.Distance, function(text)
+    local num = tonumber(text)
+    if num then Config.Distance = num end
+end)
+
+-- Botão de Ativar/Desativar
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(1, 0, 0, 36)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Text = "Status: DESLIGADO"
+ToggleButton.TextSize = 14
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 6)
+ButtonCorner.Parent = ToggleButton
+
+ToggleButton.MouseButton1Click:Connect(function()
+    Config.Enabled = not Config.Enabled
+    if Config.Enabled then
+        ToggleButton.Text = "Status: LIGADO"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+    else
+        ToggleButton.Text = "Status: DESLIGADO"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+-- Lógica do Kill Aura (Detector em workspace.NPCs)
 local function GetPlayerPosition()
     local character = LocalPlayer.Character
     if character then
@@ -44,7 +161,6 @@ local function GetPlayerPosition()
     return nil
 end
 
--- Varredura de todos os Humanóides dentro de workspace.NPCs (incluindo subpastas)
 local function GetTargetsInFolder(folder)
     local targets = {}
     if not folder then return targets end
@@ -65,7 +181,7 @@ local function GetTargetsInFolder(folder)
     return targets
 end
 
--- Loop do Kill Aura
+-- Loop de Execução
 task.spawn(function()
     while true do
         task.wait(Config.Delay)
@@ -110,50 +226,4 @@ task.spawn(function()
     end
 end)
 
--- Interface WindUI (Menu Flutuante)
-local Window = WindUI:CreateWindow({
-    Title = "Kill Aura - NPCs",
-    Icon = "rbxassetid://4483345998",
-    Folder = "KillAuraConfig",
-    Size = UDim2.fromOffset(380, 280),
-    Transparent = true,
-    Theme = "Dark"
-})
-
-local MainTab = Window:Tab({ Title = "Main", Icon = "sword" })
-
-MainTab:Section({ Title = "Configurações" })
-
--- Input de Dano
-MainTab:Input({
-    Title = "Dano",
-    Desc = "Valor numérico do dano",
-    Value = tostring(Config.Damage),
-    Placeholder = "Ex: 13.65",
-    Callback = function(text)
-        local num = tonumber(text)
-        if num then Config.Damage = num end
-    end
-})
-
--- Input de Distância
-MainTab:Input({
-    Title = "Distância Máxima",
-    Desc = "Alcance em studs",
-    Value = tostring(Config.Distance),
-    Placeholder = "Ex: 50",
-    Callback = function(text)
-        local num = tonumber(text)
-        if num then Config.Distance = num end
-    end
-})
-
--- Toggle para Ativar/Desativar
-MainTab:Toggle({
-    Title = "Ativar Kill Aura",
-    Desc = "Ataca todos os NPCs na pasta workspace.NPCs",
-    Value = Config.Enabled,
-    Callback = function(state)
-        Config.Enabled = state
-    end
-})
+print("[KillAura] Interface padrão carregada com sucesso!")
