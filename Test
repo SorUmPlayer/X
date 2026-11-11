@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (snowdevlol) Corrigido
+    ⚽ Blue Lock Rivals – Airflow UI (v10 – Auto GK + Button Save)
 ]]
 
 local Players = game:GetService("Players")
@@ -14,7 +14,6 @@ local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ========== AIRFLOW UI (snowdevlol) ==========
 local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"))()
 
 -- ========== AUTO SAVE ==========
@@ -46,11 +45,43 @@ local Config = {
     stopBallMostrar = false, trazerBolaMostrar = false, autoGolToggle = false,
     antiCantisine = false, cameraLock = false,
     autoGkAtivo = false, gkLargura = 10, gkTamanho = 5,
+    buttonPositions = {},
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
+if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
+
+-- ========== SISTEMA DE POSIÇÃO DOS BOTÕES ==========
+local botoesRegistrados = {}
+
+local function registrarBotao(btn, nome)
+    if not btn then return end
+    if Config.buttonPositions[nome] then
+        local p = Config.buttonPositions[nome]
+        pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
+    end
+    local arrastando = false
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            arrastando = true
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if arrastando then
+                arrastando = false
+                Config.buttonPositions[nome] = {
+                    x = btn.Position.X.Scale, xo = btn.Position.X.Offset,
+                    y = btn.Position.Y.Scale, yo = btn.Position.Y.Offset,
+                }
+                SaveConfig()
+            end
+        end
+    end)
+    table.insert(botoesRegistrados, {btn = btn, nome = nome})
+end
 
 -- ========== BOLA ==========
 local bola, hitbox, bolaValida = nil, nil, false
@@ -187,7 +218,6 @@ local autoGolTeamGUI, autoGolTeamBtn = nil, nil
 local antiCantisineAtivo = Config.antiCantisine
 local cameraLockAtivo = Config.cameraLock
 
--- Auto GK
 local autoGkAtivo = Config.autoGkAtivo
 local gkLargura = Config.gkLargura
 local gkTamanho = Config.gkTamanho
@@ -539,6 +569,7 @@ local function criarSlideFlutuante()
     main.Active = true
     main.Parent = floatSliderGui
     local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 10); mc.Parent = main
+    registrarBotao(main, "SlideVelocidade")
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -20, 0, 22)
     title.Position = UDim2.new(0, 10, 0, 5)
@@ -637,9 +668,18 @@ end
 
 local function toggleControl()
     isControlActive = not isControlActive
+    if toggleButton then
+        if isControlActive then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
+            toggleButton.Text = "Control BALL [ON]"
+        else
+            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            toggleButton.Text = "Control BALL [OFF]"
+            resetCamera()
+        end
+    end
 end
 
--- Botões Flutuantes
 local function criarBotaoFlutuante()
     if controlScreenGui then return end
     controlScreenGui = Instance.new("ScreenGui")
@@ -660,6 +700,7 @@ local function criarBotaoFlutuante()
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleControl)
     toggleButton = btn
+    registrarBotao(btn, "ControlBall")
 end
 
 local function removerBotaoFlutuante()
@@ -704,6 +745,7 @@ local function criarBotaoCameraFlutuante()
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleCameraButton)
     cameraToggleButton = btn
+    registrarBotao(btn, "CameraAimbot")
 end
 
 local function removerBotaoCameraFlutuante()
@@ -745,6 +787,7 @@ local function criarBotaoStopBall()
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleStopBallBtn)
     stopBallBtn = btn
+    registrarBotao(btn, "StopBall")
 end
 
 local function removerBotaoStopBall()
@@ -785,6 +828,7 @@ local function criarBotaoTrazerBola()
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
     btn.MouseButton1Click:Connect(toggleTrazerBolaBtn)
     trazerBolaBtn = btn
+    registrarBotao(btn, "TrazerBola")
 end
 
 local function removerBotaoTrazerBola()
@@ -830,10 +874,59 @@ local function criarBotaoTeam()
     btn.MouseButton1Click:Connect(toggleTeam)
     autoGolTeamBtn = btn
     atualizarBotaoTeam()
+    registrarBotao(btn, "AutoGolTeam")
 end
 
 local function removerBotaoTeam()
     if autoGolTeamGUI then autoGolTeamGUI:Destroy(); autoGolTeamGUI = nil; autoGolTeamBtn = nil end
+end
+
+-- Botão Curvas (faltava definir)
+local function atualizarBotaoCurvas()
+    if not curvasBotao then return end
+    if curvasModo == 1 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        curvasBotao.Text = "Curva: Direita ☛"
+    elseif curvasModo == 2 then
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        curvasBotao.Text = "Curva: Esquerda ☚"
+    else
+        curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        curvasBotao.Text = "Curva: Aleatório 🥴"
+    end
+end
+
+local function toggleCurvasModo()
+    curvasModo = curvasModo + 1
+    if curvasModo > 3 then curvasModo = 1 end
+    atualizarBotaoCurvas()
+end
+
+local function criarBotaoCurvas()
+    if curvasBotaoGUI then return end
+    curvasBotaoGUI = Instance.new("ScreenGui")
+    curvasBotaoGUI.Name = "CurvasGui"
+    curvasBotaoGUI.ResetOnSpawn = false
+    curvasBotaoGUI.Parent = CoreGui
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 200, 0, 45)
+    btn.Position = UDim2.new(0.5, -100, 0.35, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Active = true
+    btn.Draggable = true
+    btn.Parent = curvasBotaoGUI
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    btn.MouseButton1Click:Connect(toggleCurvasModo)
+    curvasBotao = btn
+    atualizarBotaoCurvas()
+    registrarBotao(btn, "Curvas")
+end
+
+local function removerBotaoCurvas()
+    if curvasBotaoGUI then curvasBotaoGUI:Destroy(); curvasBotaoGUI = nil; curvasBotao = nil end
 end
 
 -- Visão
@@ -1135,10 +1228,12 @@ local function ballEstaNoTriangulo()
     return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
 end
 
+-- AUTO GK CORRIGIDO: prevê posição futura e teleporta
 local function fazerPuloAutoGk()
     local agora = tick()
     if agora - gkUltimoPulo < gkCooldown then return end
     gkUltimoPulo = agora
+    
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1147,13 +1242,34 @@ local function fazerPuloAutoGk()
     if not hum then return end
     local ballPart = getBallPart()
     if not ballPart then return end
+    
     local vel = ballPart.AssemblyLinearVelocity
-    local posPrevista = ballPart.Position + (vel * 0.2)
-    local direcao = Vector3.new(posPrevista.X - hrp.Position.X, 0, posPrevista.Z - hrp.Position.Z)
-    if direcao.Magnitude > 0.1 then
-        local lookCF = CFrame.lookAt(hrp.Position, hrp.Position + direcao.Unit)
-        hrp.CFrame = CFrame.new(hrp.Position) * lookCF.Rotation
+    local speed = vel.Magnitude
+    
+    if speed > 8 then
+        -- Bola em movimento: prevê onde estará e teleporta
+        local distToBall = (hrp.Position - ballPart.Position).Magnitude
+        -- Tempo pra bola percorrer até o jogador
+        local timeToReach = distToBall / math.max(speed, 1)
+        -- Lead: um pouco menos que timeToReach (para estarmos na frente)
+        local leadTime = math.clamp(timeToReach * 0.6, 0.08, 0.4)
+        
+        local posFutura = ballPart.Position + (vel * leadTime)
+        local velDir = vel.Unit
+        
+        -- Fica 2.5 studs ANTES do ponto de interceptação (a bola vem em nós)
+        local standPos = posFutura - velDir * 2.5
+        standPos = Vector3.new(standPos.X, hrp.Position.Y, standPos.Z)
+        
+        hrp.CFrame = CFrame.new(standPos, standPos + velDir)
+    else
+        -- Bola parada/lenta: só olha
+        local direcao = Vector3.new(ballPart.Position.X - hrp.Position.X, 0, ballPart.Position.Z - hrp.Position.Z)
+        if direcao.Magnitude > 0.1 then
+            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + direcao.Unit)
+        end
     end
+    
     hum.Jump = true
     pcall(function()
         local vim = game:GetService("VirtualInputManager")
@@ -1360,10 +1476,10 @@ player.CharacterAdded:Connect(function(char)
     end)
 end)
 
--- ========== UI – AIRFLOW (snowdevlol) ==========
+-- ========== UI – AIRFLOW ==========
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v9 – Airflow (snowdevlol)",
+    LoadingSubtitle = "v10",
     Icon = "wind",
     Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
@@ -1371,10 +1487,8 @@ local Window = Airflow:CreateWindow({
     Home = { Name = "Home", Desc = "Sessão", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
 })
 
--- Aba Principal
 local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funções", Icon = "home" })
 
--- ========== SEÇÃO: CONTROLE DE BOLA ==========
 MainTab:CreateSection("Controle de Bola")
 
 MainTab:CreateInput({
@@ -1430,7 +1544,6 @@ MainTab:CreateToggle({
     end,
 })
 
--- ========== SEÇÃO: AIMBOT ==========
 MainTab:CreateSection("Aimbot")
 
 MainTab:CreateToggle({
@@ -1478,7 +1591,6 @@ MainTab:CreateSlider({
     end,
 })
 
--- ========== SEÇÃO: VISÃO DE JOGO ==========
 MainTab:CreateSection("Visão de Jogo")
 
 MainTab:CreateToggle({
@@ -1510,7 +1622,6 @@ MainTab:CreateToggle({
     end,
 })
 
--- ========== SEÇÃO: HITBOX ==========
 MainTab:CreateSection("HITBOX")
 
 MainTab:CreateToggle({
@@ -1548,7 +1659,6 @@ MainTab:CreateToggle({
     end,
 })
 
--- ========== SEÇÃO: EXTRAS ==========
 MainTab:CreateSection("Extras")
 
 MainTab:CreateToggle({
@@ -1615,12 +1725,11 @@ MainTab:CreateToggle({
     Callback = function(v) ativarNoCooldown(v) end,
 })
 
--- ========== SEÇÃO: AUTO GK ==========
 MainTab:CreateSection("Auto GK")
 
 MainTab:CreateToggle({
     Name = "Auto GK",
-    Desc = "Pula (Q) quando bola entra no triângulo",
+    Desc = "Prevê e intercepta a bola (Q)",
     Flag = "autoGk",
     CurrentValue = Config.autoGkAtivo,
     Callback = function(v)
@@ -1649,7 +1758,6 @@ MainTab:CreateSlider({
     Callback = function(v) gkTamanho = v; Config.gkTamanho = v; SaveConfig() end,
 })
 
--- ========== SEÇÃO: CURVAS ==========
 MainTab:CreateSection("Curvas")
 
 MainTab:CreateToggle({
@@ -1674,7 +1782,6 @@ MainTab:CreateSlider({
     Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end,
 })
 
--- ========== SEÇÃO: DRIBLE ==========
 MainTab:CreateSection("Drible")
 
 MainTab:CreateToggle({
@@ -1704,7 +1811,6 @@ MainTab:CreateSlider({
     end,
 })
 
--- ========== ABA PLAYER ==========
 local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
 PlayerTab:CreateSection("Player")
 
@@ -1736,7 +1842,6 @@ PlayerTab:CreateToggle({
     end,
 })
 
--- ========== ABA DESEMPENHO ==========
 local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
 PerfTab:CreateSection("Performance")
 
@@ -1808,6 +1913,65 @@ PerfTab:CreateToggle({
     end,
 })
 
+-- FPS/Ping functions (necessárias)
+local statsLabel, statsGui = nil, nil
+local function criarStatsGui()
+    if statsGui then return end
+    statsGui = Instance.new("ScreenGui")
+    statsGui.Name = "StatsGui"; statsGui.ResetOnSpawn = false
+    statsGui.Parent = CoreGui
+    statsLabel = Instance.new("TextLabel")
+    statsLabel.Size = UDim2.new(0, 250, 0, 60)
+    statsLabel.Position = UDim2.new(1, -260, 1, -70)
+    statsLabel.BackgroundTransparency = 1
+    statsLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    statsLabel.Font = Enum.Font.GothamBold
+    statsLabel.TextSize = 14
+    statsLabel.TextXAlignment = Enum.TextXAlignment.Right
+    statsLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+    statsLabel.Text = "FPS: --\nPING: --"
+    statsLabel.Parent = statsGui
+end
+local function destruirStatsGui()
+    if statsGui then statsGui:Destroy(); statsGui = nil; statsLabel = nil end
+end
+local function atualizarStats()
+    if not statsLabel then return end
+    local fps = math.floor(1 / RunService.RenderStepped:Wait())
+    local ping = 0
+    pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+    statsLabel.Text = string.format("FPS: %d\nPING: %d ms", fps, ping)
+end
+task.spawn(function() while true do atualizarStats(); task.wait(0.5) end end)
+
+local function aplicarFpsMode(level)
+    if level == 0 then return end
+    if level >= 1 then
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+    end
+    if level >= 2 then
+        for _, o in ipairs(workspace:GetDescendants()) do
+            if o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Smoke") or o:IsA("Fire") then
+                pcall(function() o.Enabled = false end)
+            end
+        end
+        Lighting.Brightness = 0
+    end
+    if level >= 3 then
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    end
+end
+
+local function aplicarPingMenos(estado)
+    Config.pingMenos = estado; SaveConfig()
+    if estado then
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    else
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+    end
+end
+
 -- ========== LOOP PRINCIPAL ==========
 RunService.Heartbeat:Connect(function()
     aplicarReachBola()
@@ -1851,6 +2015,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ========== APLICAR ESTADOS SALVOS ==========
+if Config.statsToggle then criarStatsGui() end
 if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
 if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
 if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
@@ -1863,8 +2028,8 @@ if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals",
-        Text = "Airflow UI (snowdevlol) carregada!",
+        Title = "Blue Lock Rivals v10",
+        Text = "Auto GK prevê interceptação + botões salvam posição",
         Duration = 3
     })
 end)
