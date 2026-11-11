@@ -150,7 +150,7 @@ local function CreateInput(name, placeholder, defaultValue, callback)
     end)
 end
 
--- Referências para atualizar o texto do botão de loot externamente se necessário
+-- Referência para atualizar o botão de loot externamente
 local LootButtonUpdate = nil
 
 -- Função para criar Botões de Toggle
@@ -362,7 +362,7 @@ task.spawn(function()
     end
 end)
 
--- Loop 4: TP Loot com controle de itens já passados e retorno garantido ao finalizar ou desligar
+-- Loop 4: TP Loot com controle de itens e retorno correto
 task.spawn(function()
     local processedLoots = {}
     local originalPos = nil
@@ -374,7 +374,6 @@ task.spawn(function()
             local lootFolder = workspace:FindFirstChild("Loot")
 
             if hrp and lootFolder then
-                -- Salva a posição original apenas na primeira ativação do ciclo
                 if not originalPos then
                     originalPos = hrp.CFrame
                 end
@@ -385,7 +384,6 @@ task.spawn(function()
                 for _, item in ipairs(items) do
                     if not Config.LootEnabled then break end
 
-                    -- Verifica se o loot já foi passado/processado
                     if not processedLoots[item] then
                         foundNewItem = true
                         processedLoots[item] = true
@@ -413,7 +411,6 @@ task.spawn(function()
                     end
                 end
 
-                -- Se não encontrou nenhum item novo (todos já foram passados ou pasta vazia), desliga sozinho e retorna
                 if #items == 0 or not foundNewItem then
                     Config.LootEnabled = false
                     if LootButtonUpdate then
@@ -427,7 +424,6 @@ task.spawn(function()
                 end
             end
         else
-            -- Se o usuário desativou manualmente o botão no meio do processo
             if originalPos then
                 local hrp = GetHRP()
                 if hrp then
@@ -455,20 +451,39 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Loop 6: God Mode (Imortalidade)
+-- Loop 6: God Mode Real (Bloqueia alteração para o estado de morte e reseta dano)
+local connectionGod = nil
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.StateChanged:Connect(function(_, newState)
+            if Config.GodModeEnabled and newState == Enum.HumanoidStateType.Dead then
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                humanoid.Health = humanoid.MaxHealth
+            end
+        end)
+    end
+end)
+
 RunService.Stepped:Connect(function()
     if Config.GodModeEnabled then
         local humanoid = GetHumanoid()
         if humanoid then
-            -- Mantém a vida sempre cheia e evita dano por Health
             humanoid.Health = humanoid.MaxHealth
+            -- Evita que o estado de morte seja aplicado
             pcall(function()
-                if humanoid:FindFirstChild("PreventJointBreak") == nil then
-                    -- Previne que o corpo quebre/morra por instâncias físicas
-                end
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            end)
+        end
+    else
+        local humanoid = GetHumanoid()
+        if humanoid then
+            pcall(function()
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
             end)
         end
     end
 end)
 
-print("[MultiTool] Painel atualizado com sucesso!")
+print("[MultiTool] Painel atualizado com God Mode Real!")
