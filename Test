@@ -246,23 +246,23 @@ task.spawn(function()
     end
 end)
 
--- Loop 2: Coletar Cash (Varre getnilinstances e workspace)
+-- Loop 2: Coletar Cash de QUALQUER DISTÂNCIA (Otimizado)
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.05) -- Loop mais rápido para capturar o cash instantaneamente
         if Config.CashEnabled and DamageEvent then
-            -- Varredura em getnilinstances()
             pcall(function()
+                -- Varredura profunda em getnilinstances (pega instâncias independentemente da distância/streaming)
                 for _, obj in ipairs(getnilinstances()) do
                     if not Config.CashEnabled then break end
-                    if obj.Name == "Cash" then
+                    if obj.Name == "Cash" or obj.Name:lower():find("cash") then
                         DamageEvent:FireServer("Cash", "Collect", obj)
                     end
                 end
             end)
 
-            -- Varredura padrão no workspace caso haja cash normal
             pcall(function()
+                -- Varredura no Workspace geral
                 for _, obj in ipairs(workspace:GetDescendants()) do
                     if not Config.CashEnabled then break end
                     if obj.Name == "Cash" then
