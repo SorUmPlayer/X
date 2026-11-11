@@ -300,7 +300,7 @@ local function aplicarCurvas()
     if not ball then return end
     if euTenhoBola() then return end
     local vel = ball.AssemblyLinearVelocity
-    if vel.Magnitude < 40 then return end
+    if vel.Magnitude < 60 then return end
     if ball.Position.Y < 0.5 then return end
     local dir = Vector3.new(vel.X, 0, vel.Z)
     if dir.Magnitude < 0.01 then return end
