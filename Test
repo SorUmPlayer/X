@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Caminhos seguros dos Eventos
@@ -24,15 +25,19 @@ local Config = {
     KillauraDamage = 13.65,
     KillauraDistance = 50,
     
-    -- Bring Cash
-    BringCashEnabled = false,
+    -- TP Cash
+    CashEnabled = false,
     
     -- Quebrar Máquinas / Prédios
     TemplateEnabled = false,
     TemplateDamage = 1000,
     
-    -- Bring Loot
-    BringLootEnabled = false,
+    -- TP Loot com Retorno
+    LootEnabled = false,
+    
+    -- SpeedWalkBoost
+    SpeedEnabled = false,
+    SpeedValue = 32,
     
     Delay = 0.2
 }
@@ -52,8 +57,8 @@ ScreenGui.Parent = PlayerGui
 -- Janela Principal (Flutuante e Arrastável)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -210)
+MainFrame.Size = UDim2.new(0, 300, 0, 460)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -230)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -68,7 +73,7 @@ MainCorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Painel - Bring Pastas Exatas"
+Title.Text = "Painel - TP Cash, Loot & Speed"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -80,7 +85,7 @@ ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
 ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 560)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 640)
 ScrollFrame.ScrollBarThickness = 4
 ScrollFrame.Parent = MainFrame
 
@@ -180,15 +185,15 @@ CreateInput("Dano do NPC", "Ex: 13.65", Config.KillauraDamage, function(text)
 end)
 CreateInput("Distância Máxima", "Ex: 50", Config.KillauraDistance, function(text)
     local num = tonumber(text)
-    if num then Config.KillauraDistance = num end
+    if num then Config.Distance = num end
 end)
 CreateToggle("Kill Aura NPCs", function(state)
     Config.KillauraEnabled = state
 end)
 
-CreateSectionHeader("--- 2. BRING CASH (workspace.Cash) ---")
-CreateToggle("Bring Cash", function(state)
-    Config.BringCashEnabled = state
+CreateSectionHeader("--- 2. TP CASH (workspace.Cash) ---")
+CreateToggle("TP Cash (Fica no local)", function(state)
+    Config.CashEnabled = state
 end)
 
 CreateSectionHeader("--- 3. QUEBRAR MÁQUINAS (Seguro) ---")
@@ -200,9 +205,18 @@ CreateToggle("Quebrar Máquinas (Mapa)", function(state)
     Config.TemplateEnabled = state
 end)
 
-CreateSectionHeader("--- 4. BRING LOOT (workspace.Loot) ---")
-CreateToggle("Bring Loot", function(state)
-    Config.BringLootEnabled = state
+CreateSectionHeader("--- 4. TP LOOT (workspace.Loot + Retorno) ---")
+CreateToggle("TP Loot (Retorna ao desligar)", function(state)
+    Config.LootEnabled = state
+end)
+
+CreateSectionHeader("--- 5. SPEED WALK BOOST ---")
+CreateInput("Velocidade (WalkSpeed)", "Ex: 32", Config.SpeedValue, function(text)
+    local num = tonumber(text)
+    if num then Config.SpeedValue = num end
+end)
+CreateToggle("Ativar Speed Boost", function(state)
+    Config.SpeedEnabled = state
 end)
 
 
@@ -212,6 +226,14 @@ local function GetHRP()
     local character = LocalPlayer.Character
     if character then
         return character:FindFirstChild("HumanoidRootPart")
+    end
+    return nil
+end
+
+local function GetHumanoid()
+    local character = LocalPlayer.Character
+    if character then
+        return character:FindFirstChildOfClass("Humanoid")
     end
     return nil
 end
@@ -253,18 +275,18 @@ task.spawn(function()
     end
 end)
 
--- Loop 2: Bring Cash (Pega tudo dentro de workspace.Cash)
+-- Loop 2: TP Cash (Teleporta, coleta e FICA no local)
 task.spawn(function()
     while true do
-        task.wait(0.2)
-        if Config.BringCashEnabled and DamageEvent then
+        task.wait(0.3)
+        if Config.CashEnabled and DamageEvent then
             pcall(function()
                 local hrp = GetHRP()
                 local cashFolder = workspace:FindFirstChild("Cash")
 
                 if hrp and cashFolder then
                     for _, cashObj in ipairs(cashFolder:GetChildren()) do
-                        if not Config.BringCashEnabled then break end
+                        if not Config.CashEnabled then break end
 
                         local part = nil
                         if cashObj:IsA("BasePart") then
@@ -273,9 +295,10 @@ task.spawn(function()
                             part = cashObj.PrimaryPart or cashObj:FindFirstChildWhichIsA("BasePart")
                         end
 
-                        -- Puxa para perto de você e coleta
                         if part then
-                            part.CFrame = hrp.CFrame
+                            -- Teleporta para o cash e fica lá
+                            hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.1)
                         end
                         DamageEvent:FireServer("Cash", "Collect", cashObj)
                     end
@@ -320,18 +343,23 @@ task.spawn(function()
     end
 end)
 
--- Loop 4: Bring Loot (Pega tudo dentro de workspace.Loot)
+-- Loop 4: TP Loot (Salva coordenada, vai até o loot, invoca o evento e RETORNA à coordenada original)
 task.spawn(function()
+    local wasRunning = false
     while true do
-        task.wait(0.2)
-        if Config.BringLootEnabled and FunctionEvent then
+        task.wait(0.3)
+        if Config.LootEnabled and FunctionEvent then
             pcall(function()
                 local hrp = GetHRP()
                 local lootFolder = workspace:FindFirstChild("Loot")
 
-                if hrp and lootFolder then
+                if hrp and lootFolder and #lootFolder:GetChildren() > 0 then
+                    -- Salva a posição original exata onde ativou/estava antes de começar a pegar os loots
+                    local originalPos = hrp.CFrame
+                    wasRunning = true
+
                     for _, item in ipairs(lootFolder:GetChildren()) do
-                        if not Config.BringLootEnabled then break end
+                        if not Config.LootEnabled then break end
 
                         local handle = nil
                         if item:IsA("Tool") then
@@ -344,19 +372,47 @@ task.spawn(function()
                             handle = item
                         end
 
-                        -- Puxa o item para você e invoca o LootEquip
                         if handle then
-                            handle.CFrame = hrp.CFrame
+                            -- Teleporta para o loot
+                            hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.1)
                         end
 
                         pcall(function()
                             FunctionEvent:InvokeServer("Loot", "LootEquip", handle or item)
                         end)
+                        task.wait(0.1)
+                    end
+
+                    -- Retorna para a coordenada original após limpar o loot atual
+                    if originalPos and Config.LootEnabled then
+                        hrp.CFrame = originalPos
                     end
                 end
             end)
+        else
+            -- Se foi desativado pelo usuário, garante o retorno imediato à posição se ele foi alterada
+            if wasRunning then
+                wasRunning = false
+            end
         end
     end
 end)
 
-print("[MultiTool] Painel Bring Cash & Loot (Pastas Diretas) carregado com sucesso!")
+-- Loop 5: SpeedWalkBoost
+RunService.Stepped:Connect(function()
+    if Config.SpeedEnabled then
+        local humanoid = GetHumanoid()
+        if humanoid then
+            humanoid.WalkSpeed = Config.SpeedValue
+        end
+    else
+        local humanoid = GetHumanoid()
+        if humanoid and humanoid.WalkSpeed ~= 16 then
+            -- Retorna à velocidade padrão (geralmente 16) se desativado
+            humanoid.WalkSpeed = 16
+        end
+    end
+end)
+
+print("[MultiTool] Painel Completo atualizado com sucesso!")
