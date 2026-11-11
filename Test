@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI Edition (Corrigido)
+    ⚽ Blue Lock Rivals – Airflow UI (snowdevlol) Corrigido
 ]]
 
 local Players = game:GetService("Players")
@@ -14,8 +14,8 @@ local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ========== AIRFLOW UI ==========
-local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/PookiePepelsss/Airflow-UI/refs/heads/main/Source.luau"))()
+-- ========== AIRFLOW UI (snowdevlol) ==========
+local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"))()
 
 -- ========== AUTO SAVE ==========
 local CONFIG_FILE = "BlueLock_Airflow.json"
@@ -1360,37 +1360,39 @@ player.CharacterAdded:Connect(function(char)
     end)
 end)
 
--- ========== UI – AIRFLOW (CORRIGIDA) ==========
+-- ========== UI – AIRFLOW (snowdevlol) ==========
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v9 – Airflow",
+    LoadingSubtitle = "v9 – Airflow (snowdevlol)",
     Icon = "wind",
+    Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
     ConfigurationSaving = { Enabled = true, FolderName = "BlueLockAirflow" },
-    Home = { Tier = "Free", Stats = { "Players", "FPS", "Ping" }, SupportedExecutors = { "Potassium" } },
+    Home = { Name = "Home", Desc = "Sessão", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
 })
 
 -- Aba Principal
-local MainTab = Window:CreateTab({ Name = "Blue Lock", Icon = "home" })
-local LeftGroup = MainTab:AddLeftGroupbox({ Name = "Geral", Icon = "settings" })
-local RightGroup = MainTab:AddRightGroupbox({ Name = "Extras", Icon = "star" })
+local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funções", Icon = "home" })
 
--- ========== CONTROLE DE BOLA ==========
-LeftGroup:AddInput({
-    Index = "InputVelocidadeBola",
-    Text = "Velocidade da Bola",
-    Placeholder = "0-200",
-    Default = tostring(Config.controleBolaVelocidade),
+-- ========== SEÇÃO: CONTROLE DE BOLA ==========
+MainTab:CreateSection("Controle de Bola")
+
+MainTab:CreateInput({
+    Name = "Velocidade da Bola",
+    Desc = "0-200 | Chat: 'velocidade N' ou só 'N'",
+    PlaceholderText = "0-200",
+    CurrentValue = tostring(Config.controleBolaVelocidade),
     Callback = function(txt)
         local v = tonumber(txt)
         if v then atualizarSliderVisual(v) end
     end,
 })
 
-LeftGroup:AddToggle({
-    Index = "ToggleControleBola",
-    Text = "Controle de Bola",
-    Default = Config.botaoFlutuante,
+MainTab:CreateToggle({
+    Name = "Controle de Bola",
+    Desc = "Botão + Slide flutuante",
+    Flag = "controleBola",
+    CurrentValue = Config.botaoFlutuante,
     Callback = function(v)
         Config.botaoFlutuante = v
         SaveConfig()
@@ -1404,10 +1406,11 @@ LeftGroup:AddToggle({
     end,
 })
 
-LeftGroup:AddToggle({
-    Index = "ToggleTrazerBola",
-    Text = "Botão (Trazer Bola)",
-    Default = Config.trazerBolaMostrar,
+MainTab:CreateToggle({
+    Name = "Botão (Trazer Bola)",
+    Desc = "Puxa a bola até você",
+    Flag = "trazerBola",
+    CurrentValue = Config.trazerBolaMostrar,
     Callback = function(v)
         Config.trazerBolaMostrar = v
         SaveConfig()
@@ -1415,10 +1418,11 @@ LeftGroup:AddToggle({
     end,
 })
 
-LeftGroup:AddToggle({
-    Index = "ToggleStopBall",
-    Text = "Botão (Stop Ball)",
-    Default = Config.stopBallMostrar,
+MainTab:CreateToggle({
+    Name = "Botão (Stop Ball)",
+    Desc = "Para a bola no ar",
+    Flag = "stopBall",
+    CurrentValue = Config.stopBallMostrar,
     Callback = function(v)
         Config.stopBallMostrar = v
         SaveConfig()
@@ -1426,18 +1430,22 @@ LeftGroup:AddToggle({
     end,
 })
 
--- ========== AIMBOT ==========
-LeftGroup:AddToggle({
-    Index = "ToggleAimbotPersonagem",
-    Text = "Aimbot Personagem",
-    Default = Config.aimbotPersonagem,
+-- ========== SEÇÃO: AIMBOT ==========
+MainTab:CreateSection("Aimbot")
+
+MainTab:CreateToggle({
+    Name = "Aimbot Personagem",
+    Desc = "Corpo vira para a bola",
+    Flag = "aimbotPersonagem",
+    CurrentValue = Config.aimbotPersonagem,
     Callback = function(v) ativarAimbotPersonagem(v) end,
 })
 
-LeftGroup:AddToggle({
-    Index = "ToggleAimbotCamera",
-    Text = "Aimbot Câmera",
-    Default = Config.aimbotCamera,
+MainTab:CreateToggle({
+    Name = "Aimbot Câmera",
+    Desc = "Câmera segue a bola",
+    Flag = "aimbotCamera",
+    CurrentValue = Config.aimbotCamera,
     Callback = function(v)
         aimbotCamera = v
         Config.aimbotCamera = v
@@ -1445,10 +1453,11 @@ LeftGroup:AddToggle({
     end,
 })
 
-LeftGroup:AddToggle({
-    Index = "ToggleBotaoCamera",
-    Text = "Botão (Câmera)",
-    Default = Config.botaoCamera,
+MainTab:CreateToggle({
+    Name = "Botão (Câmera)",
+    Desc = "Botão flutuante da câmera",
+    Flag = "botaoCamera",
+    CurrentValue = Config.botaoCamera,
     Callback = function(v)
         Config.botaoCamera = v
         SaveConfig()
@@ -1456,13 +1465,12 @@ LeftGroup:AddToggle({
     end,
 })
 
-LeftGroup:AddSlider({
-    Index = "SliderDelayAimbot",
-    Text = "Delay do Aimbot",
-    Min = 0,
-    Max = 10,
-    Default = Config.aimbotDelayValue,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Delay do Aimbot",
+    Desc = "0=instantâneo | 10=5s",
+    Range = { 0, 10 },
+    Increment = 1,
+    CurrentValue = Config.aimbotDelayValue,
     Callback = function(v)
         aimbotDelayValue = aimbotDelayValues[v] or 0
         Config.aimbotDelayValue = v
@@ -1470,11 +1478,14 @@ LeftGroup:AddSlider({
     end,
 })
 
--- ========== VISÃO DE JOGO ==========
-RightGroup:AddToggle({
-    Index = "ToggleVisaoBola",
-    Text = "Visão da bola",
-    Default = Config.visaoBola,
+-- ========== SEÇÃO: VISÃO DE JOGO ==========
+MainTab:CreateSection("Visão de Jogo")
+
+MainTab:CreateToggle({
+    Name = "Visão da bola",
+    Desc = "Linha verde do inimigo",
+    Flag = "visaoBola",
+    CurrentValue = Config.visaoBola,
     Callback = function(v)
         visaoBolaEnabled = v
         Config.visaoBola = v
@@ -1483,10 +1494,11 @@ RightGroup:AddToggle({
     end,
 })
 
-RightGroup:AddToggle({
-    Index = "ToggleAdvinhaChute",
-    Text = "Advinha Chute",
-    Default = Config.advinhaChute,
+MainTab:CreateToggle({
+    Name = "Advinha Chute",
+    Desc = "Trajetória + círculo",
+    Flag = "advinhaChute",
+    CurrentValue = Config.advinhaChute,
     Callback = function(v)
         advinhaChuteEnabled = v
         Config.advinhaChute = v
@@ -1498,21 +1510,23 @@ RightGroup:AddToggle({
     end,
 })
 
--- ========== HITBOX ==========
-RightGroup:AddToggle({
-    Index = "ToggleHitboxBola",
-    Text = "Hitbox da Bola",
-    Default = Config.reachBola,
+-- ========== SEÇÃO: HITBOX ==========
+MainTab:CreateSection("HITBOX")
+
+MainTab:CreateToggle({
+    Name = "Hitbox da Bola",
+    Desc = "Aumenta hitbox (desativa com posse)",
+    Flag = "hitboxBola",
+    CurrentValue = Config.reachBola,
     Callback = function(v) reachBolaAtivo = v; Config.reachBola = v; SaveConfig() end,
 })
 
-RightGroup:AddSlider({
-    Index = "SliderTamanhoHitbox",
-    Text = "Tamanho da Hitbox",
-    Min = 1,
-    Max = 30,
-    Default = Config.reachBolaTamanho,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Tamanho da Hitbox",
+    Desc = "1=normal | 30=grande",
+    Range = { 1, 30 },
+    Increment = 1,
+    CurrentValue = Config.reachBolaTamanho,
     Callback = function(v)
         reachBolaDistancia = v
         Config.reachBolaTamanho = v
@@ -1521,10 +1535,11 @@ RightGroup:AddSlider({
     end,
 })
 
-RightGroup:AddToggle({
-    Index = "ToggleMostrarESP",
-    Text = "Mostrar Área (ESP)",
-    Default = Config.mostrarESP,
+MainTab:CreateToggle({
+    Name = "Mostrar Área (ESP)",
+    Desc = "Círculo verde na hitbox",
+    Flag = "mostrarESP",
+    CurrentValue = Config.mostrarESP,
     Callback = function(v)
         mostrarESP = v
         Config.mostrarESP = v
@@ -1533,27 +1548,29 @@ RightGroup:AddToggle({
     end,
 })
 
--- ========== EXTRAS ==========
-RightGroup:AddToggle({
-    Index = "ToggleForcaBola",
-    Text = "Força da Bola",
-    Default = Config.forcaBola,
+-- ========== SEÇÃO: EXTRAS ==========
+MainTab:CreateSection("Extras")
+
+MainTab:CreateToggle({
+    Name = "Força da Bola",
+    Desc = "Chute potente sempre",
+    Flag = "forcaBola",
+    CurrentValue = Config.forcaBola,
     Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end,
 })
 
-RightGroup:AddSlider({
-    Index = "SliderForcaMaxima",
-    Text = "Força Máxima",
-    Min = 10,
-    Max = 200,
-    Default = Config.forcaBolaVelocidade,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Força Máxima",
+    Desc = "10-200",
+    Range = { 10, 200 },
+    Increment = 1,
+    CurrentValue = Config.forcaBolaVelocidade,
     Callback = function(v) forcaBolaVelocidade = v; Config.forcaBolaVelocidade = v; SaveConfig() end,
 })
 
-RightGroup:AddButton({
-    Index = "ButtonStamina",
-    Text = "Stamina Infinita",
+MainTab:CreateButton({
+    Name = "Stamina Infinita",
+    Desc = "Stamina sempre no máximo",
     Callback = function()
         task.spawn(function()
             while true do
@@ -1566,10 +1583,11 @@ RightGroup:AddButton({
     end,
 })
 
-RightGroup:AddToggle({
-    Index = "ToggleAutoGol",
-    Text = "Auto Gol",
-    Default = Config.autoGolToggle,
+MainTab:CreateToggle({
+    Name = "Auto Gol",
+    Desc = "Pega a bola, faz o gol e volta (3s cd)",
+    Flag = "autoGol",
+    CurrentValue = Config.autoGolToggle,
     Callback = function(v)
         autoGolToggle = v
         Config.autoGolToggle = v
@@ -1577,10 +1595,11 @@ RightGroup:AddToggle({
     end,
 })
 
-RightGroup:AddToggle({
-    Index = "ToggleBotaoTime",
-    Text = "Botão (Time)",
-    Default = Config.botaoTeamMostrar,
+MainTab:CreateToggle({
+    Name = "Botão (Time)",
+    Desc = "Alterna Home/Away",
+    Flag = "botaoTime",
+    CurrentValue = Config.botaoTeamMostrar,
     Callback = function(v)
         Config.botaoTeamMostrar = v
         SaveConfig()
@@ -1588,19 +1607,22 @@ RightGroup:AddToggle({
     end,
 })
 
-RightGroup:AddToggle({
-    Index = "ToggleNoCooldown",
-    Text = "No Cooldown",
-    Default = Config.noCooldown,
+MainTab:CreateToggle({
+    Name = "No Cooldown",
+    Desc = "Habilidades sem cooldown",
+    Flag = "noCooldown",
+    CurrentValue = Config.noCooldown,
     Callback = function(v) ativarNoCooldown(v) end,
 })
 
--- ========== AUTO GK ==========
-local GkGroup = MainTab:AddLeftGroupbox({ Name = "Auto GK", Icon = "shield" })
-GkGroup:AddToggle({
-    Index = "ToggleAutoGk",
-    Text = "Auto GK",
-    Default = Config.autoGkAtivo,
+-- ========== SEÇÃO: AUTO GK ==========
+MainTab:CreateSection("Auto GK")
+
+MainTab:CreateToggle({
+    Name = "Auto GK",
+    Desc = "Pula (Q) quando bola entra no triângulo",
+    Flag = "autoGk",
+    CurrentValue = Config.autoGkAtivo,
     Callback = function(v)
         autoGkAtivo = v
         Config.autoGkAtivo = v
@@ -1609,32 +1631,32 @@ GkGroup:AddToggle({
     end,
 })
 
-GkGroup:AddSlider({
-    Index = "SliderGkLargura",
-    Text = "Largura",
-    Min = 5,
-    Max = 20,
-    Default = Config.gkLargura,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Largura",
+    Desc = "Largura do triângulo (5-20)",
+    Range = { 5, 20 },
+    Increment = 1,
+    CurrentValue = Config.gkLargura,
     Callback = function(v) gkLargura = v; Config.gkLargura = v; SaveConfig() end,
 })
 
-GkGroup:AddSlider({
-    Index = "SliderGkTamanho",
-    Text = "Tamanho",
-    Min = 5,
-    Max = 20,
-    Default = Config.gkTamanho,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Tamanho",
+    Desc = "Profundidade do triângulo (5-20)",
+    Range = { 5, 20 },
+    Increment = 1,
+    CurrentValue = Config.gkTamanho,
     Callback = function(v) gkTamanho = v; Config.gkTamanho = v; SaveConfig() end,
 })
 
--- ========== CURVAS ==========
-local CurvasGroup = MainTab:AddRightGroupbox({ Name = "Curvas", Icon = "activity" })
-CurvasGroup:AddToggle({
-    Index = "ToggleCurvas",
-    Text = "Bola com curvas",
-    Default = Config.curvasAtivo,
+-- ========== SEÇÃO: CURVAS ==========
+MainTab:CreateSection("Curvas")
+
+MainTab:CreateToggle({
+    Name = "Bola com curvas",
+    Desc = "Ativa curvas (botão flutuante)",
+    Flag = "curvas",
+    CurrentValue = Config.curvasAtivo,
     Callback = function(v)
         curvasEnabled = v
         Config.curvasAtivo = v
@@ -1643,22 +1665,23 @@ CurvasGroup:AddToggle({
     end,
 })
 
-CurvasGroup:AddSlider({
-    Index = "SliderCurvasIntensidade",
-    Text = "Intensidade",
-    Min = 1,
-    Max = 10,
-    Default = Config.curvasIntensidade,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Intensidade",
+    Desc = "1=fraca | 10=forte",
+    Range = { 1, 10 },
+    Increment = 1,
+    CurrentValue = Config.curvasIntensidade,
     Callback = function(v) curvasIntensidade = v; Config.curvasIntensidade = v; SaveConfig() end,
 })
 
--- ========== DRIBLE ==========
-local DribleGroup = MainTab:AddLeftGroupbox({ Name = "Drible", Icon = "user" })
-DribleGroup:AddToggle({
-    Index = "ToggleDrible",
-    Text = "Drible",
-    Default = Config.dribleAtivo,
+-- ========== SEÇÃO: DRIBLE ==========
+MainTab:CreateSection("Drible")
+
+MainTab:CreateToggle({
+    Name = "Drible",
+    Desc = "Círculo rosa (raio 70)",
+    Flag = "drible",
+    CurrentValue = Config.dribleAtivo,
     Callback = function(v)
         dribleEnabled = v
         Config.dribleAtivo = v
@@ -1668,13 +1691,12 @@ DribleGroup:AddToggle({
     end,
 })
 
-DribleGroup:AddSlider({
-    Index = "SliderDribleTolerancia",
-    Text = "Tolerância de Olhar",
-    Min = 0,
-    Max = 5,
-    Default = Config.dribleTolerancia,
-    Rounding = 0,
+MainTab:CreateSlider({
+    Name = "Tolerância de Olhar",
+    Desc = "0=Normal | 5=Sem olhar",
+    Range = { 0, 5 },
+    Increment = 1,
+    CurrentValue = Config.dribleTolerancia,
     Callback = function(v)
         dribleTolerancia = v
         Config.dribleTolerancia = v
@@ -1682,53 +1704,58 @@ DribleGroup:AddSlider({
     end,
 })
 
--- ========== PLAYER ==========
-local PlayerTab = Window:CreateTab({ Name = "Player", Icon = "user" })
-local PlayerGroup = PlayerTab:AddLeftGroupbox({ Name = "Player", Icon = "user" })
-PlayerGroup:AddSlider({
-    Index = "SliderSpeed",
-    Text = "Speed",
-    Min = 20,
-    Max = 250,
-    Default = Config.walkSpeedValue,
-    Rounding = 0,
+-- ========== ABA PLAYER ==========
+local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
+PlayerTab:CreateSection("Player")
+
+PlayerTab:CreateSlider({
+    Name = "Speed",
+    Desc = "Recomendado: 40",
+    Range = { 20, 250 },
+    Increment = 1,
+    CurrentValue = Config.walkSpeedValue,
     Callback = function(v) walkSpeedValue = v; Config.walkSpeedValue = v; SaveConfig() end,
 })
 
-PlayerGroup:AddToggle({
-    Index = "ToggleWalkSpeed",
-    Text = "Ativar Speed",
-    Default = Config.walkSpeedAtivo,
+PlayerTab:CreateToggle({
+    Name = "Ativar Speed",
+    Desc = "Boost de velocidade",
+    Flag = "walkSpeed",
+    CurrentValue = Config.walkSpeedAtivo,
     Callback = function(v) ativarWalkSpeed(v) end,
 })
 
-PlayerGroup:AddToggle({
-    Index = "ToggleFixaButton",
-    Text = "Fixa Button",
-    Default = Config.fixaButton,
+PlayerTab:CreateToggle({
+    Name = "Fixa Button",
+    Desc = "Trava botões (não arrasta)",
+    Flag = "fixaButton",
+    CurrentValue = Config.fixaButton,
     Callback = function(v)
         Config.fixaButton = v
         SaveConfig()
     end,
 })
 
--- ========== DESEMPENHO ==========
-local PerfTab = Window:CreateTab({ Name = "Desempenho", Icon = "activity" })
-local PerfGroup = PerfTab:AddLeftGroupbox({ Name = "Performance", Icon = "zap" })
-PerfGroup:AddToggle({
-    Index = "ToggleStats",
-    Text = "Mostrar FPS/Ping",
-    Default = Config.statsToggle,
+-- ========== ABA DESEMPENHO ==========
+local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
+PerfTab:CreateSection("Performance")
+
+PerfTab:CreateToggle({
+    Name = "Mostrar FPS/Ping",
+    Desc = "Canto inferior direito",
+    Flag = "stats",
+    CurrentValue = Config.statsToggle,
     Callback = function(v)
         Config.statsToggle = v
         SaveConfig()
     end,
 })
 
-PerfGroup:AddToggle({
-    Index = "ToggleFpsMode",
-    Text = "Modo FPS++",
-    Default = Config.fpsModeAtivo,
+PerfTab:CreateToggle({
+    Name = "Modo FPS++",
+    Desc = "Remove sombras e partículas",
+    Flag = "fpsMode",
+    CurrentValue = Config.fpsModeAtivo,
     Callback = function(v)
         Config.fpsModeAtivo = v
         SaveConfig()
@@ -1736,13 +1763,12 @@ PerfGroup:AddToggle({
     end,
 })
 
-PerfGroup:AddSlider({
-    Index = "SliderFpsLevel",
-    Text = "Nível FPS++",
-    Min = 0,
-    Max = 3,
-    Default = Config.fpsModeLevel,
-    Rounding = 0,
+PerfTab:CreateSlider({
+    Name = "Nível FPS++",
+    Desc = "0=off | 3=máximo",
+    Range = { 0, 3 },
+    Increment = 1,
+    CurrentValue = Config.fpsModeLevel,
     Callback = function(v)
         Config.fpsModeLevel = v
         SaveConfig()
@@ -1750,17 +1776,19 @@ PerfGroup:AddSlider({
     end,
 })
 
-PerfGroup:AddToggle({
-    Index = "TogglePingMenos",
-    Text = "Ping -10",
-    Default = Config.pingMenos,
+PerfTab:CreateToggle({
+    Name = "Ping -10",
+    Desc = "Reduz qualidade gráfica",
+    Flag = "pingMenos",
+    CurrentValue = Config.pingMenos,
     Callback = function(v) aplicarPingMenos(v) end,
 })
 
-PerfGroup:AddToggle({
-    Index = "ToggleAntiCantisine",
-    Text = "Anti-Cantisine",
-    Default = Config.antiCantisine,
+PerfTab:CreateToggle({
+    Name = "Anti-Cantisine",
+    Desc = "Cancela animações de stun",
+    Flag = "antiCantisine",
+    CurrentValue = Config.antiCantisine,
     Callback = function(v)
         antiCantisineAtivo = v
         Config.antiCantisine = v
@@ -1768,10 +1796,11 @@ PerfGroup:AddToggle({
     end,
 })
 
-PerfGroup:AddToggle({
-    Index = "ToggleCameraLock",
-    Text = "Camera Lock",
-    Default = Config.cameraLock,
+PerfTab:CreateToggle({
+    Name = "Camera Lock",
+    Desc = "Câmera sempre no personagem",
+    Flag = "cameraLock",
+    CurrentValue = Config.cameraLock,
     Callback = function(v)
         cameraLockAtivo = v
         Config.cameraLock = v
@@ -1835,7 +1864,7 @@ if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals",
-        Text = "Airflow UI Edition carregada!",
+        Text = "Airflow UI (snowdevlol) carregada!",
         Duration = 3
     })
 end)
