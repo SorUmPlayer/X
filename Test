@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (v12 – Auto GK Instantâneo)
+    ⚽ Blue Lock Rivals – Airflow UI (v13 – Auto GK + Magnet)
 ]]
 
 local Players = game:GetService("Players")
@@ -38,7 +38,7 @@ local Config = {
     botaoCamera = false, visaoBola = false, advinhaChute = false,
     reachBola = false, mostrarESP = false,
     forcaBola = false, curvasAtivo = false, dribleAtivo = false,
-    dribleTolerancia = 0, dribleInfinito = false,
+    dribleTolerancia = 0,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
     noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
@@ -48,7 +48,7 @@ local Config = {
     buttonPositions = {},
     teclaAimbot = "", teclaTrazerBola = "", teclaControleBola = "",
     teclaStopBall = "", teclaForcaBola = "", teclaCurva = "",
-    mostrarHUDTeclas = false,
+    mostrarHUDTeclas = false, botaoTeamMostrar = false, fixaButton = false,
 }
 local savedConfig = LoadConfig()
 for k, v in pairs(savedConfig) do Config[k] = v end
@@ -184,7 +184,6 @@ local curvasBotaoGUI, curvasBotao = nil, nil
 local curvasTimer, curvasIntervalo, curvasDirecaoAtual = 0, 1.0, 1
 local dribleEnabled = Config.dribleAtivo
 local dribleTolerancia = Config.dribleTolerancia or 0
-local dribleInfinito = Config.dribleInfinito or false
 local dribleSphere, dribleLastFired = nil, 0
 local dribleCooldown, dribleAnimId, dribleRadius = 0.3, "18668814876", 70
 local driblePlayingAnims, dribleEvent = {}, nil
@@ -227,6 +226,7 @@ local gkCooldown = 0.15
 local gkUltimoPulo = 0
 local gkCirculoVisual = nil
 local gkTrianguloVisual = nil
+local magnetCooldownUntil = 0 -- ⭐ NOVO: cooldown do magnet após posse
 
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -239,9 +239,22 @@ local function shouldAimbotWork()
     return true
 end
 
+-- ⭐ NOVO: verifica se a bola está dentro do range 2 (triângulo amarelo do GK)
+local function bolaNaRange2(ballPart)
+    ballPart = ballPart or getBallPart()
+    if not ballPart then return false end
+    local char = player.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local relativo = hrp.CFrame:PointToObjectSpace(ballPart.Position)
+    return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
+end
+
 local function aplicarReachBola()
     if not hitbox then return end
     local agora = tick()
+
     if agora - bolaSpawnTime < 0.5 then
         if hitbox.Size ~= Vector3.new(1, 1, 1) or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = Vector3.new(1, 1, 1)
@@ -249,6 +262,19 @@ local function aplicarReachBola()
         end
         return
     end
+
+    -- ⭐ ESTOU COM A BOLA → cooldown 0.7s para dar tempo de chutar
+    if euTenhoBola() then
+        hitboxBloqueada = true
+        hitboxBloqueadaAte = agora + 0.7
+        magnetCooldownUntil = agora + 0.7
+        if hitbox.Size ~= Vector3.new(1, 1, 1) or hitbox.Transparency ~= hitboxOriginalTransparency then
+            hitbox.Size = Vector3.new(1, 1, 1)
+            hitbox.Transparency = hitboxOriginalTransparency
+        end
+        return
+    end
+
     if alguemTemBola() then
         hitboxBloqueada = true
         hitboxBloqueadaAte = agora + 0.5
@@ -258,14 +284,42 @@ local function aplicarReachBola()
         end
         return
     end
+
     if hitboxBloqueada and agora < hitboxBloqueadaAte then
-        if hitbox.Size ~= Vector3.new(1, 1, 1) then
+        if hitbox.Size ~= Vector3.new(1, 1, 1) or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = Vector3.new(1, 1, 1)
             hitbox.Transparency = hitboxOriginalTransparency
         end
         return
     end
     hitboxBloqueada = false
+
+    -- ⭐ MAGNET AUTO GK (range 2)
+    if autoGkAtivo and agora >= magnetCooldownUntil then
+        local ballPart = getBallPart()
+        if ballPart and bolaNaRange2(ballPart) then
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local tamanho = math.max(reachBolaDistancia or 20, gkLargura * 1.5)
+                local alvo = Vector3.new(tamanho, tamanho, tamanho)
+                if hitbox.Size ~= alvo or hitbox.Transparency ~= 0.85 then
+                    hitbox.Size = alvo
+                    hitbox.Transparency = 0.85
+                end
+
+                local dir = hrp.Position - ballPart.Position
+                local dist = dir.Magnitude
+                if dist > 2 then
+                    dir = dir.Unit
+                    local forca = math.clamp(dist * 2.5, 50, 150)
+                    ballPart.AssemblyLinearVelocity = dir * forca + Vector3.new(0, 3, 0)
+                end
+            end
+            return
+        end
+    end
+
     if not reachBolaAtivo then
         if hitbox.Size ~= hitboxOriginalSize or hitbox.Transparency ~= hitboxOriginalTransparency then
             hitbox.Size = hitboxOriginalSize
@@ -517,8 +571,7 @@ local function aplicarDrible()
         dribleSphere.Parent = workspace
     end
     local now = tick()
-    local cdEfetivo = dribleInfinito and 0.01 or dribleCooldown
-    if now - dribleLastFired < cdEfetivo then return end
+    if now - dribleLastFired < dribleCooldown then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local th = p.Character:FindFirstChild("HumanoidRootPart")
@@ -1211,7 +1264,7 @@ local function atualizarVisuaisAutoGk()
     end
 end
 
--- Previsão com gkPrevisao (0 = instantâneo)
+-- ⭐ Previsão com gravidade
 local function bolaVaiEntrarNoTriangulo(leadTime)
     local char = player.Character
     if not char then return false end
@@ -1219,45 +1272,62 @@ local function bolaVaiEntrarNoTriangulo(leadTime)
     if not hrp then return false end
     local ballPart = getBallPart()
     if not ballPart then return false end
-    
-    if leadTime <= 0 then
-        -- Instantâneo: verifica posição atual
-        local relativo = hrp.CFrame:PointToObjectSpace(ballPart.Position)
-        return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
-    end
-    
+
+    local relAtual = hrp.CFrame:PointToObjectSpace(ballPart.Position)
+    local emZonaAgora = math.abs(relAtual.X) <= gkLargura and math.abs(relAtual.Z) <= gkTamanho
+    if leadTime <= 0 then return emZonaAgora end
+
     local vel = ballPart.AssemblyLinearVelocity
-    local posFutura = ballPart.Position + (vel * leadTime)
-    local relativo = hrp.CFrame:PointToObjectSpace(posFutura)
-    return math.abs(relativo.X) <= gkLargura and math.abs(relativo.Z) <= gkTamanho
+    local gravity = Vector3.new(0, -workspace.Gravity, 0)
+    local posFutura = ballPart.Position + (vel * leadTime) + (gravity * 0.5 * leadTime * leadTime)
+    local relFuturo = hrp.CFrame:PointToObjectSpace(posFutura)
+    local emZonaFuturo = math.abs(relFuturo.X) <= gkLargura and math.abs(relFuturo.Z) <= gkTamanho
+
+    return emZonaAgora or emZonaFuturo
 end
 
+-- ⭐ Pulo melhorado (não pula no ar / não pula se bola afastando)
 local function fazerPuloAutoGk()
     local agora = tick()
     if agora - gkUltimoPulo < gkCooldown then return end
-    gkUltimoPulo = agora
-    
+
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
+
+    local state = hum:GetState()
+    if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
+        return
+    end
+
     local ballPart = getBallPart()
     if not ballPart then return end
-    
+
     local vel = ballPart.AssemblyLinearVelocity
+    if vel.Magnitude > 15 then
+        local toBall = ballPart.Position - hrp.Position
+        if toBall.Magnitude > 0.1 then
+            if vel.Unit:Dot(toBall.Unit) > 0.6 then
+                return
+            end
+        end
+    end
+
+    gkUltimoPulo = agora
+
     local posAlvo = ballPart.Position
     if gkPrevisao > 0 and vel.Magnitude > 5 then
-        posAlvo = ballPart.Position + (vel * gkPrevisao)
+        local gravity = Vector3.new(0, -workspace.Gravity, 0)
+        posAlvo = ballPart.Position + (vel * gkPrevisao) + (gravity * 0.5 * gkPrevisao * gkPrevisao)
     end
-    
-    -- Só rotaciona (sem teleportar)
     local direcao = Vector3.new(posAlvo.X - hrp.Position.X, 0, posAlvo.Z - hrp.Position.Z)
     if direcao.Magnitude > 0.1 then
         hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + direcao.Unit)
     end
-    
+
     hum.Jump = true
     pcall(function()
         local vim = game:GetService("VirtualInputManager")
@@ -1581,7 +1651,7 @@ end
 -- ========== UI – AIRFLOW ==========
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v12",
+    LoadingSubtitle = "v13",
     Icon = "wind",
     Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
@@ -1781,7 +1851,7 @@ MainTab:CreateToggle({
 MainTab:CreateSection("Auto GK")
 MainTab:CreateToggle({
     Name = "Auto GK",
-    Desc = "Prevê e PULA (Q) sem teleportar",
+    Desc = "Prevê, pula (Q) e magnetiza a bola no range 2",
     Flag = "autoGk",
     CurrentValue = Config.autoGkAtivo,
     Callback = function(v)
@@ -1848,13 +1918,6 @@ MainTab:CreateSlider({
     Range = { 0, 5 }, Increment = 1,
     CurrentValue = Config.dribleTolerancia,
     Callback = function(v) dribleTolerancia = v; Config.dribleTolerancia = v; SaveConfig() end,
-})
-MainTab:CreateToggle({
-    Name = "Infinity Drible",
-    Desc = "Remove o cooldown do Drible",
-    Flag = "infinityDrible",
-    CurrentValue = Config.dribleInfinito,
-    Callback = function(v) dribleInfinito = v; Config.dribleInfinito = v; SaveConfig() end,
 })
 
 local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
@@ -2051,8 +2114,8 @@ atualizarHUDTeclas()
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals v12",
-        Text = "Auto GK instantâneo (0s) + slider de previsão",
+        Title = "Blue Lock Rivals v13",
+        Text = "Auto GK + Magnet (bola no range 2 é puxada) | Cooldown 0.7s ao chutar",
         Duration = 3
     })
 end)
