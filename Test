@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (v13 – Auto GK + Magnet)
+    ⚽ Blue Lock Rivals – Airflow UI (v14 – FIXA Button + Branding fix)
 ]]
 
 local Players = game:GetService("Players")
@@ -15,7 +15,34 @@ local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"))()
+-- ⭐ Carrega Airflow com patch de branding (remove "SorHub Universal EsportV7")
+local function loadAirflowUI()
+    local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
+    local ok, source = pcall(function() return game:HttpGet(url) end)
+    if ok and source then
+        local patched = source
+        pcall(function()
+            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals v14")
+            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v14")
+            patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
+            patched = patched:gsub("EsportV7", "v14")
+        end)
+        if patched ~= source then
+            local fn = loadstring(patched)
+            if fn then
+                local ok2, result = pcall(fn)
+                if ok2 and result then return result end
+            end
+        end
+        local fn = loadstring(source)
+        if fn then
+            local ok2, result = pcall(fn)
+            if ok2 and result then return result end
+        end
+    end
+    return loadstring(game:HttpGet(url))()
+end
+local Airflow = loadAirflowUI()
 
 local CONFIG_FILE = "BlueLock_Airflow.json"
 local function LoadConfig()
@@ -56,20 +83,42 @@ if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
+-- ⭐ NOVO: aplica estado de FIXA em todos os botões registrados
 local botoesRegistrados = {}
+local function aplicarFixaButton()
+    for _, info in ipairs(botoesRegistrados) do
+        local btn = info.btn
+        if btn and btn.Parent then
+            pcall(function()
+                if btn:IsA("GuiObject") then
+                    btn.Draggable = not Config.fixaButton
+                end
+            end)
+        end
+    end
+end
+
 local function registrarBotao(btn, nome)
     if not btn then return end
     if Config.buttonPositions[nome] then
         local p = Config.buttonPositions[nome]
         pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
     end
+    -- ⭐ Aplica estado de FIXA ao registrar
+    pcall(function()
+        if btn:IsA("GuiObject") then
+            btn.Draggable = not Config.fixaButton
+        end
+    end)
     local arrastando = false
     btn.InputBegan:Connect(function(input)
+        if Config.fixaButton then return end -- ⭐ ignora se fixado
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             arrastando = true
         end
     end)
     btn.InputEnded:Connect(function(input)
+        if Config.fixaButton then return end -- ⭐ ignora se fixado
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if arrastando then
                 arrastando = false
@@ -226,7 +275,7 @@ local gkCooldown = 0.15
 local gkUltimoPulo = 0
 local gkCirculoVisual = nil
 local gkTrianguloVisual = nil
-local magnetCooldownUntil = 0 -- ⭐ NOVO: cooldown do magnet após posse
+local magnetCooldownUntil = 0
 
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -239,7 +288,6 @@ local function shouldAimbotWork()
     return true
 end
 
--- ⭐ NOVO: verifica se a bola está dentro do range 2 (triângulo amarelo do GK)
 local function bolaNaRange2(ballPart)
     ballPart = ballPart or getBallPart()
     if not ballPart then return false end
@@ -263,7 +311,6 @@ local function aplicarReachBola()
         return
     end
 
-    -- ⭐ ESTOU COM A BOLA → cooldown 0.7s para dar tempo de chutar
     if euTenhoBola() then
         hitboxBloqueada = true
         hitboxBloqueadaAte = agora + 0.7
@@ -294,7 +341,6 @@ local function aplicarReachBola()
     end
     hitboxBloqueada = false
 
-    -- ⭐ MAGNET AUTO GK (range 2)
     if autoGkAtivo and agora >= magnetCooldownUntil then
         local ballPart = getBallPart()
         if ballPart and bolaNaRange2(ballPart) then
@@ -307,7 +353,6 @@ local function aplicarReachBola()
                     hitbox.Size = alvo
                     hitbox.Transparency = 0.85
                 end
-
                 local dir = hrp.Position - ballPart.Position
                 local dist = dir.Magnitude
                 if dist > 2 then
@@ -1264,7 +1309,6 @@ local function atualizarVisuaisAutoGk()
     end
 end
 
--- ⭐ Previsão com gravidade
 local function bolaVaiEntrarNoTriangulo(leadTime)
     local char = player.Character
     if not char then return false end
@@ -1286,7 +1330,6 @@ local function bolaVaiEntrarNoTriangulo(leadTime)
     return emZonaAgora or emZonaFuturo
 end
 
--- ⭐ Pulo melhorado (não pula no ar / não pula se bola afastando)
 local function fazerPuloAutoGk()
     local agora = tick()
     if agora - gkUltimoPulo < gkCooldown then return end
@@ -1651,7 +1694,7 @@ end
 -- ========== UI – AIRFLOW ==========
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v13",
+    LoadingSubtitle = "v14",
     Icon = "wind",
     Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
@@ -1934,11 +1977,16 @@ PlayerTab:CreateToggle({
     CurrentValue = Config.walkSpeedAtivo,
     Callback = function(v) ativarWalkSpeed(v) end,
 })
+-- ⭐ FIXA BUTTON FUNCIONAL AGORA
 PlayerTab:CreateToggle({
     Name = "Fixa Button", Desc = "Trava botões (não arrasta)",
     Flag = "fixaButton",
     CurrentValue = Config.fixaButton,
-    Callback = function(v) Config.fixaButton = v; SaveConfig() end,
+    Callback = function(v)
+        Config.fixaButton = v
+        SaveConfig()
+        aplicarFixaButton()
+    end,
 })
 
 PlayerTab:CreateSection("Ativação rápida (PC)")
@@ -2104,6 +2152,9 @@ if Config.autoGkAtivo then task.wait(0.5); criarVisuaisAutoGk() end
 if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
 if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
 
+-- ⭐ Aplica FIXA nos botões já criados
+aplicarFixaButton()
+
 aplicarTecla("Aimbot", Config.teclaAimbot, teclaAimbotCallback)
 aplicarTecla("TrazerBola", Config.teclaTrazerBola, teclaTrazerBolaCallback)
 aplicarTecla("ControleBola", Config.teclaControleBola, teclaControleBolaCallback)
@@ -2114,8 +2165,8 @@ atualizarHUDTeclas()
 
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals v13",
-        Text = "Auto GK + Magnet (bola no range 2 é puxada) | Cooldown 0.7s ao chutar",
+        Title = "Blue Lock Rivals v14",
+        Text = "FIXA Button corrigido + branding SorHubV7 removido",
         Duration = 3
     })
 end)
