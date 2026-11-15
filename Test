@@ -2,6 +2,8 @@
     ⚽ Blue Lock Rivals – Airflow UI (v7 - Auto Gol Chute)
 ]]
 
+print("[BlueLock] Iniciando script v7...")
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -15,34 +17,40 @@ local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- Carrega Airflow com patch de branding
-local function loadAirflowUI()
+-- ⭐ Carrega Airflow (1 único HttpGet + patch de branding seguro)
+local Airflow
+do
     local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
-    local ok, source = pcall(function() return game:HttpGet(url) end)
-    if ok and source then
-        local patched = source
-        pcall(function()
-            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals v7")
-            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v7")
-            patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
-            patched = patched:gsub("EsportV7", "v7")
-        end)
-        if patched ~= source then
-            local fn = loadstring(patched)
-            if fn then
-                local ok2, result = pcall(fn)
-                if ok2 and result then return result end
-            end
+    local src
+    do
+        local ok, result = pcall(function() return game:HttpGet(url) end)
+        if not ok or not result or result == "" then
+            warn("[BlueLock] ❌ Falha ao baixar Airflow UI. URL pode estar offline.")
+            return
         end
-        local fn = loadstring(source)
-        if fn then
-            local ok2, result = pcall(fn)
-            if ok2 and result then return result end
-        end
+        src = result
     end
-    return loadstring(game:HttpGet(url))()
+    local patched = src
+    pcall(function()
+        patched = patched
+            :gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals v7")
+            :gsub("SorHub Universal EsportV7", "Blue Lock Rivals v7")
+            :gsub("SorHub Universal Esport", "Blue Lock Rivals")
+            :gsub("EsportV7", "v7")
+    end)
+    local chunk = loadstring(patched) or loadstring(src)
+    if not chunk then
+        warn("[BlueLock] ❌ Falha ao compilar Airflow UI (source inválida).")
+        return
+    end
+    local ok, result = pcall(chunk)
+    if not ok or not result then
+        warn("[BlueLock] ❌ Airflow UI falhou ao inicializar:", tostring(result))
+        return
+    end
+    Airflow = result
 end
-local Airflow = loadAirflowUI()
+print("[BlueLock] ✅ Airflow carregado com sucesso")
 
 local CONFIG_FILE = "BlueLock_Airflow.json"
 local function LoadConfig()
@@ -306,23 +314,25 @@ local function getShotTarget()
     local base = (autoGolTeam == "Home") and Vector3.new(-234, 11, -47) or Vector3.new(311, 11, -50)
     local yOff, zOff
     if modoAleatorio then
-        zOff = math.random(-10, 10)  -- lado aleatório ±10
-        yOff = math.random(0, 5)     -- cima aleatório 0-5
+        zOff = math.random(-10, 10)
+        yOff = math.random(0, 5)
     else
-        zOff = (larguraChute - 2.5) * 4  -- 0=esq, 2.5=centro, 5=dir → -10 a +10
-        yOff = alturaChute * 2           -- 0=baixo, 5=alto → 0 a +10
+        zOff = (larguraChute - 2.5) * 4
+        yOff = alturaChute * 2
     end
     return base + Vector3.new(0, yOff, zOff)
 end
 
 -- ⭐ Auto Gol: chuta a bola (sem teleport)
 local function executarAutoGolChute()
+    if not euTenhoBola() then
+        return
+    end
     local ball = getBallPart()
     if not ball then return end
     local fromPos = ball.Position
     local target = getShotTarget()
 
-    -- 1) Tenta disparar o evento de chute (power 90 + alvo)
     local pk = ReplicatedStorage:FindFirstChild("Packages")
     if pk then
         local knit = pk:FindFirstChild("Knit")
@@ -344,7 +354,6 @@ local function executarAutoGolChute()
         end
     end
 
-    -- 2) Fallback: se a bola não saiu do lugar após 0.15s, aplica velocidade manual
     task.delay(0.15, function()
         local ball2 = getBallPart()
         if not ball2 then return end
@@ -1921,7 +1930,6 @@ MainTab:CreateButton({
     end,
 })
 
--- ⭐ NOVA SEÇÃO AUTO GOL (chute, sem teleport)
 MainTab:CreateSection("Auto Gol (Chute)")
 MainTab:CreateToggle({
     Name = "Auto Gol",
@@ -2232,10 +2240,12 @@ aplicarTecla("ForcaBola", Config.teclaForcaBola, teclaForcaBolaCallback)
 aplicarTecla("Curva", Config.teclaCurva, teclaCurvaCallback)
 atualizarHUDTeclas()
 
+print("[BlueLock] ✅ Script v7 carregado com sucesso!")
+
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification",{
         Title = "Blue Lock Rivals v7",
-        Text = "Auto Gol agora CHUTA (vel 90) | Modo Aleatório + Altura/Largura",
+        Text = "Auto Gol CHUTA (vel 90) | Modo Aleatório + Altura/Largura",
         Duration = 3
     })
 end)
