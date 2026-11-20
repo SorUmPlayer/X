@@ -1,5 +1,5 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (v14 – FIXA Button + Branding fix)
+    ⚽ Blue Lock Rivals – Airflow UI (V7 – Auto Gol v2)
 ]]
 
 local Players = game:GetService("Players")
@@ -15,17 +15,17 @@ local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ⭐ Carrega Airflow com patch de branding (remove "SorHub Universal EsportV7")
+-- ⭐ Carrega Airflow (MESMA versão da v14 que funciona)
 local function loadAirflowUI()
     local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
     local ok, source = pcall(function() return game:HttpGet(url) end)
     if ok and source then
         local patched = source
         pcall(function()
-            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals v14")
-            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v14")
+            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals V7")
+            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals V7")
             patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
-            patched = patched:gsub("EsportV7", "v14")
+            patched = patched:gsub("EsportV7", "V7")
         end)
         if patched ~= source then
             local fn = loadstring(patched)
@@ -218,7 +218,6 @@ local function getMyTeam()
     return nil
 end
 
--- ===================== VARIÁVEIS GLOBAIS =====================
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
@@ -261,7 +260,6 @@ local trazerBolaGUI, trazerBolaBtn = nil, nil
 local antiCantisineAtivo = Config.antiCantisine
 local cameraLockAtivo = Config.cameraLock
 
--- Auto GK
 local autoGkAtivo = Config.autoGkAtivo
 local gkLargura = Config.gkLargura
 local gkTamanho = Config.gkTamanho
@@ -433,7 +431,6 @@ local function removerBotoesAutoGol()
         autoGolBtn = nil
     end
 end
-
 -- ===================== FIM AUTO GOL v2 =====================
 
 local function shouldAimbotWork()
@@ -1617,7 +1614,9 @@ local function aplicarTecla(nomeFuncao, tecla, callback)
     if not keyCode then return end
     keyConnections[nomeFuncao] = UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if input.KeyCode == keyCode then callback() end
+        if input.KeyCode == keyCode then
+            callback()
+        end
     end)
 end
 
@@ -1907,7 +1906,7 @@ MainTab:CreateToggle({
 MainTab:CreateSection("Auto GK")
 MainTab:CreateToggle({
     Name = "Auto GK",
-    Desc = "Prevê, pula (Q) e magnetiza no range 2",
+    Desc = "Prevê, pula (Q) e magnetiza a bola no range 2",
     Flag = "autoGk",
     CurrentValue = Config.autoGkAtivo,
     Callback = function(v)
@@ -2044,7 +2043,6 @@ AutoGolTab:CreateSlider({
     end,
 })
 
--- ========== ABA PLAYER ==========
 local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
 PlayerTab:CreateSection("Player")
 PlayerTab:CreateSlider({
@@ -2127,7 +2125,7 @@ PlayerTab:CreateInput({
 })
 PlayerTab:CreateButton({
     Name = "Mostra Teclas",
-    Desc = "Mostra as teclas no canto superior direito",
+    Desc = "Mostra as teclas no canto superior direito (vermelho)",
     Callback = function()
         Config.mostrarHUDTeclas = not Config.mostrarHUDTeclas
         SaveConfig()
@@ -2135,7 +2133,6 @@ PlayerTab:CreateButton({
     end,
 })
 
--- ========== ABA DESEMPENHO ==========
 local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
 PerfTab:CreateSection("Performance")
 PerfTab:CreateToggle({
@@ -2221,7 +2218,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== RESTAURAR ESTADOS ==========
+-- ========== APLICAR ESTADOS SALVOS ==========
 if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
 if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
 if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
