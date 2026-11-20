@@ -1,6 +1,8 @@
 --[[
-    ⚽ Blue Lock Rivals – Airflow UI (V7 – Auto Gol v2)
+    Blue Lock Rivals - Airflow UI (V7 - Auto Gol final)
 ]]
+
+print("[BlueLock V7] Script iniciando...")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,12 +12,11 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
-local Stats = game:GetService("Stats")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ⭐ Carrega Airflow (MESMA versão da v14 que funciona)
+-- Loader Airflow (identico ao v14 que funciona)
 local function loadAirflowUI()
     local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
     local ok, source = pcall(function() return game:HttpGet(url) end)
@@ -25,7 +26,6 @@ local function loadAirflowUI()
             patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals V7")
             patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals V7")
             patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
-            patched = patched:gsub("EsportV7", "V7")
         end)
         if patched ~= source then
             local fn = loadstring(patched)
@@ -43,6 +43,11 @@ local function loadAirflowUI()
     return loadstring(game:HttpGet(url))()
 end
 local Airflow = loadAirflowUI()
+if not Airflow then
+    warn("[BlueLock V7] Airflow retornou nil")
+    return
+end
+print("[BlueLock V7] Airflow carregado")
 
 local CONFIG_FILE = "BlueLock_Airflow.json"
 local function LoadConfig()
@@ -58,6 +63,7 @@ local function SaveConfigToFile(t)
     local ok, json = pcall(function() return HttpService:JSONEncode(t) end)
     if ok then pcall(function() writefile(CONFIG_FILE, json) end) end
 end
+
 local Config = {
     velocidadeBola = 65, forcaBolaVelocidade = 100, aimbotDelayValue = 0,
     reachBolaTamanho = 20, curvasIntensidade = 5,
@@ -68,37 +74,38 @@ local Config = {
     dribleTolerancia = 0,
     statsToggle = false, fpsModeAtivo = false, fpsModeLevel = 0,
     pingMenos = false, walkSpeedAtivo = false, walkSpeedValue = 70,
-    noCooldown = false, controleBolaVelocidade = 65, autoGolTeam = "Home",
+    noCooldown = false, controleBolaVelocidade = 65,
     stopBallMostrar = false, trazerBolaMostrar = false,
     antiCantisine = false, cameraLock = false,
     autoGkAtivo = false, gkLargura = 20, gkTamanho = 20, gkPrevisao = 0,
-    autoGolAtivo = false, autoGolVelocidade = 90, autoGolModoAleatorio = false,
+    autoGolAtivo = false, autoGolTeam = "Home",
+    autoGolVelocidade = 90, autoGolModoAleatorio = false,
     autoGolAltura = 0, autoGolLargura = 0,
     buttonPositions = {},
     teclaAimbot = "", teclaTrazerBola = "", teclaControleBola = "",
     teclaStopBall = "", teclaForcaBola = "", teclaCurva = "",
-    mostrarHUDTeclas = false, botaoTeamMostrar = false, fixaButton = false,
+    mostrarHUDTeclas = false, fixaButton = false,
 }
 local savedConfig = LoadConfig()
-for k, v in pairs(savedConfig) do Config[k] = v end
+for k, v in pairs(savedConfig) do
+    if Config[k] ~= nil or k == "buttonPositions" then Config[k] = v end
+end
 if type(Config.buttonPositions) ~= "table" then Config.buttonPositions = {} end
 local function SaveConfig() SaveConfigToFile(Config) end
 task.spawn(function() while true do task.wait(5) SaveConfig() end end)
 
+-- FIXA Button
 local botoesRegistrados = {}
 local function aplicarFixaButton()
     for _, info in ipairs(botoesRegistrados) do
         local btn = info.btn
         if btn and btn.Parent then
             pcall(function()
-                if btn:IsA("GuiObject") then
-                    btn.Draggable = not Config.fixaButton
-                end
+                if btn:IsA("GuiObject") then btn.Draggable = not Config.fixaButton end
             end)
         end
     end
 end
-
 local function registrarBotao(btn, nome)
     if not btn then return end
     if Config.buttonPositions[nome] then
@@ -106,9 +113,7 @@ local function registrarBotao(btn, nome)
         pcall(function() btn.Position = UDim2.new(p.x, p.xo, p.y, p.yo) end)
     end
     pcall(function()
-        if btn:IsA("GuiObject") then
-            btn.Draggable = not Config.fixaButton
-        end
+        if btn:IsA("GuiObject") then btn.Draggable = not Config.fixaButton end
     end)
     local arrastando = false
     btn.InputBegan:Connect(function(input)
@@ -133,6 +138,7 @@ local function registrarBotao(btn, nome)
     table.insert(botoesRegistrados, {btn = btn, nome = nome})
 end
 
+-- Ball tracking
 local bola, hitbox, bolaValida = nil, nil, false
 local bolaSpawnTime = 0
 
@@ -218,6 +224,7 @@ local function getMyTeam()
     return nil
 end
 
+-- Variaveis principais
 local aimbotPersonagem = Config.aimbotPersonagem
 local aimbotCamera = Config.aimbotCamera
 local reachBolaAtivo = Config.reachBola
@@ -260,6 +267,7 @@ local trazerBolaGUI, trazerBolaBtn = nil, nil
 local antiCantisineAtivo = Config.antiCantisine
 local cameraLockAtivo = Config.cameraLock
 
+-- Auto GK
 local autoGkAtivo = Config.autoGkAtivo
 local gkLargura = Config.gkLargura
 local gkTamanho = Config.gkTamanho
@@ -271,94 +279,39 @@ local gkCirculoVisual = nil
 local gkTrianguloVisual = nil
 local magnetCooldownUntil = 0
 
--- ===================== AUTO GOL v2 =====================
+-- ===================== AUTO GOL (novo) =====================
 local autoGolAtivo = Config.autoGolAtivo or false
 local autoGolTeam = Config.autoGolTeam or "Home"
 local autoGolVelocidade = Config.autoGolVelocidade or 90
 local autoGolModoAleatorio = Config.autoGolModoAleatorio or false
 local autoGolAltura = Config.autoGolAltura or 0
 local autoGolLargura = Config.autoGolLargura or 0
-
 local autoGolGui, autoGolTeamBtn, autoGolBtn = nil, nil, nil
 
-local GOAL_POSITIONS = {
-    Home = Vector3.new(-234, 11, -47),
-    Away = Vector3.new(311, 11, -50),
-}
+local GOAL_HOME = Vector3.new(-234, 11, -47)
+local GOAL_AWAY = Vector3.new(311, 11, -50)
 
 local function calcularAlvoGol()
-    local basePos = GOAL_POSITIONS[autoGolTeam]
-    if not basePos then return nil end
-    local offsetX, offsetY
+    local basePos = (autoGolTeam == "Home") and GOAL_HOME or GOAL_AWAY
+    local offX, offY
     if autoGolModoAleatorio then
-        offsetX = math.random(-10, 10)
-        offsetY = math.random(0, 5)
+        offX = math.random(-10, 10)
+        offY = math.random(0, 5)
     else
-        offsetX = autoGolLargura
-        offsetY = autoGolAltura
+        offX = autoGolLargura
+        offY = autoGolAltura
     end
-    return basePos + Vector3.new(offsetX, offsetY, 0)
-end
-
-local function calcularVelocidadeBala(origem, destino, speed)
-    local diff = destino - origem
-    local horizontal = Vector3.new(diff.X, 0, diff.Z)
-    local horizontalDist = horizontal.Magnitude
-    if horizontalDist < 0.1 then return nil end
-    local g = workspace.Gravity
-    local t = horizontalDist / speed
-    local vY = (diff.Y + 0.5 * g * t * t) / t
-    local horizDir = horizontal.Unit
-    return horizDir * speed + Vector3.new(0, vY, 0)
-end
-
-local function chutarAutoGol()
-    local alvo = calcularAlvoGol()
-    if not alvo then return false end
-    
-    -- Tenta Shoot remote (funciona quando player tem bola)
-    pcall(function()
-        local pk = ReplicatedStorage:FindFirstChild("Packages")
-        if not pk then return end
-        local knit = pk:FindFirstChild("Knit")
-        if not knit then return end
-        local sv = knit:FindFirstChild("Services")
-        if not sv then return end
-        local bs = sv:FindFirstChild("BallService")
-        if not bs then return end
-        local re = bs:FindFirstChild("RE")
-        if not re then return end
-        local shoot = re:FindFirstChild("Shoot")
-        if not shoot then return end
-        local args = { [1] = autoGolVelocidade, [4] = alvo }
-        shoot:FireServer(unpack(args))
-    end)
-    
-    -- Fallback: aplica velocity direto na bola se estiver livre
-    task.spawn(function()
-        task.wait(0.05)
-        if euTenhoBola() then return end
-        local ball = getBallPart()
-        if not ball then return end
-        local vel = calcularVelocidadeBala(ball.Position, alvo, autoGolVelocidade)
-        if vel then
-            pcall(function()
-                ball.AssemblyLinearVelocity = vel
-                ball.AssemblyAngularVelocity = Vector3.zero
-            end)
-        end
-    end)
-    return true
+    return basePos + Vector3.new(offX, offY, 0)
 end
 
 local function atualizarBotaoTeam()
     if not autoGolTeamBtn then return end
     if autoGolTeam == "Home" then
         autoGolTeamBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-        autoGolTeamBtn.Text = "Time: Home ⚽"
+        autoGolTeamBtn.Text = "Time: Home"
     else
         autoGolTeamBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        autoGolTeamBtn.Text = "Time: Away ⚽"
+        autoGolTeamBtn.Text = "Time: Away"
     end
 end
 
@@ -369,14 +322,62 @@ local function toggleTeam()
     atualizarBotaoTeam()
 end
 
+local function tentarShoot(alvo)
+    local pk = ReplicatedStorage:FindFirstChild("Packages")
+    if not pk then return end
+    local knit = pk:FindFirstChild("Knit")
+    if not knit then return end
+    local sv = knit:FindFirstChild("Services")
+    if not sv then return end
+    local bs = sv:FindFirstChild("BallService")
+    if not bs then return end
+    local re = bs:FindFirstChild("RE")
+    if not re then return end
+    local shoot = re:FindFirstChild("Shoot")
+    if not shoot then return end
+    local args = { [1] = autoGolVelocidade, [4] = alvo }
+    pcall(function() shoot:FireServer(table.unpack(args)) end)
+end
+
+local function calcularVelBala(origem, destino, speed)
+    local diff = destino - origem
+    local horizontal = Vector3.new(diff.X, 0, diff.Z)
+    local hDist = horizontal.Magnitude
+    if hDist < 0.1 then return nil end
+    local g = workspace.Gravity
+    if not g or g == 0 then g = 196.2 end
+    local t = hDist / speed
+    local vY = (diff.Y + 0.5 * g * t * t) / t
+    return horizontal.Unit * speed + Vector3.new(0, vY, 0)
+end
+
+local function chutarAutoGol()
+    local alvo = calcularAlvoGol()
+    if not alvo then return end
+    tentarShoot(alvo)
+    task.spawn(function()
+        task.wait(0.06)
+        if euTenhoBola() then return end
+        local ball = getBallPart()
+        if not ball then return end
+        local vel = calcularVelBala(ball.Position, alvo, autoGolVelocidade)
+        if vel then
+            pcall(function()
+                ball.AssemblyLinearVelocity = vel
+                ball.AssemblyAngularVelocity = Vector3.zero
+            end)
+        end
+    end)
+end
+
 local function onClickGol()
     chutarAutoGol()
     if autoGolBtn then
-        autoGolBtn.Text = "⚽ CHUTANDO..."
+        autoGolBtn.Text = "CHUTANDO..."
         autoGolBtn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
         task.delay(0.6, function()
             if autoGolBtn then
-                autoGolBtn.Text = "⚽ GOL!"
+                autoGolBtn.Text = "GOL!"
                 autoGolBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
             end
         end)
@@ -400,7 +401,9 @@ local function criarBotoesAutoGol()
     teamBtn.Active = true
     teamBtn.Draggable = true
     teamBtn.Parent = autoGolGui
-    local c1 = Instance.new("UICorner"); c1.CornerRadius = UDim.new(0, 8); c1.Parent = teamBtn
+    local c1 = Instance.new("UICorner")
+    c1.CornerRadius = UDim.new(0, 8)
+    c1.Parent = teamBtn
     teamBtn.MouseButton1Click:Connect(toggleTeam)
     autoGolTeamBtn = teamBtn
     atualizarBotaoTeam()
@@ -413,11 +416,13 @@ local function criarBotoesAutoGol()
     golBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     golBtn.Font = Enum.Font.GothamBold
     golBtn.TextSize = 18
-    golBtn.Text = "⚽ GOL!"
+    golBtn.Text = "GOL!"
     golBtn.Active = true
     golBtn.Draggable = true
     golBtn.Parent = autoGolGui
-    local c2 = Instance.new("UICorner"); c2.CornerRadius = UDim.new(0, 8); c2.Parent = golBtn
+    local c2 = Instance.new("UICorner")
+    c2.CornerRadius = UDim.new(0, 8)
+    c2.Parent = golBtn
     golBtn.MouseButton1Click:Connect(onClickGol)
     autoGolBtn = golBtn
     registrarBotao(golBtn, "AutoGolButton")
@@ -431,7 +436,7 @@ local function removerBotoesAutoGol()
         autoGolBtn = nil
     end
 end
--- ===================== FIM AUTO GOL v2 =====================
+-- ===================== FIM AUTO GOL =====================
 
 local function shouldAimbotWork()
     if euTenhoBola() then
@@ -722,8 +727,8 @@ for _, p in ipairs(Players:GetPlayers()) do setupDriblePlayerTracking(p) end
 Players.PlayerAdded:Connect(setupDriblePlayerTracking)
 Players.PlayerRemoving:Connect(function(p) if p.Character then driblePlayingAnims[p.Character] = nil end end)
 
+-- Slider flutuante de velocidade
 local floatSliderGui, floatSliderFill, floatSliderThumb, floatSliderValueLabel, floatSliderTrack = nil, nil, nil, nil, nil
-
 local function atualizarSliderVisual(val)
     val = math.clamp(math.floor(val), 0, 200)
     velocidadeBola = val
@@ -761,7 +766,7 @@ local function criarSlideFlutuante()
     title.Font = Enum.Font.GothamBold
     title.TextSize = 13
     title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Text = "⚽ Velocidade da Bola"
+    title.Text = "Velocidade da Bola"
     title.Parent = main
     floatSliderValueLabel = Instance.new("TextLabel")
     floatSliderValueLabel.Size = UDim2.new(0, 60, 0, 22)
@@ -1019,17 +1024,18 @@ local function removerBotaoTrazerBola()
     if trazerBolaGUI then trazerBolaGUI:Destroy(); trazerBolaGUI = nil; trazerBolaBtn = nil end
 end
 
+-- Curvas
 local function atualizarBotaoCurvas()
     if not curvasBotao then return end
     if curvasModo == 1 then
         curvasBotao.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        curvasBotao.Text = "Curva: Direita ☛"
+        curvasBotao.Text = "Curva: Direita"
     elseif curvasModo == 2 then
         curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
-        curvasBotao.Text = "Curva: Esquerda ☚"
+        curvasBotao.Text = "Curva: Esquerda"
     else
         curvasBotao.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        curvasBotao.Text = "Curva: Aleatório 🥴"
+        curvasBotao.Text = "Curva: Aleatoria"
     end
 end
 
@@ -1199,13 +1205,12 @@ end
 
 local function onChatMessage(msg)
     local lower = msg:lower()
-    if lower:match("^força da bola") then
-        local num = msg:match("^força da bola (%d+)")
+    if lower:match("^forca da bola") or lower:match("^força da bola") then
+        local num = msg:match("(%d+)")
         if num then
             local val = tonumber(num)
             if val and val > 0 and val <= 200 then
                 forcaBolaVelocidade = val; Config.forcaBolaVelocidade = val; SaveConfig()
-                player:Chat("Força: " .. val)
             end
         end
     end
@@ -1216,7 +1221,6 @@ local function onChatMessage(msg)
         local val = tonumber(num)
         if val and val >= 0 and val <= 200 then
             atualizarSliderVisual(val)
-            player:Chat("Velocidade: " .. val)
         end
     end
 end
@@ -1378,9 +1382,7 @@ local function fazerPuloAutoGk()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     local state = hum:GetState()
-    if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
-        return
-    end
+    if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then return end
     local ballPart = getBallPart()
     if not ballPart then return end
     local vel = ballPart.AssemblyLinearVelocity
@@ -1614,14 +1616,11 @@ local function aplicarTecla(nomeFuncao, tecla, callback)
     if not keyCode then return end
     keyConnections[nomeFuncao] = UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if input.KeyCode == keyCode then
-            callback()
-        end
+        if input.KeyCode == keyCode then callback() end
     end)
 end
 
-local teclasGui = nil
-local teclasLabel = nil
+local teclasGui, teclasLabel = nil, nil
 local function atualizarHUDTeclas()
     if not Config.mostrarHUDTeclas then
         if teclasGui then teclasGui.Enabled = false end
@@ -1651,13 +1650,11 @@ local function atualizarHUDTeclas()
         {"Trazer Bola", Config.teclaTrazerBola},
         {"Controlar Bola", Config.teclaControleBola},
         {"Stop Ball", Config.teclaStopBall},
-        {"Força Bola", Config.teclaForcaBola},
+        {"Forca Bola", Config.teclaForcaBola},
         {"Curva", Config.teclaCurva},
     }
     for _, t in ipairs(pares) do
-        if t[2] and t[2] ~= "" then
-            texto = texto .. t[1] .. " = " .. t[2] .. "\n"
-        end
+        if t[2] and t[2] ~= "" then texto = texto .. t[1] .. " = " .. t[2] .. "\n" end
     end
     if texto == "" then texto = "Nenhuma tecla configurada" end
     teclasLabel.Text = texto
@@ -1720,7 +1717,9 @@ local function aplicarPingMenos(estado)
     end
 end
 
--- ========== UI – AIRFLOW ==========
+-- ========== UI ==========
+print("[BlueLock V7] Criando janela...")
+
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
     LoadingSubtitle = "V7",
@@ -1728,15 +1727,15 @@ local Window = Airflow:CreateWindow({
     Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
     ConfigurationSaving = { Enabled = true, FolderName = "BlueLockAirflow" },
-    Home = { Name = "Home", Desc = "Sessão", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
+    Home = { Name = "Home", Desc = "Sessao", Icon = "layout-dashboard", Stats = { "FPS", "Ping", "Players" } },
 })
 
-local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funções", Icon = "home" })
+local MainTab = Window:CreateTab({ Name = "Blue Lock", Desc = "Todas as funcoes", Icon = "home" })
 
 MainTab:CreateSection("Controle de Bola")
 MainTab:CreateInput({
     Name = "Velocidade da Bola",
-    Desc = "0-200 | Chat: 'velocidade N' ou só 'N'",
+    Desc = "0-200 | Chat: 'velocidade N' ou so 'N'",
     PlaceholderText = "0-200",
     CurrentValue = tostring(Config.controleBolaVelocidade),
     Callback = function(txt)
@@ -1746,7 +1745,7 @@ MainTab:CreateInput({
 })
 MainTab:CreateToggle({
     Name = "Controle de Bola",
-    Desc = "Botão + Slide flutuante",
+    Desc = "Botao + Slide flutuante",
     Flag = "controleBola",
     CurrentValue = Config.botaoFlutuante,
     Callback = function(v)
@@ -1756,8 +1755,8 @@ MainTab:CreateToggle({
     end,
 })
 MainTab:CreateToggle({
-    Name = "Botão (Trazer Bola)",
-    Desc = "Puxa a bola até você",
+    Name = "Botao (Trazer Bola)",
+    Desc = "Puxa a bola ate voce",
     Flag = "trazerBola",
     CurrentValue = Config.trazerBolaMostrar,
     Callback = function(v)
@@ -1766,7 +1765,7 @@ MainTab:CreateToggle({
     end,
 })
 MainTab:CreateToggle({
-    Name = "Botão (Stop Ball)",
+    Name = "Botao (Stop Ball)",
     Desc = "Para a bola no ar",
     Flag = "stopBall",
     CurrentValue = Config.stopBallMostrar,
@@ -1785,15 +1784,15 @@ MainTab:CreateToggle({
     Callback = function(v) ativarAimbotPersonagem(v) end,
 })
 MainTab:CreateToggle({
-    Name = "Aimbot Câmera",
-    Desc = "Câmera segue a bola",
+    Name = "Aimbot Camera",
+    Desc = "Camera segue a bola",
     Flag = "aimbotCamera",
     CurrentValue = Config.aimbotCamera,
     Callback = function(v) aimbotCamera = v; Config.aimbotCamera = v; SaveConfig() end,
 })
 MainTab:CreateToggle({
-    Name = "Botão (Câmera)",
-    Desc = "Botão flutuante da câmera",
+    Name = "Botao (Camera)",
+    Desc = "Botao flutuante da camera",
     Flag = "botaoCamera",
     CurrentValue = Config.botaoCamera,
     Callback = function(v)
@@ -1803,7 +1802,7 @@ MainTab:CreateToggle({
 })
 MainTab:CreateSlider({
     Name = "Delay do Aimbot",
-    Desc = "0=instantâneo | 10=5s",
+    Desc = "0=instantaneo | 10=5s",
     Range = { 0, 10 }, Increment = 1,
     CurrentValue = Config.aimbotDelayValue,
     Callback = function(v)
@@ -1812,9 +1811,9 @@ MainTab:CreateSlider({
     end,
 })
 
-MainTab:CreateSection("Visão de Jogo")
+MainTab:CreateSection("Visao de Jogo")
 MainTab:CreateToggle({
-    Name = "Visão da bola",
+    Name = "Visao da bola",
     Desc = "Linha verde do inimigo",
     Flag = "visaoBola",
     CurrentValue = Config.visaoBola,
@@ -1825,7 +1824,7 @@ MainTab:CreateToggle({
 })
 MainTab:CreateToggle({
     Name = "Advinha Chute",
-    Desc = "Trajetória + círculo",
+    Desc = "Trajetoria + circulo",
     Flag = "advinhaChute",
     CurrentValue = Config.advinhaChute,
     Callback = function(v)
@@ -1856,8 +1855,8 @@ MainTab:CreateSlider({
     end,
 })
 MainTab:CreateToggle({
-    Name = "Mostrar Área (ESP)",
-    Desc = "Círculo verde na hitbox",
+    Name = "Mostrar Area (ESP)",
+    Desc = "Circulo verde na hitbox",
     Flag = "mostrarESP",
     CurrentValue = Config.mostrarESP,
     Callback = function(v)
@@ -1868,14 +1867,14 @@ MainTab:CreateToggle({
 
 MainTab:CreateSection("Extras")
 MainTab:CreateToggle({
-    Name = "Força da Bola",
+    Name = "Forca da Bola",
     Desc = "Chute potente sempre",
     Flag = "forcaBola",
     CurrentValue = Config.forcaBola,
     Callback = function(v) forcaBolaEnabled = v; Config.forcaBola = v; SaveConfig() end,
 })
 MainTab:CreateSlider({
-    Name = "Força Máxima",
+    Name = "Forca Maxima",
     Desc = "10-200",
     Range = { 10, 200 }, Increment = 1,
     CurrentValue = Config.forcaBolaVelocidade,
@@ -1883,7 +1882,7 @@ MainTab:CreateSlider({
 })
 MainTab:CreateButton({
     Name = "Stamina Infinita",
-    Desc = "Stamina sempre no máximo",
+    Desc = "Stamina sempre no maximo",
     Callback = function()
         task.spawn(function()
             while true do
@@ -1906,7 +1905,7 @@ MainTab:CreateToggle({
 MainTab:CreateSection("Auto GK")
 MainTab:CreateToggle({
     Name = "Auto GK",
-    Desc = "Prevê, pula (Q) e magnetiza a bola no range 2",
+    Desc = "Preve, pula (Q) e magnetiza no range 2",
     Flag = "autoGk",
     CurrentValue = Config.autoGkAtivo,
     Callback = function(v)
@@ -1929,8 +1928,8 @@ MainTab:CreateSlider({
     Callback = function(v) gkTamanho = v; Config.gkTamanho = v; SaveConfig() end,
 })
 MainTab:CreateSlider({
-    Name = "Previsão (segundos)",
-    Desc = "0=instantâneo | 1=1s de antecedência",
+    Name = "Previsao (segundos)",
+    Desc = "0=instantaneo | 1=1s de antecedencia",
     Range = { 0, 1 }, Increment = 0.05,
     CurrentValue = Config.gkPrevisao,
     Callback = function(v) gkPrevisao = v; Config.gkPrevisao = v; SaveConfig() end,
@@ -1939,7 +1938,7 @@ MainTab:CreateSlider({
 MainTab:CreateSection("Curvas")
 MainTab:CreateToggle({
     Name = "Bola com curvas",
-    Desc = "Ativa curvas (botão flutuante)",
+    Desc = "Ativa curvas (botao flutuante)",
     Flag = "curvas",
     CurrentValue = Config.curvasAtivo,
     Callback = function(v)
@@ -1958,7 +1957,7 @@ MainTab:CreateSlider({
 MainTab:CreateSection("Drible")
 MainTab:CreateToggle({
     Name = "Drible",
-    Desc = "Círculo rosa (raio 70)",
+    Desc = "Circulo rosa (raio 70)",
     Flag = "drible",
     CurrentValue = Config.dribleAtivo,
     Callback = function(v)
@@ -1968,20 +1967,22 @@ MainTab:CreateToggle({
     end,
 })
 MainTab:CreateSlider({
-    Name = "Tolerância de Olhar",
+    Name = "Tolerancia de Olhar",
     Desc = "0=Normal | 5=Sem olhar",
     Range = { 0, 5 }, Increment = 1,
     CurrentValue = Config.dribleTolerancia,
     Callback = function(v) dribleTolerancia = v; Config.dribleTolerancia = v; SaveConfig() end,
 })
 
--- ========== NOVA ABA: AUTO GOL ==========
-local AutoGolTab = Window:CreateTab({ Name = "Auto Gol", Desc = "Chute automático", Icon = "target" })
-AutoGolTab:CreateSection("Configuração")
+-- ========== ABA AUTO GOL ==========
+print("[BlueLock V7] Criando aba Auto Gol...")
+
+local AutoGolTab = Window:CreateTab({ Name = "Auto Gol", Desc = "Chute automatico", Icon = "home" })
+AutoGolTab:CreateSection("Configuracao")
 
 AutoGolTab:CreateToggle({
     Name = "Auto Gol",
-    Desc = "Mostra 2 botões: Time + Gol",
+    Desc = "Mostra 2 botoes flutuantes (Time + Gol)",
     Flag = "autoGolAtivo",
     CurrentValue = autoGolAtivo,
     Callback = function(v)
@@ -1994,7 +1995,7 @@ AutoGolTab:CreateToggle({
 
 AutoGolTab:CreateInput({
     Name = "Velocidade da Bola",
-    Desc = "Padrão: 90 | Aumente se o arco ficar muito alto",
+    Desc = "Padrao: 90 | Aumente se o arco ficar muito alto",
     PlaceholderText = "90",
     CurrentValue = tostring(autoGolVelocidade),
     Callback = function(txt)
@@ -2008,8 +2009,8 @@ AutoGolTab:CreateInput({
 })
 
 AutoGolTab:CreateToggle({
-    Name = "Modo Aleatório",
-    Desc = "Chute imprevisível (X ±10 | Y 0-5)",
+    Name = "Modo Aleatorio",
+    Desc = "Chute imprevisivel (X +/-10 | Y 0-5)",
     Flag = "autoGolModoAleatorio",
     CurrentValue = autoGolModoAleatorio,
     Callback = function(v)
@@ -2021,7 +2022,7 @@ AutoGolTab:CreateToggle({
 
 AutoGolTab:CreateSlider({
     Name = "Altura do Chute",
-    Desc = "0-5 (ignorado se Aleatório ON)",
+    Desc = "0-5 (ignorado se Aleatorio ON)",
     Range = { 0, 5 }, Increment = 1,
     CurrentValue = autoGolAltura,
     Callback = function(v)
@@ -2033,7 +2034,7 @@ AutoGolTab:CreateSlider({
 
 AutoGolTab:CreateSlider({
     Name = "Largura do Chute",
-    Desc = "0-5 (ignorado se Aleatório ON)",
+    Desc = "0-5 (ignorado se Aleatorio ON)",
     Range = { 0, 5 }, Increment = 1,
     CurrentValue = autoGolLargura,
     Callback = function(v)
@@ -2043,7 +2044,8 @@ AutoGolTab:CreateSlider({
     end,
 })
 
-local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configurações do jogador", Icon = "user" })
+-- ========== ABA PLAYER ==========
+local PlayerTab = Window:CreateTab({ Name = "Player", Desc = "Configuracoes do jogador", Icon = "user" })
 PlayerTab:CreateSection("Player")
 PlayerTab:CreateSlider({
     Name = "Speed", Desc = "Recomendado: 40",
@@ -2058,7 +2060,7 @@ PlayerTab:CreateToggle({
     Callback = function(v) ativarWalkSpeed(v) end,
 })
 PlayerTab:CreateToggle({
-    Name = "Fixa Button", Desc = "Trava botões (não arrasta)",
+    Name = "Fixa Button", Desc = "Trava botoes (nao arrasta)",
     Flag = "fixaButton",
     CurrentValue = Config.fixaButton,
     Callback = function(v)
@@ -2068,7 +2070,7 @@ PlayerTab:CreateToggle({
     end,
 })
 
-PlayerTab:CreateSection("Ativação rápida (PC)")
+PlayerTab:CreateSection("Ativacao rapida (PC)")
 PlayerTab:CreateInput({
     Name = "Tecla Aimbot", Desc = "Ex: H",
     PlaceholderText = "Ex: H", CurrentValue = Config.teclaAimbot,
@@ -2106,7 +2108,7 @@ PlayerTab:CreateInput({
     end,
 })
 PlayerTab:CreateInput({
-    Name = "Tecla Força Bola", Desc = "Ex: F",
+    Name = "Tecla Forca Bola", Desc = "Ex: F",
     PlaceholderText = "Ex: F", CurrentValue = Config.teclaForcaBola,
     Callback = function(txt)
         Config.teclaForcaBola = txt:upper(); SaveConfig()
@@ -2125,7 +2127,7 @@ PlayerTab:CreateInput({
 })
 PlayerTab:CreateButton({
     Name = "Mostra Teclas",
-    Desc = "Mostra as teclas no canto superior direito (vermelho)",
+    Desc = "Mostra as teclas no canto superior direito",
     Callback = function()
         Config.mostrarHUDTeclas = not Config.mostrarHUDTeclas
         SaveConfig()
@@ -2133,7 +2135,8 @@ PlayerTab:CreateButton({
     end,
 })
 
-local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimização", Icon = "activity" })
+-- ========== ABA DESEMPENHO ==========
+local PerfTab = Window:CreateTab({ Name = "Desempenho", Desc = "Performance e otimizacao", Icon = "activity" })
 PerfTab:CreateSection("Performance")
 PerfTab:CreateToggle({
     Name = "Mostrar FPS/Ping", Desc = "Canto inferior direito",
@@ -2141,7 +2144,7 @@ PerfTab:CreateToggle({
     Callback = function(v) Config.statsToggle = v; SaveConfig() end,
 })
 PerfTab:CreateToggle({
-    Name = "Modo FPS++", Desc = "Remove sombras e partículas",
+    Name = "Modo FPS++", Desc = "Remove sombras e particulas",
     Flag = "fpsMode", CurrentValue = Config.fpsModeAtivo,
     Callback = function(v)
         Config.fpsModeAtivo = v; SaveConfig()
@@ -2149,7 +2152,7 @@ PerfTab:CreateToggle({
     end,
 })
 PerfTab:CreateSlider({
-    Name = "Nível FPS++", Desc = "0=off | 3=máximo",
+    Name = "Nivel FPS++", Desc = "0=off | 3=maximo",
     Range = { 0, 3 }, Increment = 1,
     CurrentValue = Config.fpsModeLevel,
     Callback = function(v)
@@ -2158,91 +2161,102 @@ PerfTab:CreateSlider({
     end,
 })
 PerfTab:CreateToggle({
-    Name = "Ping -10", Desc = "Reduz qualidade gráfica",
+    Name = "Ping -10", Desc = "Reduz qualidade grafica",
     Flag = "pingMenos", CurrentValue = Config.pingMenos,
     Callback = function(v) aplicarPingMenos(v) end,
 })
 PerfTab:CreateToggle({
-    Name = "Anti-Cantisine", Desc = "Cancela animações de stun",
+    Name = "Anti-Cantisine", Desc = "Cancela animacoes de stun",
     Flag = "antiCantisine", CurrentValue = Config.antiCantisine,
     Callback = function(v)
         antiCantisineAtivo = v; Config.antiCantisine = v; SaveConfig()
     end,
 })
 PerfTab:CreateToggle({
-    Name = "Camera Lock", Desc = "Câmera sempre no personagem",
+    Name = "Camera Lock", Desc = "Camera sempre no personagem",
     Flag = "cameraLock", CurrentValue = Config.cameraLock,
     Callback = function(v)
         cameraLockAtivo = v; Config.cameraLock = v; SaveConfig()
     end,
 })
 
--- ========== LOOP PRINCIPAL ==========
+print("[BlueLock V7] UI criada. Iniciando loops...")
+
+-- ========== LOOPS ==========
 RunService.Heartbeat:Connect(function()
-    aplicarReachBola()
-    atualizarAimbotPersonagem()
-    atualizarAimbotCamera()
-    atualizarESP()
-    atualizarVisaoBola()
-    atualizarAdvinhaChute()
-    aplicarForcaBola()
-    aplicarCurvas()
-    aplicarDrible()
-    aplicarTrazerBola()
-    aplicarStopBall()
-    atualizarControleBola()
-    atualizarVisuaisAutoGk()
+    pcall(function() aplicarReachBola() end)
+    pcall(function() atualizarAimbotPersonagem() end)
+    pcall(function() atualizarAimbotCamera() end)
+    pcall(function() atualizarESP() end)
+    pcall(function() atualizarVisaoBola() end)
+    pcall(function() atualizarAdvinhaChute() end)
+    pcall(function() aplicarForcaBola() end)
+    pcall(function() aplicarCurvas() end)
+    pcall(function() aplicarDrible() end)
+    pcall(function() aplicarTrazerBola() end)
+    pcall(function() aplicarStopBall() end)
+    pcall(function() atualizarControleBola() end)
+    pcall(function() atualizarVisuaisAutoGk() end)
 end)
 
 RunService.RenderStepped:Connect(function()
-    processarAutoGk()
-    antiCantisine()
-    cameraLock()
+    pcall(function() processarAutoGk() end)
+    pcall(function() antiCantisine() end)
+    pcall(function() cameraLock() end)
     if walkBoost and player.Character then
-        local char = player.Character
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if hum and root then
-            if walkAttachedCharacter ~= char then
-                walkAttachedCharacter = char
-                criarWalkBodyVelocity(char)
+        pcall(function()
+            local char = player.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if hum and root then
+                if walkAttachedCharacter ~= char then
+                    walkAttachedCharacter = char
+                    criarWalkBodyVelocity(char)
+                end
+                if not walkBodyVelocity or not walkBodyVelocity.Parent or walkBodyVelocity.Parent ~= root then
+                    criarWalkBodyVelocity(char)
+                end
+                if walkBodyVelocity then
+                    local md = hum.MoveDirection
+                    walkBodyVelocity.Velocity = (md.Magnitude > 0) and (md * walkSpeedValue) or Vector3.zero
+                end
             end
-            if not walkBodyVelocity or not walkBodyVelocity.Parent or walkBodyVelocity.Parent ~= root then
-                criarWalkBodyVelocity(char)
-            end
-            if walkBodyVelocity then
-                local md = hum.MoveDirection
-                walkBodyVelocity.Velocity = (md.Magnitude > 0) and (md * walkSpeedValue) or Vector3.zero
-            end
-        end
+        end)
     end
 end)
 
--- ========== APLICAR ESTADOS SALVOS ==========
-if Config.botaoFlutuante then task.wait(0.5); criarBotaoFlutuante(); criarSlideFlutuante() end
-if Config.trazerBolaMostrar then task.wait(0.5); criarBotaoTrazerBola() end
-if Config.stopBallMostrar then task.wait(0.5); criarBotaoStopBall() end
-if Config.botaoCamera then task.wait(0.5); criarBotaoCameraFlutuante() end
-if Config.curvasAtivo then task.wait(0.5); criarBotaoCurvas() end
-if autoGolAtivo then task.wait(0.5); criarBotoesAutoGol() end
-if Config.autoGkAtivo then task.wait(0.5); criarVisuaisAutoGk() end
-if Config.walkSpeedAtivo then task.wait(1); ativarWalkSpeed(true) end
-if Config.noCooldown then task.wait(2); ativarNoCooldown(true) end
-
-aplicarFixaButton()
-
-aplicarTecla("Aimbot", Config.teclaAimbot, teclaAimbotCallback)
-aplicarTecla("TrazerBola", Config.teclaTrazerBola, teclaTrazerBolaCallback)
-aplicarTecla("ControleBola", Config.teclaControleBola, teclaControleBolaCallback)
-aplicarTecla("StopBall", Config.teclaStopBall, teclaStopBallCallback)
-aplicarTecla("ForcaBola", Config.teclaForcaBola, teclaForcaBolaCallback)
-aplicarTecla("Curva", Config.teclaCurva, teclaCurvaCallback)
-atualizarHUDTeclas()
-
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "Blue Lock Rivals V7",
-        Text = "Nova aba Auto Gol (2 botões + velocidade + aleatório)",
-        Duration = 3
-    })
+-- ========== RESTAURAR ESTADOS ==========
+task.spawn(function()
+    task.wait(1)
+    if Config.botaoFlutuante then
+        pcall(function() criarBotaoFlutuante(); criarSlideFlutuante() end)
+    end
+    if Config.trazerBolaMostrar then pcall(criarBotaoTrazerBola) end
+    if Config.stopBallMostrar then pcall(criarBotaoStopBall) end
+    if Config.botaoCamera then pcall(criarBotaoCameraFlutuante) end
+    if Config.curvasAtivo then pcall(criarBotaoCurvas) end
+    if autoGolAtivo then pcall(criarBotoesAutoGol) end
+    if autoGkAtivo then pcall(criarVisuaisAutoGk) end
+    task.wait(0.5)
+    if Config.walkSpeedAtivo then pcall(function() ativarWalkSpeed(true) end) end
+    task.wait(1)
+    if Config.noCooldown then pcall(function() ativarNoCooldown(true) end) end
+    pcall(aplicarFixaButton)
+    pcall(function()
+        aplicarTecla("Aimbot", Config.teclaAimbot, teclaAimbotCallback)
+        aplicarTecla("TrazerBola", Config.teclaTrazerBola, teclaTrazerBolaCallback)
+        aplicarTecla("ControleBola", Config.teclaControleBola, teclaControleBolaCallback)
+        aplicarTecla("StopBall", Config.teclaStopBall, teclaStopBallCallback)
+        aplicarTecla("ForcaBola", Config.teclaForcaBola, teclaForcaBolaCallback)
+        aplicarTecla("Curva", Config.teclaCurva, teclaCurvaCallback)
+        atualizarHUDTeclas()
+    end)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification",{
+            Title = "Blue Lock Rivals V7",
+            Text = "Auto Gol novo: 2 botoes (Time + Gol) sem teleport",
+            Duration = 3
+        })
+    end)
+    print("[BlueLock V7] Script carregado com sucesso!")
 end)
