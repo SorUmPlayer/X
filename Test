@@ -1,3 +1,7 @@
+--[[
+    ⚽ Blue Lock Rivals – Airflow UI (v14 – FIXA Button + Branding fix)
+]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,16 +15,17 @@ local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+-- ⭐ Carrega Airflow com patch de branding (remove "SorHub Universal EsportV7")
 local function loadAirflowUI()
     local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
     local ok, source = pcall(function() return game:HttpGet(url) end)
     if ok and source then
         local patched = source
         pcall(function()
-            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals V7")
-            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals V7")
+            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals v14")
+            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v14")
             patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
-            patched = patched:gsub("EsportV7", "V7")
+            patched = patched:gsub("EsportV7", "v14")
         end)
         if patched ~= source then
             local fn = loadstring(patched)
