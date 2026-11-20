@@ -11,50 +11,32 @@ local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+local function loadAirflowUI()
     local url = "https://raw.githubusercontent.com/snowdevlol/Airflow-UI/main/Source.luau"
-
-    -- 1. Download (uma única request)
-    local httpOk, source = pcall(function() return game:HttpGet(url) end)
-    if not httpOk or type(source) ~= "string" or #source < 50 then
-        error("[Airflow] Falha ao baixar a biblioteca. Verifique sua conexão com raw.githubusercontent.com")
-    end
-
-    -- 2. Rejeita HTML (404, página de erro, rate-limit)
-    if source:match("^%s*<!") or source:match("^%s*<html") then
-        error("[Airflow] Servidor retornou HTML (URL pode estar offline). Head: " .. source:sub(1, 80))
-    end
-
-    -- 3. Patch do branding (isolado, não quebra se falhar)
-    local patched = source
-    pcall(function()
-        patched = source:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals V7")
-        patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals V7")
-        patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
-    end)
-
-    -- 4. Pega o loader (compatível com qualquer executor)
-    local loader = loadstring
-    if type(loader) ~= "function" then
-        loader = getgenv and getgenv().loadstring
-    end
-    if type(loader) ~= "function" then
-        error("[Airflow] loadstring indisponível no executor")
-    end
-
-    -- 5. Tenta patched, depois original — NUNCA chama nil()
-    for _, candidate in ipairs({patched, source}) do
-        local compileOk, chunk = pcall(loader, candidate)
-        if compileOk and type(chunk) == "function" then
-            local runOk, result = pcall(chunk)
-            if runOk and type(result) == "table" then
-                return result
+    local ok, source = pcall(function() return game:HttpGet(url) end)
+    if ok and source then
+        local patched = source
+        pcall(function()
+            patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals V7")
+            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals V7")
+            patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
+            patched = patched:gsub("EsportV7", "V7")
+        end)
+        if patched ~= source then
+            local fn = loadstring(patched)
+            if fn then
+                local ok2, result = pcall(fn)
+                if ok2 and result then return result end
             end
         end
+        local fn = loadstring(source)
+        if fn then
+            local ok2, result = pcall(fn)
+            if ok2 and result then return result end
+        end
     end
-
-    error("[Airflow] Não foi possível executar a biblioteca (source inválida ou lib corrompida)")
+    return loadstring(game:HttpGet(url))()
 end
-
 local Airflow = loadAirflowUI()
 
 local CONFIG_FILE = "BlueLock_Airflow.json"
