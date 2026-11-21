@@ -23,7 +23,7 @@ local function loadAirflowUI()
         local patched = source
         pcall(function()
             patched = patched:gsub("Bem%-Vindo SorHub Universal EsportV7", "Blue Lock Rivals")
-            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v14")
+            patched = patched:gsub("SorHub Universal EsportV7", "Blue Lock Rivals v7")
             patched = patched:gsub("SorHub Universal Esport", "Blue Lock Rivals")
             patched = patched:gsub("EsportV7", "v7")
         end)
@@ -1694,7 +1694,7 @@ end
 -- ========== UI – AIRFLOW ==========
 local Window = Airflow:CreateWindow({
     Name = "Blue Lock Rivals",
-    LoadingSubtitle = "v14",
+    LoadingSubtitle = "v7",
     Icon = "wind",
     Theme = "Midnight",
     ToggleUIKeybind = "RightShift",
